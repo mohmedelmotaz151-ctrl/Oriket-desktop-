@@ -186,7 +186,7 @@ class MainActivity : Activity() {
    setPadding(12,0,4,0)
    setBackgroundColor(Color.rgb(247,249,253))
   }
-  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=13f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
+  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=16f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
   val minimize=windowButton("—")
   val maximize=windowButton("□")
   val close=windowButton("×")
@@ -331,8 +331,8 @@ class MainActivity : Activity() {
   setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,242,252)))
   contentDescription=title
  }
- private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=12f; isAllCaps=false; setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(239,244,251))); setOnClickListener{a()} }
- private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=14f; isAllCaps=false; setTextColor(Color.WHITE); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); setOnClickListener{a()} }
+ private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=15f; minHeight=46; minimumHeight=46; isAllCaps=false; typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.rgb(18,32,54)); setPadding(10,6,10,6); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(231,239,250))); contentDescription=s; setOnClickListener{a()} }
+ private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=16f; minHeight=48; minimumHeight=48; isAllCaps=false; typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.WHITE); setPadding(10,6,10,6); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); contentDescription=s; setOnClickListener{a()} }
  private fun panel(v:View) {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
@@ -474,7 +474,7 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(54,54))
-   tile.addView(TextView(this).apply { text=displayName; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0); maxLines=2 })
+   tile.addView(TextView(this).apply { text=displayName; textSize=13f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0); maxLines=2 })
    grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=82; setMargins(1,1,1,1) })
   }
   shortcuts.addView(ScrollView(this).apply { isFillViewport=false; addView(grid) },LinearLayout.LayoutParams(108,0,1f))
@@ -542,7 +542,7 @@ class MainActivity : Activity() {
   }
   menu.addView(search,LinearLayout.LayoutParams(-1,46))
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,4) }
-  heading.addView(TextView(this).apply { text="مثبّت"; textSize=16f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
+  heading.addView(TextView(this).apply { text="مثبّت"; textSize=18f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
   heading.addView(task("كل التطبيقات  ›"){ search.setText("") })
   menu.addView(heading)
   val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
@@ -569,7 +569,7 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(TextView(this).apply { text=item.first; textSize=26f; gravity=Gravity.CENTER; setTextColor(navy) },LinearLayout.LayoutParams(-1,38))
-   tile.addView(TextView(this).apply { text=item.second; textSize=10f; gravity=Gravity.CENTER; setTextColor(navy); maxLines=2 },LinearLayout.LayoutParams(-1,30))
+   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; maxLines=2 },LinearLayout.LayoutParams(-1,30))
    grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=70;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(2,1,2,1) })
   }
   menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
@@ -1038,25 +1038,25 @@ class MainActivity : Activity() {
  private fun showExcel() {
   shell("Excel")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="Excel — جدول بيانات Oriket"; textSize=19f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,5) })
+  page.addView(TextView(this).apply { text="Excel — جدول البيانات"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,5) })
   val prefs=getSharedPreferences("orkeit_excel",Context.MODE_PRIVATE)
   val grid=GridLayout(this).apply { columnCount=5; rowCount=11 }
   val cells=mutableListOf<EditText>()
-  listOf("#","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; gravity=Gravity.CENTER; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(218,232,248)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=36; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
+  listOf("صف","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; textSize=16f; gravity=Gravity.CENTER; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(205,224,247)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=46; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
   val saved=prefs.getString("data","").orEmpty().split("\u001F")
   fun cellIndex(ref:String):Int { val s=ref.trim().uppercase(Locale.ROOT); if(s.length<2)return -1; val col=s[0]-'A'; val row=s.substring(1).toIntOrNull()?.minus(1) ?: return -1; return if(col in 0..3 && row in 0..9) row*4+col else -1 }
   fun cellValue(i:Int,depth:Int=0):Double { if(i !in cells.indices || depth>8)return Double.NaN; val raw=cells[i].text.toString().trim(); if(!raw.startsWith("="))return raw.replace(",",".").toDoubleOrNull() ?: 0.0; val e=raw.drop(1).trim(); val ref=cellIndex(e); if(ref>=0)return cellValue(ref,depth+1); val sum=Regex("(?i)SUM\\(([A-D]\\d+):([A-D]\\d+)\\)").matchEntire(e); if(sum!=null){val x=cellIndex(sum.groupValues[1]);val y=cellIndex(sum.groupValues[2]);if(x>=0&&y>=0)return (minOf(x,y)..maxOf(x,y)).sumOf{cellValue(it,depth+1)}}; val m=Regex("(-?\\d+(?:[.,]\\d+)?)\\s*([+*/-])\\s*(-?\\d+(?:[.,]\\d+)?)").matchEntire(e); if(m!=null){val x=m.groupValues[1].replace(",",".").toDoubleOrNull()?:return Double.NaN;val y=m.groupValues[3].replace(",",".").toDoubleOrNull()?:return Double.NaN;return when(m.groupValues[2]){"+"->x+y;"-"->x-y;"*"->x*y;"/"->if(y==0.0)Double.NaN else x/y;else->Double.NaN}};return Double.NaN }
   fun persist(){prefs.edit().putString("data",cells.joinToString("\u001F"){it.text.toString()}).apply()}
   repeat(40) { i ->
-   val cell=EditText(this).apply { setSingleLine(true); textSize=12f; gravity=Gravity.CENTER; setPadding(2,2,2,2); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
-   cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=42; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
+   val cell=EditText(this).apply { setSingleLine(true); textSize=16f; gravity=Gravity.CENTER; setPadding(4,4,4,4); setTextColor(Color.rgb(15,25,40)); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
+   cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=50; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
   }
   val buttons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
   buttons.addView(task("حساب الصيغ") { val results=cells.mapIndexedNotNull { i,e -> if(e.text.toString().trim().startsWith("=")){val v=cellValue(i); ("خلية "+('A'+i%4)+(i/4+1)+" = "+(if(v.isNaN()||v.isInfinite()) "#ERROR" else v.toString()))}else null }; AlertDialog.Builder(this).setTitle("نتائج الصيغ").setMessage(results.joinToString("\n").ifEmpty{"لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A4)"}).setPositiveButton("حسنًا",null).show() },LinearLayout.LayoutParams(0,42,1f))
   buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,42,1f))
   buttons.addView(action("تصدير CSV"){try{val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->val i=r*4+col;val raw=cells[i].text.toString().trim();val value=if(raw.startsWith("="))cellValue(i).let{if(it.isNaN()||it.isInfinite())"#ERROR" else it.toString()}else raw;"\""+value.replace("\"","\"\"")+"\""}};val values=ContentValues().apply{put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv");put(MediaStore.Downloads.MIME_TYPE,"text/csv")};val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);if(uri!=null)contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)};Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()}catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}},LinearLayout.LayoutParams(0,42,1f))
   page.addView(buttons)
-  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. الصيغ الأساسية: =A1+B1 و=SUM(A1:A4)."; textSize=11f; setTextColor(navy); setPadding(3,4,3,4) })
+  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. اكتب رقمًا أو صيغة مثل =A1+B1 أو =SUM(A1:A4)، ثم اضغط حساب الصيغ." ; textSize=14f; setTextColor(navy); setPadding(3,4,3,4) })
   page.addView(ScrollView(this).apply { addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
  }
@@ -1175,12 +1175,12 @@ class MainActivity : Activity() {
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
   val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,40,1f)) }
-  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,44))
+  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,50,1f)) }
+  page.addView(TextView(this).apply { text="أدوات الرسم — اختر أداة ثم ارسم في المساحة البيضاء"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,6) })\n  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,54))
   val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
   listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color -> palette.addView(Button(this).apply { text="●"; textSize=18f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} },LinearLayout.LayoutParams(38,36)) }
   palette.addView(task("لون مخصص"){ val input=EditText(this).apply{hint="#RRGGBB";setSingleLine(true)}; AlertDialog.Builder(this).setTitle("لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"أدخل لونًا مثل #3366FF",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show() },LinearLayout.LayoutParams(90,36))
-  page.addView(HorizontalScrollView(this).apply{addView(palette)})
+  page.addView(TextView(this).apply { text="الألوان"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })\n  page.addView(HorizontalScrollView(this).apply{addView(palette)},LinearLayout.LayoutParams(-1,48))
   val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
   actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(0,42,1f))
@@ -1189,7 +1189,7 @@ class MainActivity : Activity() {
   actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,42,1f))
-  page.addView(HorizontalScrollView(this).apply{addView(actions)})
+  page.addView(TextView(this).apply { text="إجراءات الرسم"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })\n  page.addView(HorizontalScrollView(this).apply{addView(actions)},LinearLayout.LayoutParams(-1,54))
   page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
  }
