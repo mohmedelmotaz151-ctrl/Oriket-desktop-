@@ -629,7 +629,7 @@ class MainActivity : Activity() {
   val desktopColumns=((desktopArea.width-32)/120).coerceIn(2,8)
   val grid=GridLayout(this).apply { columnCount=desktopColumns; useDefaultMargins=false }
   val allItems=listOf(
-   Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🧯","زيارات الدفاع المدني",{showBrowser("https://orkeitstm.vercel.app","زيارات الدفاع المدني")}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
    Triple("🎨","الرسام",{showPaint()}), Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}), Triple("▶️","YouTube",{showYouTube()}), Triple("🎧","YouTube Music",{showYouTubeMusic()}), Triple("📝","Word / معالج النصوص",{showWord()}),
    Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
