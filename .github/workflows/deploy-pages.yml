@@ -1,11 +1,6 @@
 name: Deploy privacy policy to GitHub Pages
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'docs/privacy-policy.html'
-      - '.github/workflows/deploy-pages.yml'
 permissions:
   contents: read
   pages: write
