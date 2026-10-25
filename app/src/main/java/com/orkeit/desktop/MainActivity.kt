@@ -1052,8 +1052,8 @@ class MainActivity : Activity() {
    cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=50; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
   }
   val buttons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
-  buttons.addView(task("حساب الصيغ") { val results=cells.mapIndexedNotNull { i,e -> if(e.text.toString().trim().startsWith("=")){val v=cellValue(i); ("خلية "+('A'+i%4)+(i/4+1)+" = "+(if(v.isNaN()||v.isInfinite()) "#ERROR" else v.toString()))}else null }; AlertDialog.Builder(this).setTitle("نتائج الصيغ").setMessage(results.joinToString("\n").ifEmpty{"لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A4)"}).setPositiveButton("حسنًا",null).show() },LinearLayout.LayoutParams(0,42,1f))
-  buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,42,1f))
+  buttons.addView(task("حساب الصيغ") { val results=cells.mapIndexedNotNull { i,e -> if(e.text.toString().trim().startsWith("=")){val v=cellValue(i); ("خلية "+('A'+i%4)+(i/4+1)+" = "+(if(v.isNaN()||v.isInfinite()) "#ERROR" else v.toString()))}else null }; AlertDialog.Builder(this).setTitle("نتائج الصيغ").setMessage(results.joinToString("\n").ifEmpty{"لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A4)"}).setPositiveButton("حسنًا",null).show() },LinearLayout.LayoutParams(0,50,1f))
+  buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,50,1f))
   buttons.addView(action("تصدير CSV"){try{val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->val i=r*4+col;val raw=cells[i].text.toString().trim();val value=if(raw.startsWith("="))cellValue(i).let{if(it.isNaN()||it.isInfinite())"#ERROR" else it.toString()}else raw;"\""+value.replace("\"","\"\"")+"\""}};val values=ContentValues().apply{put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv");put(MediaStore.Downloads.MIME_TYPE,"text/csv")};val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);if(uri!=null)contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)};Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()}catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}},LinearLayout.LayoutParams(0,42,1f))
   page.addView(buttons)
   page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. اكتب رقمًا أو صيغة مثل =A1+B1 أو =SUM(A1:A4)، ثم اضغط حساب الصيغ." ; textSize=14f; setTextColor(navy); setPadding(3,4,3,4) })
@@ -1176,11 +1176,13 @@ class MainActivity : Activity() {
   val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
   val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
   listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,50,1f)) }
-  page.addView(TextView(this).apply { text="أدوات الرسم — اختر أداة ثم ارسم في المساحة البيضاء"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,6) })\n  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,54))
+  page.addView(TextView(this).apply { text="أدوات الرسم — اختر أداة ثم ارسم في المساحة البيضاء"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,6) })
+  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,54))
   val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
   listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color -> palette.addView(Button(this).apply { text="●"; textSize=18f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} },LinearLayout.LayoutParams(38,36)) }
   palette.addView(task("لون مخصص"){ val input=EditText(this).apply{hint="#RRGGBB";setSingleLine(true)}; AlertDialog.Builder(this).setTitle("لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"أدخل لونًا مثل #3366FF",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show() },LinearLayout.LayoutParams(90,36))
-  page.addView(TextView(this).apply { text="الألوان"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })\n  page.addView(HorizontalScrollView(this).apply{addView(palette)},LinearLayout.LayoutParams(-1,48))
+  page.addView(TextView(this).apply { text="الألوان"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
+  page.addView(HorizontalScrollView(this).apply{addView(palette)},LinearLayout.LayoutParams(-1,48))
   val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
   actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(0,42,1f))
@@ -1189,7 +1191,8 @@ class MainActivity : Activity() {
   actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,42,1f))
-  page.addView(TextView(this).apply { text="إجراءات الرسم"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })\n  page.addView(HorizontalScrollView(this).apply{addView(actions)},LinearLayout.LayoutParams(-1,54))
+  page.addView(TextView(this).apply { text="إجراءات الرسم"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
+  page.addView(HorizontalScrollView(this).apply{addView(actions)},LinearLayout.LayoutParams(-1,54))
   page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
  }
