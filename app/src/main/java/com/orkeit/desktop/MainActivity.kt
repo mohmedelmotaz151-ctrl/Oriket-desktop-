@@ -24,6 +24,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import android.widget.VideoView
 import android.text.InputType
 import java.util.Locale
 import java.net.HttpURLConnection
@@ -250,10 +251,13 @@ class MainActivity : Activity() {
   }
   val grid=GridLayout(this).apply { columnCount=2; useDefaultMargins=false }
   val items=listOf(
-   Triple("🌐","المتصفح",{showBrowser()}), Triple("📁","مستكشف الملفات",{pickFile("*/*")}),
-   Triple("📄","ملفات PDF",{pickFile("application/pdf")}), Triple("🧮","الحاسبة",{showCalculator()}),
-   Triple("🎨","الرسام",{showPaint()}), Triple("📝","المفكرة",{showNotepad()}),
-   Triple("⚙️","الإعدادات",{showAbout()}), Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
+   Triple("🌐","Chrome / المتصفح",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","VLC مشغل الفيديو",{showVideoPlayer()}),
+   Triple("🎨","الرسام",{showPaint()}), Triple("📝","Word / معالج النصوص",{showWord()}),
+   Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
+   Triple("📋","إدارة المهام",{showTaskManager()}), Triple("⌨️","Command",{showCommand()}),
+   Triple("🎮","ألعاب Windows",{showGames()}), Triple("🧮","الحاسبة",{showCalculator()}),
+   Triple("🗒️","المفكرة",{showNotepad()}), Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
   )
   items.forEach { item ->
    val tile=LinearLayout(this).apply {
@@ -312,16 +316,19 @@ class MainActivity : Activity() {
   menu.addView(search,LinearLayout.LayoutParams(-1,44))
   val grid=GridLayout(this).apply { columnCount=3 }
   listOf(
-   Triple("🌐","المتصفح",{showBrowser()}),Triple("📁","الملفات",{pickFile("*/*")}),
-   Triple("🧮","الحاسبة",{showCalculator()}),Triple("🎨","الرسام",{showPaint()}),
-   Triple("📝","المفكرة",{showNotepad()}),Triple("⚙️","الإعدادات",{showAbout()})
+   Triple("🌐","Chrome / المتصفح",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("📄","مشغل PDF",{pickFile("application/pdf")}),Triple("🎬","VLC",{showVideoPlayer()}),
+   Triple("🎨","الرسام",{showPaint()}),Triple("📝","Word",{showWord()}),
+   Triple("📊","Excel",{showExcel()}),Triple("⚙️","لوحة التحكم",{showControlPanel()}),
+   Triple("📋","إدارة المهام",{showTaskManager()}),Triple("⌨️","Command",{showCommand()}),
+   Triple("🎮","الألعاب",{showGames()}),Triple("🧮","الحاسبة",{showCalculator()})
   ).forEach { item ->
    val b=Button(this).apply { text=item.first+"\n"+item.second; isAllCaps=false; textSize=12f; setOnClickListener { desktopArea.removeView(menu); item.third.invoke() } }
    grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=76; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
   }
   menu.addView(grid)
   menu.addView(action("إيقاف الواجهة") { finish() })
-  desktopArea.addView(menu,FrameLayout.LayoutParams(360,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=10 })
+  desktopArea.addView(menu,FrameLayout.LayoutParams(420,-2,Gravity.BOTTOM or Gravity.LEFT).apply { leftMargin=12; bottomMargin=10 })
   search.addTextChangedListener(object:android.text.TextWatcher {
    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
    override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
@@ -425,7 +432,7 @@ class MainActivity : Activity() {
  @Deprecated("Uses compatible document picker callback")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
-  if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
+  if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)\n  if(requestCode==52 && resultCode==RESULT_OK && data?.data!=null) {\n   val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")\n   if(video!=null) { video.setVideoURI(data.data); video.start() }\n  }
  }
  private fun showFile(uri:Uri) {
   val mime=contentResolver.getType(uri) ?: "application/octet-stream"
@@ -494,6 +501,195 @@ class MainActivity : Activity() {
   })
   panel(page)
  }
+
+ private fun showMyComputer() {
+  shell("هذا الكمبيوتر")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="هذا الكمبيوتر"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(8,4,8,10) })
+  val grid=GridLayout(this).apply { columnCount=2 }
+  listOf(
+   Triple("📂","فتح الملفات",{pickFile("*/*")}),
+   Triple("📄","ملفات PDF",{pickFile("application/pdf")}),
+   Triple("🖼️","الصور",{pickFile("image/*")}),
+   Triple("🎬","الفيديوهات",{showVideoPlayer()}),
+   Triple("⬇️","التنزيلات",{try { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) } catch(_:Exception) { pickFile("*/*") }}),
+   Triple("⚙️","إعدادات الجهاز",{showControlPanel()})
+  ).forEach { item ->
+   grid.addView(action(item.first+"  "+item.second){ item.third.invoke() },GridLayout.LayoutParams().apply { width=0; height=64; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4) })
+  }
+  page.addView(grid)
+  page.addView(TextView(this).apply { text="التخزين الظاهر هنا هو تخزين Android الذي يسمح النظام للتطبيق بالوصول إليه. افتح الملفات لاختيار المستندات والصور والفيديوهات."; textSize=13f; setTextColor(navy); setPadding(8,12,8,8) })
+  panel(page)
+ }
+ private fun showControlPanel() {
+  shell("لوحة التحكم")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="لوحة التحكم"; textSize=23f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(8,4,8,12) })
+  listOf(
+   "الشاشة والاتجاه" to { AlertDialog.Builder(this).setTitle("الشاشة").setMessage("تم تصميم الواجهة للوضع الأفقي. يمكنك تدوير الجهاز من إعدادات Android.").setPositiveButton("حسنًا",null).show() },
+   "الشبكة والإنترنت" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
+   "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
+   "إعدادات التطبيقات" to { try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+packageName))) } catch(_:Exception){} },
+   "حول Oriket Desktop" to { showAbout() }
+  ).forEach { pair -> page.addView(task("⚙  "+pair.first){pair.second.invoke()},LinearLayout.LayoutParams(-1,48).apply { topMargin=3; bottomMargin=3 }) }
+  panel(page)
+ }
+ private fun showTaskManager() {
+  shell("إدارة المهام")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="إدارة المهام"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,8) })
+  val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  fun refresh() {
+   list.removeAllViews()
+   if(openWindows.isEmpty()) list.addView(message("لا توجد نوافذ مفتوحة"))
+   openWindows.toList().forEach { entry ->
+    val row=LinearLayout(this@MainActivity).apply { gravity=Gravity.CENTER_VERTICAL }
+    row.addView(TextView(this@MainActivity).apply { text=windowIcon(entry.title)+"  "+entry.title; setTextColor(navy); textSize=14f },LinearLayout.LayoutParams(0,44,1f))
+    row.addView(task("إنهاء المهمة"){ if(entry.id!=openWindows.firstOrNull{it.title=="إدارة المهام"}?.id) { desktopArea.removeView(entry.frame); taskbar.removeView(entry.taskButton); openWindows.removeAll{it.id==entry.id}; refresh() } })
+    list.addView(row)
+   }
+  }
+  page.addView(action("تحديث القائمة"){refresh()})
+  page.addView(ScrollView(this).apply { addView(list) },LinearLayout.LayoutParams(-1,0,1f))
+  panel(page); refresh()
+ }
+ private fun showCommand() {
+  shell("Command")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(12,18,24)); setPadding(8,8,8,8) }
+  val output=TextView(this).apply { text="Oriket Command [محاكاة أوامر داخل التطبيق]\nاكتب help لعرض الأوامر.\n\nC:\\Users\\Oriket>"; typeface=Typeface.MONOSPACE; textSize=13f; setTextColor(Color.rgb(160,245,170)); setPadding(4,4,4,4) }
+  val scroll=ScrollView(this).apply { addView(output) }
+  val input=EditText(this).apply { hint="اكتب أمرًا مثل help أو dir"; setSingleLine(true); typeface=Typeface.MONOSPACE; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); setBackgroundColor(Color.rgb(30,38,46)) }
+  page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); page.addView(input,LinearLayout.LayoutParams(-1,48))
+  input.setOnEditorActionListener { _,_,_ ->
+   val cmd=input.text.toString().trim(); input.setText("")
+   val result=when {
+    cmd.equals("help",true)->"help  dir  cls  ver  date  time  whoami  echo <text>  calc"
+    cmd.equals("dir",true)->" Directory of C:\\Users\\Oriket\n Desktop   Documents   Downloads   Pictures   Videos"
+    cmd.equals("cls",true)->{output.text=""; ""}
+    cmd.equals("ver",true)->"Oriket Desktop [Windows 11-inspired shell]"
+    cmd.equals("date",true)->java.text.SimpleDateFormat("yyyy-MM-dd",Locale.getDefault()).format(java.util.Date())
+    cmd.equals("time",true)->java.text.SimpleDateFormat("HH:mm:ss",Locale.getDefault()).format(java.util.Date())
+    cmd.equals("whoami",true)->"Oriket\\User"
+    cmd.startsWith("echo ",true)->cmd.substringAfter(" ")
+    cmd.equals("calc",true)->"افتح تطبيق الحاسبة من قائمة ابدأ."
+    else->"الأمر غير معروف. اكتب help. (لا يتم تنفيذ أوامر Windows الحقيقية على Android)"
+   }
+   if(!cmd.equals("cls",true)) output.append("\n"+result)
+   output.append("\n\nC:\\Users\\Oriket>")
+   scroll.post{scroll.fullScroll(View.FOCUS_DOWN)}
+   true
+  }
+  panel(page)
+ }
+ private fun showVideoPlayer() {
+  shell("VLC مشغل الفيديو")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val bar=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  val video=VideoView(this)
+  bar.addView(action("فتح فيديو") {
+   try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type="video/*" },52) }
+   catch(_:Exception){Toast.makeText(this,"تعذر فتح منتقي الفيديو",Toast.LENGTH_SHORT).show()}
+  })
+  bar.addView(action("تشغيل"){video.start()})
+  bar.addView(action("إيقاف مؤقت"){video.pause()})
+  page.addView(bar)
+  video.setMediaController(MediaController(this))
+  page.addView(video,LinearLayout.LayoutParams(-1,0,1f))
+  panel(page)
+  video.tag="orkeit-video-view"
+ }
+ private fun showWord() {
+  shell("Word")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val toolbar=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  val editor=EditText(this).apply { hint="مستند جديد"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE) }
+  toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("sans-serif",Typeface.NORMAL) else Typeface.create("sans-serif",Typeface.BOLD)})
+  toolbar.addView(task("A+"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity + 2f).coerceAtMost(40f)})
+  toolbar.addView(task("A−"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity - 2f).coerceAtLeast(10f)})
+  toolbar.addView(action("حفظ TXT"){
+   try {
+    val values=ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Word-"+System.currentTimeMillis()+".txt"); put(MediaStore.Downloads.MIME_TYPE,"text/plain") }
+    val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
+    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(editor.text.toString())}
+    Toast.makeText(this,if(uri!=null)"تم حفظ المستند في التنزيلات" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
+   }catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
+  })
+  page.addView(toolbar); page.addView(ScrollView(this).apply { addView(editor) },LinearLayout.LayoutParams(-1,0,1f)); panel(page)
+ }
+ private fun showExcel() {
+  shell("Excel")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="Excel — جدول بيانات بسيط"; textSize=19f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) })
+  val grid=GridLayout(this).apply { columnCount=4; rowCount=10 }
+  val cells=mutableListOf<EditText>()
+  repeat(40) { i ->
+   val cell=EditText(this).apply { setSingleLine(true); textSize=12f; gravity=Gravity.CENTER; setPadding(2,2,2,2); setText(if(i<4) listOf("A","B","C","D")[i] else ""); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(if(i<4) Color.rgb(222,235,247) else Color.WHITE); setStroke(1,border) }) }
+   cells.add(cell)
+   grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=42; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
+  }
+  page.addView(ScrollView(this).apply { addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
+  page.addView(action("تصدير CSV"){
+   try {
+    val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->"\""+cells[r*4+col].text.toString().replace("\"","\"\"")+"\""}}
+    val values=ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv"); put(MediaStore.Downloads.MIME_TYPE,"text/csv") }
+    val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
+    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)}
+    Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى CSV" else "تعذر التصدير",Toast.LENGTH_LONG).show()
+   }catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}
+  })
+  panel(page)
+ }
+ private fun showGames() {
+  shell("ألعاب Windows")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="ألعاب كلاسيكية بسيطة"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,10) })
+  page.addView(action("الثعبان — Snake"){showSnakeGame()})
+  page.addView(action("تحدي الأرقام"){showNumberGame()})
+  page.addView(TextView(this).apply { text="ألعاب أصلية مرخصة من Microsoft غير مضمنة. هذه ألعاب بسيطة مدمجة في Oriket Desktop."; textSize=12f; setTextColor(navy); setPadding(8,12,8,8) })
+  panel(page)
+ }
+ private fun showNumberGame() {
+  var target=(1..20).random(); var attempts=0
+  val input=EditText(this).apply { hint="خمن رقمًا من 1 إلى 20"; inputType=InputType.TYPE_CLASS_NUMBER }
+  AlertDialog.Builder(this).setTitle("تحدي الأرقام").setView(input)
+   .setPositiveButton("تحقق"){_,_-> attempts++; val n=input.text.toString().toIntOrNull(); val msg=when { n==null->"أدخل رقمًا صحيحًا"; n==target->"أحسنت! عدد المحاولات: $attempts"; n<target->"الرقم أكبر"; else->"الرقم أصغر" }; Toast.makeText(this,msg,Toast.LENGTH_LONG).show(); if(n!=target) showNumberGameRound(target,attempts) }
+   .setNegativeButton("إغلاق",null).show()
+ }
+ private fun showNumberGameRound(target:Int,attempts:Int) {
+  val input=EditText(this).apply { hint="محاولة جديدة"; inputType=InputType.TYPE_CLASS_NUMBER }
+  AlertDialog.Builder(this).setTitle("تحدي الأرقام").setMessage("عدد المحاولات: $attempts").setView(input).setPositiveButton("تحقق"){_,_-> val n=input.text.toString().toIntOrNull(); val msg=when { n==null->"أدخل رقمًا"; n==target->"أحسنت!"; n<target->"الرقم أكبر"; else->"الرقم أصغر" }; Toast.makeText(this,msg,Toast.LENGTH_LONG).show(); if(n!=target) showNumberGameRound(target,attempts+1) }.setNegativeButton("إغلاق",null).show()
+ }
+ private fun showSnakeGame() {
+  shell("Snake")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val info=TextView(this).apply { text="لعبة الثعبان البسيطة — استخدم أزرار الاتجاهات"; gravity=Gravity.CENTER; setTextColor(navy) }
+  val game=SnakeView(this)
+  page.addView(info)
+  page.addView(game,LinearLayout.LayoutParams(-1,0,1f))
+  val controls=GridLayout(this).apply { columnCount=3 }
+  listOf("↑","←","↓","→").forEach { dir->controls.addView(action(dir){game.move(dir)},GridLayout.LayoutParams().apply{width=0;height=48;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(2,2,2,2)})}
+  page.addView(controls)
+  page.addView(action("إعادة اللعبة"){game.reset()})
+  panel(page)
+ }
+ private inner class SnakeView(c:Context):View(c) {
+  private val p=Paint(3); private var snake=mutableListOf(Pair(5,5),Pair(4,5),Pair(3,5)); private var food=Pair(9,7); private var dx=1; private var dy=0; private var score=0
+  override fun onDraw(canvas:Canvas) {
+   super.onDraw(canvas); canvas.drawColor(Color.rgb(246,250,246)); val cell=(width.coerceAtMost(height)/14f).coerceAtLeast(8f); val ox=(width-cell*14)/2; val oy=(height-cell*14)/2
+   p.color=Color.rgb(40,160,80); snake.forEach{canvas.drawRoundRect(ox+it.first*cell,oy+it.second*cell,ox+(it.first+1)*cell-2,oy+(it.second+1)*cell-2,5f,5f,p)}
+   p.color=Color.RED; canvas.drawCircle(ox+(food.first+.5f)*cell,oy+(food.second+.5f)*cell,cell*.35f,p)
+   p.color=navy; p.textSize=18f; canvas.drawText("Score: $score",12f,24f,p)
+  }
+  fun move(d:String) {
+   when(d){"↑"->{dx=0;dy=-1};"↓"->{dx=0;dy=1};"←"->{dx=-1;dy=0};"→"->{dx=1;dy=0}}
+   val head=snake.first(); val next=Pair((head.first+dx+14)%14,(head.second+dy+14)%14)
+   snake.add(0,next)
+   if(next==food){score++; food=Pair((0..13).random(),(0..13).random())} else snake.removeAt(snake.lastIndex)
+   if(snake.drop(1).contains(next)){reset(); Toast.makeText(context,"انتهت اللعبة",Toast.LENGTH_SHORT).show()} else invalidate()
+  }
+  fun reset(){snake=mutableListOf(Pair(5,5),Pair(4,5),Pair(3,5));food=Pair(9,7);dx=1;dy=0;score=0;invalidate()}
+ }
+
  private fun showAbout() {
   shell("حول التطبيق")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
