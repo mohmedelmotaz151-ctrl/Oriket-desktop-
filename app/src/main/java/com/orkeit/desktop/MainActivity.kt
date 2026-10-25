@@ -117,6 +117,7 @@ class MainActivity : Activity() {
   desktopArea.setOnLongClickListener {
    android.widget.PopupMenu(this,desktopArea).apply {
     menu.add("عرض قائمة ابدأ").setOnMenuItemClickListener { showStartMenu(); true }
+    menu.add("تغيير الخلفية").setOnMenuItemClickListener { showWallpaperPicker(); true }
     menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
     menu.add("فتح المتصفح").setOnMenuItemClickListener { showBrowser(); true }
     menu.add("فتح مستكشف الملفات").setOnMenuItemClickListener { pickFile("*/*"); true }
@@ -194,7 +195,7 @@ class MainActivity : Activity() {
   outer.addView(titlebar,LinearLayout.LayoutParams(-1,42))
   val body=FrameLayout(this).apply { setPadding(10,8,10,8); setBackgroundColor(Color.rgb(250,251,254)) }
   outer.addView(body,LinearLayout.LayoutParams(-1,0,1f))
-  val lp=FrameLayout.LayoutParams((desktopArea.width*0.78f).toInt().coerceAtLeast(420), (desktopArea.height*0.78f).toInt().coerceAtLeast(280),Gravity.CENTER)
+  val lp=FrameLayout.LayoutParams((desktopArea.width*0.86f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280)), (desktopArea.height*0.84f).toInt().coerceIn(220,(desktopArea.height-16).coerceAtLeast(220)),Gravity.CENTER)
   val entryButton=taskButton(title)
   val entry=WindowEntry(id,title,outer,entryButton)
   openWindows.add(entry)
@@ -348,8 +349,8 @@ class MainActivity : Activity() {
   }
   val grid=GridLayout(this).apply { columnCount=1; useDefaultMargins=false }
   val items=listOf(
-   Triple("🌐","Chrome / المتصفح",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
-   Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","VLC مشغل الفيديو",{showVideoPlayer()}),
+   Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
    Triple("🎨","الرسام",{showPaint()}), Triple("📝","Word / معالج النصوص",{showWord()}),
    Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
    Triple("📋","إدارة المهام",{showTaskManager()}), Triple("⌨️","Command",{showCommand()}),
@@ -403,15 +404,15 @@ class MainActivity : Activity() {
  private fun showStartMenu() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
   if(existing!=null) { desktopArea.removeView(existing); return }
-  val panelWidth=(resources.displayMetrics.widthPixels*0.92f).toInt().coerceIn(320,620)
-  val panelHeight=(desktopArea.height*0.84f).toInt().coerceIn(420,760)
+  val panelWidth=(desktopArea.width*0.92f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280))
+  val panelHeight=(desktopArea.height*0.90f).toInt().coerceIn(300,(desktopArea.height-16).coerceAtLeast(300))
   val menu=LinearLayout(this).apply {
    tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(18,16,18,12)
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(247,245,248,253)); cornerRadius=28f; setStroke(1,Color.rgb(220,228,240)) }
    elevation=36f
   }
   val search=EditText(this).apply {
-   tag="start-search"; hint="🔎  البحث عن التطبيقات والإعدادات والمستندات"; textSize=13f; setSingleLine(true)
+   tag="start-search"; hint="🔎  البحث عن التطبيقات"; textSize=13f; setSingleLine(true)
    setPadding(16,2,16,2); setTextColor(navy); setHintTextColor(Color.rgb(105,120,143))
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=22f; setStroke(1,Color.rgb(220,228,240)) }
   }
@@ -419,14 +420,13 @@ class MainActivity : Activity() {
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,4) }
   heading.addView(TextView(this).apply { text="مثبّت"; textSize=16f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
   heading.addView(task("كل التطبيقات  ›"){ 
-   val q=search.text.toString()
-   search.setText(if(q.isEmpty()) " " else q)
-   Toast.makeText(this,"اختر تطبيقًا من التطبيقات المثبتة أدناه",Toast.LENGTH_SHORT).show()
+   search.setText("")
+   for(i in 0 until grid.childCount) grid.getChildAt(i).visibility=View.VISIBLE
   })
   menu.addView(heading)
   val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
   val items=listOf(
-   Triple("🌐","Chrome",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
    Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🎨","الرسام",{showPaint()}),
    Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
@@ -499,6 +499,10 @@ class MainActivity : Activity() {
   })
  }
  private fun checkForUpdates(manual:Boolean) {
+  if (BuildConfig.PLAY_DISTRIBUTION) {
+   if (manual) Toast.makeText(this,"تصل تحديثات نسخة Google Play من متجر Google Play.",Toast.LENGTH_LONG).show()
+   return
+  }
   if(manual) Toast.makeText(this,"جارٍ التحقق من وجود تحديث…",Toast.LENGTH_SHORT).show()
   Thread {
    var latestCode=-1
@@ -719,6 +723,7 @@ class MainActivity : Activity() {
   page.addView(TextView(this).apply { text="لوحة التحكم"; textSize=23f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(8,4,8,12) })
   listOf(
    "الشاشة والاتجاه" to { AlertDialog.Builder(this).setTitle("الشاشة").setMessage("تم تصميم الواجهة للوضع الأفقي. يمكنك تدوير الجهاز من إعدادات Android.").setPositiveButton("حسنًا",null).show() },
+   "خلفية سطح المكتب" to { showWallpaperPicker() },
    "الشبكة والإنترنت" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
    "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
    "إعدادات التطبيقات" to { try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+packageName))) } catch(_:Exception){} },
@@ -774,7 +779,7 @@ class MainActivity : Activity() {
   panel(page)
  }
  private fun showVideoPlayer() {
-  shell("VLC مشغل الفيديو")
+  shell("مشغل الفيديو")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val bar=LinearLayout(this).apply { gravity=Gravity.CENTER }
   val video=VideoView(this)
@@ -882,6 +887,21 @@ class MainActivity : Activity() {
   fun reset(){snake=mutableListOf(Pair(5,5),Pair(4,5),Pair(3,5));food=Pair(9,7);dx=1;dy=0;score=0;invalidate()}
  }
 
+ private fun showWallpaperPicker() {
+  val labels=arrayOf("Windows أزرق","داكن","فاتح")
+  val current=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE).getInt("wallpaper_style",0)
+  AlertDialog.Builder(this)
+   .setTitle("خلفية سطح المكتب")
+   .setSingleChoiceItems(labels,current) { dialog,which ->
+    getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE).edit().putInt("wallpaper_style",which).apply()
+    if(desktopArea.childCount>0) desktopArea.getChildAt(0).invalidate()
+    Toast.makeText(this,"تم حفظ الخلفية",Toast.LENGTH_SHORT).show()
+    dialog.dismiss()
+   }
+   .setNegativeButton("إلغاء",null)
+   .show()
+ }
+
  private fun showQuickSettings() {
   val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(18,16,18,16); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(246,249,255)); cornerRadius=22f; setStroke(1,border) } }
   box.addView(TextView(this).apply { text="الإعدادات السريعة"; textSize=20f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,12) })
@@ -972,10 +992,20 @@ class MainActivity : Activity() {
   override fun onDraw(canvas:Canvas) {
    super.onDraw(canvas)
    val w=width.toFloat(); val h=height.toFloat()
-   canvas.drawRect(0f,0f,w,h,Paint().apply { shader=LinearGradient(0f,0f,w,h, intArrayOf(Color.rgb(8,27,70),Color.rgb(0,94,171),Color.rgb(25,151,218),Color.rgb(5,48,111)),null,Shader.TileMode.CLAMP) })
-   // Soft, layered blue "bloom" ribbons inspired by the Windows 11 wallpaper.
+   val wallpaperStyle=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE).getInt("wallpaper_style",0)
+   val gradient=when(wallpaperStyle) {
+    1 -> intArrayOf(Color.rgb(9,15,30),Color.rgb(28,42,68),Color.rgb(49,65,94),Color.rgb(6,12,24))
+    2 -> intArrayOf(Color.rgb(224,237,250),Color.rgb(174,207,240),Color.rgb(115,169,222),Color.rgb(232,243,253))
+    else -> intArrayOf(Color.rgb(8,27,70),Color.rgb(0,94,171),Color.rgb(25,151,218),Color.rgb(5,48,111))
+   }
+   canvas.drawRect(0f,0f,w,h,Paint().apply { shader=LinearGradient(0f,0f,w,h,gradient,null,Shader.TileMode.CLAMP) })
+   // Layered bloom shapes; presets are saved locally and restored on next launch.
    val cx=w*.61f; val cy=h*.43f
-   val colors=intArrayOf(Color.argb(210,102,203,255),Color.argb(205,29,137,226),Color.argb(225,5,68,157),Color.argb(170,125,222,255))
+   val colors=when(wallpaperStyle) {
+    1 -> intArrayOf(Color.argb(180,115,145,195),Color.argb(170,65,92,143),Color.argb(210,24,40,74),Color.argb(120,150,170,205))
+    2 -> intArrayOf(Color.argb(170,255,255,255),Color.argb(160,102,162,218),Color.argb(180,65,125,190),Color.argb(130,245,250,255))
+    else -> intArrayOf(Color.argb(210,102,203,255),Color.argb(205,29,137,226),Color.argb(225,5,68,157),Color.argb(170,125,222,255))
+   }
    for(i in 0..3) {
     val path=Path()
     val inset=i*24f
