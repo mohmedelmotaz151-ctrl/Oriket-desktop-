@@ -34,6 +34,10 @@ import java.util.Locale
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 
 class MainActivity : Activity() {
  private val navy=Color.rgb(18,32,54)
@@ -99,6 +103,7 @@ class MainActivity : Activity() {
    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+  MobileAds.initialize(this) {}
   showBootSequence()
   try {
    if(Build.VERSION.SDK_INT>=33) registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),RECEIVER_EXPORTED)
@@ -374,6 +379,12 @@ class MainActivity : Activity() {
   }
   val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,68)) }
   dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin=4; rightMargin=82 })
+  val adView=AdView(this).apply {
+   setAdSize(AdSize.BANNER)
+   adUnitId="ca-app-pub-3940256099942544/6300978111"
+   loadAd(AdRequest.Builder().build())
+  }
+  root.addView(adView,LinearLayout.LayoutParams(-1,50))
   root.addView(dock,LinearLayout.LayoutParams(-1,86))
   setContentView(root)
   clockLabel=TextView(this).apply {
