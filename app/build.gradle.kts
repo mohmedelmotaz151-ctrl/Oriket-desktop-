@@ -4,6 +4,10 @@ plugins {
 }
 
 android {
+    buildFeatures {
+        buildConfig = true
+    }
+
     namespace = "com.orkeit.desktop"
     compileSdk = 35
 
@@ -11,8 +15,8 @@ android {
         applicationId = "com.orkeit.desktop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
+        versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
     }
 
     compileOptions {
