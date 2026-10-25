@@ -342,11 +342,11 @@ class MainActivity : Activity() {
   val shortcuts=LinearLayout(this).apply {
    tag="desktop-shortcuts"
    orientation=LinearLayout.VERTICAL
-   gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL
-   setPadding(16,18,16,12)
+   gravity=Gravity.TOP or Gravity.LEFT
+   setPadding(8,10,8,8)
    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
-  val grid=GridLayout(this).apply { columnCount=2; useDefaultMargins=false }
+  val grid=GridLayout(this).apply { columnCount=1; useDefaultMargins=false }
   val items=listOf(
    Triple("🌐","Chrome / المتصفح",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","VLC مشغل الفيديو",{showVideoPlayer()}),
@@ -377,15 +377,15 @@ class MainActivity : Activity() {
    }
    tile.addView(TextView(this).apply { text=item.first; textSize=30f; gravity=Gravity.CENTER })
    tile.addView(TextView(this).apply { text=item.second; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0) })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=92; height=94; setMargins(2,2,2,2) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=82; setMargins(1,1,1,1) })
   }
-  shortcuts.addView(grid)
+  shortcuts.addView(ScrollView(this).apply { isFillViewport=false; addView(grid) },LinearLayout.LayoutParams(108,0,1f))
   val clock=TextView(this).apply {
    text="Oriket Desktop"; textSize=12f; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK)
    gravity=Gravity.CENTER; setPadding(14,8,14,8)
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(85,25,50,90)); cornerRadius=18f }
   }
-  shortcuts.addView(clock,LinearLayout.LayoutParams(-2,-2).apply { gravity=Gravity.CENTER_HORIZONTAL; topMargin=12 })
+  shortcuts.addView(clock,LinearLayout.LayoutParams(-2,-2).apply { gravity=Gravity.LEFT; topMargin=8 })
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
   // Windows stay above shortcuts; move them back to front in stacking order.
