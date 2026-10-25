@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.os.Environment
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.content.Intent
 import android.content.Context
 import android.content.ContentValues
@@ -47,6 +49,9 @@ class MainActivity : Activity() {
  private data class WindowEntry(val id:Int,val title:String,val frame:View,val taskButton:Button)
  private var activeDownloadId=-1L
  private var updateReceiverRegistered=false
+ private val uiHandler=Handler(Looper.getMainLooper())
+ private var clockLabel:TextView?=null
+ private var clockRunnable:Runnable?=null
  private val updateReceiver=object:BroadcastReceiver() {
   override fun onReceive(context:Context?,intent:Intent?) {
    if(intent?.action!=DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
@@ -76,6 +81,12 @@ class MainActivity : Activity() {
   window.statusBarColor=navy
   window.navigationBarColor=navy
   window.decorView.layoutDirection=View.LAYOUT_DIRECTION_LTR
+  window.decorView.systemUiVisibility=(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+   or View.SYSTEM_UI_FLAG_FULLSCREEN
+   or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+   or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+   or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+   or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
   initDesktop()
   showDesktop()
@@ -89,6 +100,10 @@ class MainActivity : Activity() {
 
  override fun onDestroy() {
   if(updateReceiverRegistered) try { unregisterReceiver(updateReceiver) } catch(_:Exception) {}
+  clockRunnable?.let { uiHandler.removeCallbacks(it) }
+  openWindows.mapNotNull { it.frame as? ViewGroup }.forEach { group ->
+   for(i in 0 until group.childCount) (group.getChildAt(i) as? WebView)?.destroy()
+  }
   super.onDestroy()
  }
 
@@ -126,10 +141,30 @@ class MainActivity : Activity() {
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(245,245,248,253)); cornerRadius=22f; setStroke(1,Color.rgb(218,226,238)) }
    elevation=12f
   }
-  val dock=FrameLayout(this).apply { setBackgroundColor(Color.rgb(223,232,245)) }
+  val dock=FrameLayout(this).apply {
+   setBackgroundColor(Color.argb(246,224,233,246))
+   elevation=14f
+  }
   dock.addView(taskbar,FrameLayout.LayoutParams(-2,48,Gravity.CENTER))
   root.addView(dock,LinearLayout.LayoutParams(-1,58))
   setContentView(root)
+  clockLabel=TextView(this).apply {
+   gravity=Gravity.CENTER
+   textSize=11f
+   setTextColor(navy)
+   setPadding(8,2,10,2)
+   setOnClickListener { showQuickSettings() }
+   contentDescription="التاريخ والوقت والإعدادات السريعة"
+  }
+  dock.addView(clockLabel,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
+  val clock=object:Runnable {
+   override fun run() {
+    clockLabel?.text=java.text.SimpleDateFormat("HH:mm\n dd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
+    uiHandler.postDelayed(this,30_000)
+   }
+  }
+  clockRunnable=clock
+  uiHandler.post(clock)
  }
  private fun shell(title:String) {
   initDesktop()
@@ -164,8 +199,17 @@ class MainActivity : Activity() {
   val entry=WindowEntry(id,title,outer,entryButton)
   openWindows.add(entry)
   entryButton.setOnClickListener {
-   if(outer.visibility==View.VISIBLE && outer.alpha>0f) outer.visibility=View.GONE
-   else { outer.visibility=View.VISIBLE; outer.bringToFront(); entryButton.isSelected=true }
+   if(outer.visibility==View.VISIBLE && outer.isSelected) {
+    outer.visibility=View.GONE
+    outer.isSelected=false
+    entryButton.isSelected=false
+   } else {
+    outer.visibility=View.VISIBLE
+    outer.bringToFront()
+    outer.isSelected=true
+    openWindows.forEach { it.taskButton.isSelected=it.id==id }
+    entryButton.isSelected=true
+   }
   }
   taskbar.addView(entryButton)
   desktopArea.addView(outer,lp)
@@ -173,28 +217,66 @@ class MainActivity : Activity() {
   content=body
   var downX=0f; var downY=0f; var startX=0f; var startY=0f
   var maximized=false
+  var lastTap=0L
   var oldParams:FrameLayout.LayoutParams?=null
   titlebar.setOnTouchListener { _,e ->
    when(e.action) {
-    MotionEvent.ACTION_DOWN -> { downX=e.rawX; downY=e.rawY; startX=outer.x; startY=outer.y; true }
+    MotionEvent.ACTION_DOWN -> {
+     downX=e.rawX; downY=e.rawY; startX=outer.x; startY=outer.y
+     outer.bringToFront()
+     openWindows.forEach { it.taskButton.isSelected=it.id==id }
+     outer.isSelected=true
+     true
+    }
     MotionEvent.ACTION_MOVE -> {
      if(!maximized) {
       val p=outer.layoutParams as FrameLayout.LayoutParams
       p.gravity=Gravity.TOP or Gravity.LEFT
-      p.leftMargin=(startX+e.rawX-downX).toInt().coerceIn(-outer.width+100,desktopArea.width-100)
-      p.topMargin=(startY+e.rawY-downY).toInt().coerceIn(0,(desktopArea.height-70).coerceAtLeast(0))
+      p.leftMargin=(startX+e.rawX-downX).toInt().coerceIn(-outer.width+110,(desktopArea.width-110).coerceAtLeast(0))
+      p.topMargin=(startY+e.rawY-downY).toInt().coerceIn(0,(desktopArea.height-55).coerceAtLeast(0))
       outer.layoutParams=p
      }
      true
     }
-    MotionEvent.ACTION_UP -> true
+    MotionEvent.ACTION_UP -> {
+     val now=System.currentTimeMillis()
+     if(now-lastTap<350L) {
+      if(!maximized) {
+       oldParams=outer.layoutParams as? FrameLayout.LayoutParams
+       outer.layoutParams=FrameLayout.LayoutParams(-1,-1)
+       maximized=true; maximize.text="❐"
+      } else {
+       outer.layoutParams=oldParams ?: lp
+       maximized=false; maximize.text="□"
+      }
+      lastTap=0L
+     } else {
+      lastTap=now
+      if(!maximized && desktopArea.width>0) {
+       val p=outer.layoutParams as FrameLayout.LayoutParams
+       if(e.rawX<24f || e.rawX>desktopArea.width-24f) {
+        p.gravity=Gravity.TOP or Gravity.LEFT
+        p.leftMargin=if(e.rawX<24f) 0 else desktopArea.width/2
+        p.topMargin=0
+        p.width=desktopArea.width/2
+        p.height=desktopArea.height
+        outer.layoutParams=p
+       } else if(e.rawY<18f) {
+        oldParams=outer.layoutParams as? FrameLayout.LayoutParams
+        outer.layoutParams=FrameLayout.LayoutParams(-1,-1)
+        maximized=true; maximize.text="❐"
+       }
+      }
+     }
+     true
+    }
     else -> true
    }
   }
-  minimize.setOnClickListener { outer.visibility=View.GONE }
+  minimize.setOnClickListener { outer.visibility=View.GONE; outer.isSelected=false; entryButton.isSelected=false }
   maximize.setOnClickListener {
    if(!maximized) {
-    oldParams=outer.layoutParams as FrameLayout.LayoutParams
+    oldParams=outer.layoutParams as? FrameLayout.LayoutParams ?: lp
     outer.layoutParams=FrameLayout.LayoutParams(-1,-1)
     maximized=true
     maximize.text="❐"
@@ -205,6 +287,7 @@ class MainActivity : Activity() {
    }
   }
   close.setOnClickListener {
+   (body.findViewWithTag<View>("orkeit-video-view") as? VideoView)?.stopPlayback()
    desktopArea.removeView(outer)
    taskbar.removeView(entryButton)
    openWindows.removeAll { it.id==id }
