@@ -692,16 +692,37 @@ class MainActivity : Activity() {
  private fun showBrowser(start:String="https://www.google.com") {
   shell("المتصفح")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+  val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,2,2,4) }
   val browser=WebView(this)
   web=browser
-  val address=EditText(this).apply { hint="اكتب عنوان موقع أو كلمة بحث"; setSingleLine(true); textSize=13f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setText(start) }
-  fun loadAddress() { val s=address.text.toString().trim(); val target=if(s.startsWith("http://")||s.startsWith("https://")) s else if(s.contains(" ")||!s.contains(".")) "https://www.google.com/search?q="+Uri.encode(s) else "https://"+s; browser.loadUrl(target) }
-  row.addView(task("‹"){if(browser.canGoBack())browser.goBack()},LinearLayout.LayoutParams(38,44))
-  row.addView(task("›"){if(browser.canGoForward())browser.goForward()},LinearLayout.LayoutParams(38,44))
-  row.addView(task("↻"){browser.reload()},LinearLayout.LayoutParams(42,44))
+  val address=EditText(this).apply {
+   hint="اكتب رابط الموقع مثل example.com أو ابحث في Google"
+   setSingleLine(true)
+   textSize=14f
+   inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+   imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_GO
+   setText(start)
+   setSelectAllOnFocus(true)
+   contentDescription="شريط عنوان الموقع والبحث"
+   setPadding(10,0,10,0)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=10f; setStroke(1,blue) }
+  }
+  fun loadAddress() {
+   val s=address.text.toString().trim()
+   if(s.isEmpty()) { address.error="اكتب رابط موقع أو كلمة للبحث"; address.requestFocus(); return }
+   val target=when {
+    s.startsWith("http://",true)||s.startsWith("https://",true) -> s
+    s.contains(" ")||(!s.contains(".") && !s.startsWith("www.",true)) -> "https://www.google.com/search?q="+Uri.encode(s)
+    else -> "https://"+s
+   }
+   try { browser.loadUrl(target); address.clearFocus() }
+   catch(_:Exception) { address.error="تعذر فتح الرابط؛ تحقق من العنوان" }
+  }
+  row.addView(task("‹"){if(browser.canGoBack())browser.goBack()},LinearLayout.LayoutParams(34,44))
+  row.addView(task("›"){if(browser.canGoForward())browser.goForward()},LinearLayout.LayoutParams(34,44))
+  row.addView(task("↻"){browser.reload()},LinearLayout.LayoutParams(38,44))
   row.addView(address,LinearLayout.LayoutParams(0,44,1f))
-  row.addView(action("اذهب"){loadAddress()},LinearLayout.LayoutParams(72,44))
+  row.addView(action("اذهب"){loadAddress()},LinearLayout.LayoutParams(60,44))
   page.addView(row)
   val bar=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
   bar.addView(task("الرئيسية"){browser.loadUrl("https://www.google.com")})
@@ -733,7 +754,7 @@ class MainActivity : Activity() {
   page.addView(browser,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
   browser.loadUrl(start)
-  address.setOnEditorActionListener{_,_,_->loadAddress();true}
+  address.setOnEditorActionListener{_,actionId,_->if(actionId==android.view.inputmethod.EditorInfo.IME_ACTION_GO || actionId==android.view.inputmethod.EditorInfo.IME_ACTION_DONE){loadAddress();true}else{loadAddress();true}}
  }
  private fun pickFile(type:String) {
   try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); this.type=type },41) }
