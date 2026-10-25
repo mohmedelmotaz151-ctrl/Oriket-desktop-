@@ -700,14 +700,28 @@ class MainActivity : Activity() {
   shell("الرسام")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val canvas=PaintCanvas(this)
-  val buttons=LinearLayout(this).apply { gravity=Gravity.CENTER }
-  buttons.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,48,1f))
-  buttons.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,48,1f))
-  page.addView(buttons); page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f)); panel(page)
+  val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
+  listOf("قلم","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,42,1f)) }
+  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,44))
+  val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
+  listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color ->
+   val swatch=Button(this).apply { text="●"; textSize=20f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} }
+   palette.addView(swatch,LinearLayout.LayoutParams(42,38))
+  }
+  page.addView(palette)
+  val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(task("تراجع"){canvas.undo()},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,42,1f))
+  page.addView(actions)
+  page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
+  panel(page)
  }
  private fun saveDrawing(v:PaintCanvas) {
   try {
-   val bmp=Bitmap.createBitmap(v.width.coerceAtLeast(1),v.height.coerceAtLeast(1),Bitmap.Config.ARGB_8888); v.draw(Canvas(bmp))
+   val bmp=v.exportBitmap()
    val values=ContentValues().apply { put(MediaStore.Images.Media.DISPLAY_NAME,"orkeit-drawing-"+System.currentTimeMillis()+".png"); put(MediaStore.Images.Media.MIME_TYPE,"image/png"); put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/OrkeitDesktop") }
    val uri=contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
    if(uri!=null) contentResolver.openOutputStream(uri)?.use{bmp.compress(Bitmap.CompressFormat.PNG,100,it)}
@@ -740,9 +754,55 @@ class MainActivity : Activity() {
   private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
   private val paths=mutableListOf<Pair<Path,Paint>>()
   private var path=Path()
+  private var tool="قلم"
+  private var startX=0f
+  private var startY=0f
+  private var endX=0f
+  private var endY=0f
+  private var zoom=1f
+  private var cropRect:RectF?=null
   init { setBackgroundColor(Color.WHITE) }
-  override fun onDraw(c:Canvas) { super.onDraw(c); c.drawColor(Color.WHITE); paths.forEach{c.drawPath(it.first,it.second)}; c.drawPath(path,paint) }
-  override fun onTouchEvent(e:MotionEvent):Boolean { when(e.action){MotionEvent.ACTION_DOWN->{path=Path();path.moveTo(e.x,e.y);invalidate();return true};MotionEvent.ACTION_MOVE->{path.lineTo(e.x,e.y);invalidate();return true};MotionEvent.ACTION_UP->{path.lineTo(e.x,e.y);paths.add(Pair(path,Paint(paint)));path=Path();invalidate();return true}};return true }
-  fun clear(){paths.clear();path.reset();invalidate()}
+  fun setTool(value:String){tool=value;Toast.makeText(context,"أداة الرسم: $value",Toast.LENGTH_SHORT).show()}
+  fun setColor(value:Int){paint.color=value}
+  fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.5f,3f);invalidate()}
+  fun undo(){if(paths.isNotEmpty())paths.removeAt(paths.lastIndex);invalidate()}
+  override fun onDraw(c:Canvas) {
+   super.onDraw(c); c.drawColor(Color.WHITE)
+   c.save(); c.scale(zoom,zoom)
+   paths.forEach{c.drawPath(it.first,it.second)}
+   if(tool=="قلم") c.drawPath(path,paint)
+   else if(path.isEmpty.not()) c.drawPath(path,paint)
+   c.restore()
+   cropRect?.let { r -> val marker=Paint(3).apply{color=Color.RED;style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(10f,6f),0f)}; c.drawRect(r,marker) }
+  }
+  override fun onTouchEvent(e:MotionEvent):Boolean {
+   val x=e.x/zoom; val y=e.y/zoom
+   when(e.action){
+    MotionEvent.ACTION_DOWN->{startX=x;startY=y;endX=x;endY=y;path=Path();path.moveTo(x,y);return true}
+    MotionEvent.ACTION_MOVE->{endX=x;endY=y;if(tool=="قلم"){path.lineTo(x,y)}else{path=Path();when(tool){"خط"->path.moveTo(startX,startY).also{path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);else->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW)}};invalidate();return true}
+    MotionEvent.ACTION_UP->{
+     endX=x;endY=y
+     if(tool=="قص"){cropRect=RectF(minOf(startX,endX),minOf(startY,endY),maxOf(startX,endX),maxOf(startY,endY))}
+     else {
+      if(tool!="قلم"){path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(endX,endY)};"دائرة"->path.addOval(RectF(startX,startY,endX,endY),Path.Direction.CW);else->path.addRect(RectF(startX,startY,endX,endY),Path.Direction.CW)}}
+      paths.add(Pair(Path(path),Paint(paint)))
+     }
+     path=Path();invalidate();return true
+    }
+   }
+   return true
+  }
+  fun exportBitmap():Bitmap {
+   val full=Bitmap.createBitmap(width.coerceAtLeast(1),height.coerceAtLeast(1),Bitmap.Config.ARGB_8888)
+   val cv=Canvas(full);cv.drawColor(Color.WHITE);cv.save();cv.scale(zoom,zoom);paths.forEach{cv.drawPath(it.first,it.second)};cv.restore()
+   val r=cropRect
+   if(r!=null && r.width()>2 && r.height()>2) {
+    val left=r.left.toInt().coerceIn(0,full.width-1);val top=r.top.toInt().coerceIn(0,full.height-1)
+    val right=r.right.toInt().coerceIn(left+1,full.width);val bottom=r.bottom.toInt().coerceIn(top+1,full.height)
+    return Bitmap.createBitmap(full,left,top,right-left,bottom-top)
+   }
+   return full
+  }
+  fun clear(){paths.clear();path.reset();cropRect=null;invalidate()}
  }
 }
