@@ -144,7 +144,7 @@ class MainActivity : Activity() {
   openWindows.add(entry)
   entryButton.setOnClickListener {
    if(outer.visibility==View.VISIBLE && outer.alpha>0f) outer.visibility=View.GONE
-   else { outer.visibility=View.VISIBLE; outer.bringToFront(); taskbar.childrenSetActive(entryButton) }
+   else { outer.visibility=View.VISIBLE; outer.bringToFront(); entryButton.isSelected=true }
   }
   taskbar.addView(entryButton)
   desktopArea.addView(outer,lp)
