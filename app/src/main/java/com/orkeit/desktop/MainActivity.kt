@@ -806,7 +806,7 @@ class MainActivity : Activity() {
   galleryContainer=page
   val scroll=ScrollView(this)
   galleryGrid=GridLayout(this).apply { columnCount=4;useDefaultMargins=false }
-  scroll.addView(galleryGrid,ScrollView.LayoutParams(-1,-2))
+  scroll.addView(galleryGrid,FrameLayout.LayoutParams(-1,-2))
   page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
   if(hasPhotoPermission()) refreshPhotoGallery() else requestPhotoPermission()
