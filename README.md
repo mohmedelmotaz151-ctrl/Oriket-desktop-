@@ -23,3 +23,12 @@ gradle assembleDebug
 هذا تطبيق أندرويد أصلي لكنه **ليس نظام Windows كاملًا أو محاكيًا**. لا يشغّل ملفات Windows `.exe` ولا يضم Chrome المكتبي. المتصفح يفتح المواقع في متصفح الجهاز، والملفات تُفتح عبر التطبيقات المناسبة المثبتة على أندرويد. تشغيل برامج Windows الحقيقية يحتاج طبقة توافق/محاكاة متخصصة أو جهاز Windows بعيدًا.
 
 المستودع مستقل ولا يعتمد على Firebase أو تطبيق Oriket لزيارات الدفاع المدني.
+
+
+## Google Play release
+
+The project now targets Android 16 / API 36 and has a separate `play` flavor. To create a signed Google Play App Bundle, configure the four upload-key secrets described in [GOOGLE_PLAY_RELEASE.md](GOOGLE_PLAY_RELEASE.md), then run **Build Google Play App Bundle** from GitHub Actions. The output is an `.aab` artifact; this workflow does not publish to Play Console automatically.
+
+The Play flavor removes `REQUEST_INSTALL_PACKAGES` and disables GitHub APK self-updates so Google Play remains the update channel. Publish the privacy policy at a public URL before submitting; see `docs/privacy-policy.html` and enable GitHub Pages with the GitHub Actions source.
+
+The direct-download APK and Google Play build are separate distribution variants. Because their signing certificates can differ, do not assume the Play version can update an already installed debug-signed APK without reinstalling.
