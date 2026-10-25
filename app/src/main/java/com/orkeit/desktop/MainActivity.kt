@@ -37,7 +37,13 @@ class MainActivity : Activity() {
  private val border=Color.rgb(218,226,238)
  private lateinit var root:LinearLayout
  private lateinit var content:FrameLayout
+ private lateinit var desktopArea:FrameLayout
+ private lateinit var taskbar:LinearLayout
+ private var desktopInitialized=false
+ private var windowCounter=0
+ private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
+ private data class WindowEntry(val id:Int,val title:String,val frame:FrameLayout,val taskButton:Button)
  private var activeDownloadId=-1L
  private var updateReceiverRegistered=false
  private val updateReceiver=object:BroadcastReceiver() {
@@ -70,6 +76,7 @@ class MainActivity : Activity() {
   window.navigationBarColor=navy
   window.decorView.layoutDirection=View.LAYOUT_DIRECTION_LTR
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+  initDesktop()
   showDesktop()
   try {
    if(Build.VERSION.SDK_INT>=33) registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),RECEIVER_EXPORTED)
@@ -84,58 +91,225 @@ class MainActivity : Activity() {
   super.onDestroy()
  }
 
- private fun shell(title:String) {
-  web=null
-  root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(pale); layoutDirection=View.LAYOUT_DIRECTION_LTR }
-  val header=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(18,6,18,6); setBackgroundColor(Color.WHITE) }
-  header.addView(TextView(this).apply { text="🪟 Oriket Desktop"; textSize=20f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD },LinearLayout.LayoutParams(0, -2,1f))
-  header.addView(TextView(this).apply { text=title; textSize=14f; setTextColor(navy) })
-  root.addView(header,LinearLayout.LayoutParams(-1,52))
-  content=FrameLayout(this).apply { setPadding(12,10,12,10) }
-  root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
-  val bar=LinearLayout(this).apply { gravity=Gravity.CENTER; setPadding(5,4,5,4); setBackgroundColor(Color.WHITE) }
-  bar.addView(task("⊞ ابدأ"){showDesktop()})
-  bar.addView(task("🌐 المتصفح"){showBrowser()})
-  bar.addView(task("📁 الملفات"){pickFile("*/*")})
-  bar.addView(task("🧮 الحاسبة"){showCalculator()})
-  bar.addView(task("🎨 الرسام"){showPaint()})
-  bar.addView(task("🔄 تحديث"){checkForUpdates(true)})
-  root.addView(bar,LinearLayout.LayoutParams(-1,56))
+ private fun initDesktop() {
+  if(desktopInitialized) return
+  desktopInitialized=true
+  root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); layoutDirection=View.LAYOUT_DIRECTION_LTR }
+  desktopArea=FrameLayout(this).apply { layoutDirection=View.LAYOUT_DIRECTION_LTR }
+  desktopArea.addView(WindowsWallpaper(this),FrameLayout.LayoutParams(-1,-1))
+  root.addView(desktopArea,LinearLayout.LayoutParams(-1,0,1f))
+  taskbar=LinearLayout(this).apply {
+   gravity=Gravity.CENTER
+   orientation=LinearLayout.HORIZONTAL
+   setPadding(8,5,8,5)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(245,245,248,253)); cornerRadius=22f; setStroke(1,Color.rgb(218,226,238)) }
+   elevation=12f
+  }
+  val dock=FrameLayout(this).apply { setBackgroundColor(Color.rgb(223,232,245)) }
+  dock.addView(taskbar,FrameLayout.LayoutParams(-2,48,Gravity.CENTER))
+  root.addView(dock,LinearLayout.LayoutParams(-1,58))
   setContentView(root)
+ }
+ private fun shell(title:String) {
+  initDesktop()
+  web=null
+  windowCounter++
+  val id=windowCounter
+  val outer=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=13f; setStroke(1,Color.rgb(180,195,216)) }
+   elevation=18f
+   clipToOutline=true
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+  }
+  val titlebar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER_VERTICAL
+   setPadding(12,0,4,0)
+   setBackgroundColor(Color.rgb(247,249,253))
+  }
+  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=13f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
+  val minimize=windowButton("—")
+  val maximize=windowButton("□")
+  val close=windowButton("×")
+  titlebar.addView(minimize,LinearLayout.LayoutParams(38,38))
+  titlebar.addView(maximize,LinearLayout.LayoutParams(38,38))
+  titlebar.addView(close,LinearLayout.LayoutParams(42,38))
+  outer.addView(titlebar,LinearLayout.LayoutParams(-1,42))
+  val body=FrameLayout(this).apply { setPadding(10,8,10,8); setBackgroundColor(Color.rgb(250,251,254)) }
+  outer.addView(body,LinearLayout.LayoutParams(-1,0,1f))
+  val lp=FrameLayout.LayoutParams((desktopArea.width*0.78f).toInt().coerceAtLeast(420), (desktopArea.height*0.78f).toInt().coerceAtLeast(280),Gravity.CENTER)
+  val entryButton=taskButton(title)
+  val entry=WindowEntry(id,title,outer,entryButton)
+  openWindows.add(entry)
+  entryButton.setOnClickListener {
+   if(outer.visibility==View.VISIBLE && outer.alpha>0f) outer.visibility=View.GONE
+   else { outer.visibility=View.VISIBLE; outer.bringToFront(); taskbar.childrenSetActive(entryButton) }
+  }
+  taskbar.addView(entryButton)
+  desktopArea.addView(outer,lp)
+  outer.bringToFront()
+  content=body
+  var downX=0f; var downY=0f; var startX=0f; var startY=0f
+  var maximized=false
+  var oldParams:FrameLayout.LayoutParams?=null
+  titlebar.setOnTouchListener { _,e ->
+   when(e.action) {
+    MotionEvent.ACTION_DOWN -> { downX=e.rawX; downY=e.rawY; val p=outer.layoutParams as FrameLayout.LayoutParams; startX=p.leftMargin.toFloat(); startY=p.topMargin.toFloat(); true }
+    MotionEvent.ACTION_MOVE -> {
+     if(!maximized) {
+      val p=outer.layoutParams as FrameLayout.LayoutParams
+      p.gravity=Gravity.TOP or Gravity.LEFT
+      p.leftMargin=(startX+e.rawX-downX).toInt().coerceIn(-outer.width+100,desktopArea.width-100)
+      p.topMargin=(startY+e.rawY-downY).toInt().coerceIn(0,(desktopArea.height-70).coerceAtLeast(0))
+      outer.layoutParams=p
+     }
+     true
+    }
+    MotionEvent.ACTION_UP -> true
+    else -> true
+   }
+  }
+  minimize.setOnClickListener { outer.visibility=View.GONE }
+  maximize.setOnClickListener {
+   if(!maximized) {
+    oldParams=outer.layoutParams as FrameLayout.LayoutParams
+    outer.layoutParams=FrameLayout.LayoutParams(-1,-1)
+    maximized=true
+    maximize.text="❐"
+   } else {
+    outer.layoutParams=oldParams ?: lp
+    maximized=false
+    maximize.text="□"
+   }
+  }
+  close.setOnClickListener {
+   desktopArea.removeView(outer)
+   taskbar.removeView(entryButton)
+   openWindows.removeAll { it.id==id }
+   if(web!=null) web?.stopLoading()
+   if(openWindows.isNotEmpty()) { openWindows.last().frame.visibility=View.VISIBLE; openWindows.last().frame.bringToFront() }
+  }
+  outer.setOnTouchListener { v,e -> if(e.action==MotionEvent.ACTION_DOWN) v.bringToFront(); false }
+ }
+ private fun windowButton(label:String)=Button(this).apply {
+  text=label; textSize=18f; isAllCaps=false; setPadding(0,0,0,0); setTextColor(navy)
+  background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+  setOnClickListener { }
+ }
+ private fun windowIcon(title:String):String = when {
+  title.contains("المتصفح")->"🌐"
+  title.contains("الملفات")->"📁"
+  title.contains("الحاسبة")->"🧮"
+  title.contains("الرسام")->"🎨"
+  title.contains("المفكرة")->"📝"
+  title.contains("تحديث")->"🔄"
+  else->"🪟"
+ }
+ private fun taskButton(title:String)=Button(this).apply {
+  text=windowIcon(title); textSize=18f; isAllCaps=false; setTextColor(navy)
+  setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,242,252)))
+  contentDescription=title
  }
  private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=12f; isAllCaps=false; setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(239,244,251))); setOnClickListener{a()} }
  private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=14f; isAllCaps=false; setTextColor(Color.WHITE); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); setOnClickListener{a()} }
  private fun panel(v:View) {
-  val p=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(10,8,10,8); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=20f; setStroke(1,border) }; elevation=3f }
-  p.addView(v,LinearLayout.LayoutParams(-1,-1))
-  content.addView(p,FrameLayout.LayoutParams(-1,-1))
+  content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
  private fun showDesktop() {
-  shell("سطح المكتب")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(15,12,15,12) }
-  page.addView(TextView(this).apply { text="مرحبًا بك"; textSize=27f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD })
-  page.addView(TextView(this).apply { text="مساحة عمل أفقية مستوحاة من Windows 11"; textSize=14f; setTextColor(Color.DKGRAY); setPadding(0,0,0,8) })
-  val grid=GridLayout(this).apply { columnCount=5 }
+  initDesktop()
+  // Rebuild only the desktop shortcut layer; open app windows remain independent.
+  val old=desktopArea.findViewWithTag<View>("desktop-shortcuts")
+  if(old!=null) desktopArea.removeView(old)
+  val shortcuts=LinearLayout(this).apply {
+   tag="desktop-shortcuts"
+   orientation=LinearLayout.VERTICAL
+   gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL
+   setPadding(16,18,16,12)
+   background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+  }
+  val grid=GridLayout(this).apply { columnCount=2; useDefaultMargins=false }
   val items=listOf(
    Triple("🌐","المتصفح",{showBrowser()}), Triple("📁","مستكشف الملفات",{pickFile("*/*")}),
    Triple("📄","ملفات PDF",{pickFile("application/pdf")}), Triple("🧮","الحاسبة",{showCalculator()}),
    Triple("🎨","الرسام",{showPaint()}), Triple("📝","المفكرة",{showNotepad()}),
-   Triple("⚙️","الإعدادات",{showAbout()}), Triple("ℹ️","حول التطبيق",{showAbout()}),
-   Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
+   Triple("⚙️","الإعدادات",{showAbout()}), Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
   )
   items.forEach { item ->
    val tile=LinearLayout(this).apply {
-    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(5,6,5,6)
-    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=18f; setStroke(1,border) }
-    setOnClickListener{item.third.invoke()}
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(5,8,5,8)
+    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+    isClickable=true; isFocusable=true
+    setOnClickListener { item.third.invoke() }
+    setOnLongClickListener {
+     android.widget.PopupMenu(this@MainActivity,this).apply {
+      menu.add("فتح").setOnMenuItemClickListener { item.third.invoke(); true }
+      menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
+     }.show()
+     true
+    }
+    setOnHoverListener { v,e ->
+     if(e.action==MotionEvent.ACTION_HOVER_ENTER) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(55,255,255,255)); cornerRadius=10f }
+     if(e.action==MotionEvent.ACTION_HOVER_EXIT) v.background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+     false
+    }
    }
-   tile.addView(TextView(this).apply { text=item.first; textSize=31f; gravity=Gravity.CENTER })
-   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); setPadding(0,4,0,0) })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=0; height=108; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4) })
+   tile.addView(TextView(this).apply { text=item.first; textSize=30f; gravity=Gravity.CENTER })
+   tile.addView(TextView(this).apply { text=item.second; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=92; height=94; setMargins(2,2,2,2) })
   }
-  page.addView(grid)
-  page.addView(TextView(this).apply { text="المتصفح والأدوات والملفات المدعومة تفتح داخل الواجهة نفسها."; textSize=13f; setTextColor(Color.DKGRAY); setPadding(4,10,4,0) })
-  panel(page)
+  shortcuts.addView(grid)
+  val clock=TextView(this).apply {
+   text="Oriket Desktop"; textSize=12f; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK)
+   gravity=Gravity.CENTER; setPadding(14,8,14,8)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(85,25,50,90)); cornerRadius=18f }
+  }
+  shortcuts.addView(clock,LinearLayout.LayoutParams(-2,-2).apply { gravity=Gravity.CENTER_HORIZONTAL; topMargin=12 })
+  desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
+  shortcuts.bringToFront()
+  // Windows stay above shortcuts; move them back to front in stacking order.
+  openWindows.forEach { it.frame.bringToFront() }
+  val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
+  if(taskbar.childCount==0) taskbar.addView(start)
+  val browser=taskButton("المتصفح").apply { text="🌐"; setOnClickListener { showBrowser() } }
+  val files=taskButton("الملفات").apply { text="📁"; setOnClickListener { pickFile("*/*") } }
+  val calc=taskButton("الحاسبة").apply { text="🧮"; setOnClickListener { showCalculator() } }
+  val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
+  val update=taskButton("التحديث").apply { text="🔄"; setOnClickListener { checkForUpdates(true) } }
+  val staticButtons=listOf(browser,files,calc,paint,update)
+  staticButtons.forEach { b -> if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b) }
+ }
+ private fun showStartMenu() {
+  val existing=desktopArea.findViewWithTag<View>("start-menu")
+  if(existing!=null) { desktopArea.removeView(existing); return }
+  val menu=LinearLayout(this).apply {
+   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(18,18,18,18)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(247,248,250,255)); cornerRadius=24f; setStroke(1,border) }
+   elevation=30f
+  }
+  menu.addView(TextView(this).apply { text="ابدأ"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(4,0,4,10) })
+  val search=EditText(this).apply { hint="ابحث عن تطبيق أو أداة"; textSize=13f; setSingleLine(true) }
+  menu.addView(search,LinearLayout.LayoutParams(-1,44))
+  val grid=GridLayout(this).apply { columnCount=3 }
+  listOf(
+   Triple("🌐","المتصفح",{showBrowser()}),Triple("📁","الملفات",{pickFile("*/*")}),
+   Triple("🧮","الحاسبة",{showCalculator()}),Triple("🎨","الرسام",{showPaint()}),
+   Triple("📝","المفكرة",{showNotepad()}),Triple("⚙️","الإعدادات",{showAbout()})
+  ).forEach { item ->
+   val b=Button(this).apply { text=item.first+"\n"+item.second; isAllCaps=false; textSize=12f; setOnClickListener { desktopArea.removeView(menu); item.third.invoke() } }
+   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=76; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
+  }
+  menu.addView(grid)
+  menu.addView(action("إيقاف الواجهة") { finish() })
+  desktopArea.addView(menu,FrameLayout.LayoutParams(360,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=10 })
+  search.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+    val q=s.toString().trim()
+    for(i in 0 until grid.childCount) grid.getChildAt(i).visibility=if(q.isEmpty() || grid.getChildAt(i).let { (it as Button).text.toString().contains(q,true) }) View.VISIBLE else View.GONE
+   }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
  }
  private fun checkForUpdates(manual:Boolean) {
   if(manual) Toast.makeText(this,"جارٍ التحقق من وجود تحديث…",Toast.LENGTH_SHORT).show()
@@ -325,6 +499,27 @@ class MainActivity : Activity() {
   } catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
  }
  override fun onBackPressed() { val b=web; if(b!=null && b.canGoBack()) b.goBack() else showDesktop() }
+ private inner class WindowsWallpaper(c:Context):View(c) {
+  private val p=Paint(Paint.ANTI_ALIAS_FLAG)
+  override fun onDraw(canvas:Canvas) {
+   super.onDraw(canvas)
+   val w=width.toFloat(); val h=height.toFloat()
+   canvas.drawRect(0f,0f,w,h,Paint().apply { shader=LinearGradient(0f,0f,w,h, intArrayOf(Color.rgb(8,27,70),Color.rgb(0,94,171),Color.rgb(25,151,218),Color.rgb(5,48,111)),null,Shader.TileMode.CLAMP) })
+   // Soft, layered blue "bloom" ribbons inspired by the Windows 11 wallpaper.
+   val cx=w*.61f; val cy=h*.43f
+   val colors=intArrayOf(Color.argb(210,102,203,255),Color.argb(205,29,137,226),Color.argb(225,5,68,157),Color.argb(170,125,222,255))
+   for(i in 0..3) {
+    val path=Path()
+    val inset=i*24f
+    path.moveTo(cx-w*.32f,cy+h*.28f+inset)
+    path.cubicTo(cx-w*.30f,cy-h*.42f+inset,cx+w*.17f,cy-h*.44f+inset,cx+w*.32f,cy-h*.06f+inset)
+    path.cubicTo(cx+w*.43f,cy+h*.22f+inset,cx+w*.03f,cy+h*.38f+inset,cx-w*.32f,cy+h*.28f+inset)
+    p.color=colors[i]; p.style=Paint.Style.FILL; p.shader=null; canvas.drawPath(path,p)
+   }
+   p.shader=RadialGradient(cx,cy,h*.6f,intArrayOf(Color.argb(70,160,225,255),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
+   canvas.drawRect(0f,0f,w,h,p); p.shader=null
+  }
+ }
  private inner class PaintCanvas(c:Context):View(c) {
   private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
   private val paths=mutableListOf<Pair<Path,Paint>>()
