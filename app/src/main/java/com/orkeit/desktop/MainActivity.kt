@@ -322,6 +322,8 @@ class MainActivity : Activity() {
   setOnClickListener { }
  }
  private fun windowIcon(title:String):String = when {
+  title.contains("YouTube Music")->"🎵"
+  title.contains("YouTube")->"▶️"
   title.contains("المتصفح")->"🌐"
   title.contains("الملفات")->"📁"
   title.contains("الحاسبة")->"🧮"
@@ -403,7 +405,7 @@ class MainActivity : Activity() {
   val allItems=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
-   Triple("🎨","الرسام",{showPaint()}), Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}), Triple("📝","Word / معالج النصوص",{showWord()}),
+   Triple("🎨","الرسام",{showPaint()}), Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}), Triple("▶️","YouTube",{showYouTube()}), Triple("🎧","YouTube Music",{showYouTubeMusic()}), Triple("📝","Word / معالج النصوص",{showWord()}),
    Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
    Triple("📋","إدارة المهام",{showTaskManager()}), Triple("⌨️","Command",{showCommand()}),
    Triple("🎮","ألعاب Windows",{showGames()}), Triple("🧮","الحاسبة",{showCalculator()}),
@@ -554,7 +556,7 @@ class MainActivity : Activity() {
   val items=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
-   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("🎨","الرسام",{showPaint()}),
+   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("▶️","YouTube",{showYouTube()}),Triple("🎧","YouTube Music",{showYouTubeMusic()}),Triple("🎨","الرسام",{showPaint()}),
    Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
    Triple("⚙️","الإعدادات",{showControlPanel()}),Triple("📋","إدارة المهام",{showTaskManager()}),
    Triple("⌨️","Command",{showCommand()}),Triple("🎮","الألعاب",{showGames()}),
@@ -694,8 +696,8 @@ class MainActivity : Activity() {
   }
  }
 
- private fun showBrowser(start:String="https://www.google.com") {
-  shell("المتصفح")
+ private fun showBrowser(start:String="https://www.google.com", windowTitle:String="المتصفح") {
+  shell(windowTitle)
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,2,2,4) }
   val browser=WebView(this)
@@ -1001,6 +1003,10 @@ class MainActivity : Activity() {
   }
   panel(page)
  }
+ private fun showYouTube() { showBrowser("https://www.youtube.com", "YouTube") }
+
+ private fun showYouTubeMusic() { showBrowser("https://music.youtube.com", "YouTube Music") }
+
  private fun showMusicPlayer() {
   shell("مشغل الموسيقى")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(10,8,10,8) }
