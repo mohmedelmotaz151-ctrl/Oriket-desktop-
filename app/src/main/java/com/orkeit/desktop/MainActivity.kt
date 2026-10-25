@@ -1,6 +1,12 @@
 package com.orkeit.desktop
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.os.Environment
+import android.os.Build
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
@@ -20,6 +26,9 @@ import android.webkit.WebViewClient
 import android.widget.*
 import android.text.InputType
 import java.util.Locale
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 class MainActivity : Activity() {
  private val navy=Color.rgb(18,32,54)
@@ -29,6 +38,31 @@ class MainActivity : Activity() {
  private lateinit var root:LinearLayout
  private lateinit var content:FrameLayout
  private var web:WebView?=null
+ private var activeDownloadId=-1L
+ private var updateReceiverRegistered=false
+ private val updateReceiver=object:BroadcastReceiver() {
+  override fun onReceive(context:Context?,intent:Intent?) {
+   if(intent?.action!=DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+   val id=intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1L)
+   if(id!=activeDownloadId) return
+   val manager=getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+   val query=DownloadManager.Query().setFilterById(id)
+   manager.query(query).use { cursor ->
+    if(cursor.moveToFirst()) {
+     val status=cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+     if(status==DownloadManager.STATUS_SUCCESSFUL) {
+      val uri=manager.getUriForDownloadedFile(id)
+      if(uri!=null) {
+       AlertDialog.Builder(this@MainActivity).setTitle("التحديث جاهز")
+        .setMessage("تم تنزيل تحديث Oriket Desktop. اضغط تثبيت لإكمال التحديث.")
+        .setPositiveButton("تثبيت") { _,_-> installDownloadedApk(uri) }
+        .setNegativeButton("لاحقًا",null).show()
+      } else Toast.makeText(this@MainActivity,"تعذر الوصول إلى ملف التحديث",Toast.LENGTH_LONG).show()
+     } else Toast.makeText(this@MainActivity,"فشل تنزيل التحديث. تحقق من اتصال الإنترنت ثم حاول مجددًا.",Toast.LENGTH_LONG).show()
+    }
+   }
+  }
+ }
 
  override fun onCreate(savedInstanceState:Bundle?) {
   super.onCreate(savedInstanceState)
@@ -37,6 +71,17 @@ class MainActivity : Activity() {
   window.decorView.layoutDirection=View.LAYOUT_DIRECTION_LTR
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
   showDesktop()
+  try {
+   if(Build.VERSION.SDK_INT>=33) registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),RECEIVER_EXPORTED)
+   else registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+   updateReceiverRegistered=true
+  } catch(_:Exception) {}
+  checkForUpdates(false)
+ }
+
+ override fun onDestroy() {
+  if(updateReceiverRegistered) try { unregisterReceiver(updateReceiver) } catch(_:Exception) {}
+  super.onDestroy()
  }
 
  private fun shell(title:String) {
@@ -54,6 +99,7 @@ class MainActivity : Activity() {
   bar.addView(task("📁 الملفات"){pickFile("*/*")})
   bar.addView(task("🧮 الحاسبة"){showCalculator()})
   bar.addView(task("🎨 الرسام"){showPaint()})
+  bar.addView(task("🔄 تحديث"){checkForUpdates(true)})
   root.addView(bar,LinearLayout.LayoutParams(-1,56))
   setContentView(root)
  }
@@ -74,7 +120,8 @@ class MainActivity : Activity() {
    Triple("🌐","المتصفح",{showBrowser()}), Triple("📁","مستكشف الملفات",{pickFile("*/*")}),
    Triple("📄","ملفات PDF",{pickFile("application/pdf")}), Triple("🧮","الحاسبة",{showCalculator()}),
    Triple("🎨","الرسام",{showPaint()}), Triple("📝","المفكرة",{showNotepad()}),
-   Triple("⚙️","الإعدادات",{showAbout()}), Triple("ℹ️","حول التطبيق",{showAbout()})
+   Triple("⚙️","الإعدادات",{showAbout()}), Triple("ℹ️","حول التطبيق",{showAbout()}),
+   Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
   )
   items.forEach { item ->
    val tile=LinearLayout(this).apply {
@@ -90,6 +137,72 @@ class MainActivity : Activity() {
   page.addView(TextView(this).apply { text="المتصفح والأدوات والملفات المدعومة تفتح داخل الواجهة نفسها."; textSize=13f; setTextColor(Color.DKGRAY); setPadding(4,10,4,0) })
   panel(page)
  }
+ private fun checkForUpdates(manual:Boolean) {
+  if(manual) Toast.makeText(this,"جارٍ التحقق من وجود تحديث…",Toast.LENGTH_SHORT).show()
+  Thread {
+   var latestCode=-1
+   var downloadUrl:String?=null
+   var releaseName="تحديث جديد"
+   try {
+    val connection=(URL("https://api.github.com/repos/mohmedelmotaz151-ctrl/Oriket-desktop-/releases/tags/latest").openConnection() as HttpURLConnection)
+    connection.connectTimeout=10000
+    connection.readTimeout=10000
+    connection.setRequestProperty("Accept","application/vnd.github+json")
+    connection.setRequestProperty("User-Agent","Oriket-Desktop-Android")
+    val json=connection.inputStream.bufferedReader().use{it.readText()}
+    connection.disconnect()
+    val release=JSONObject(json)
+    releaseName=release.optString("name","Oriket Desktop")
+    val body=release.optString("body","")
+    val match=Regex("\"versionCode\"\\s*:\\s*(\\d+)").find(body)
+    latestCode=match?.groupValues?.get(1)?.toIntOrNull() ?: -1
+    val assets=release.optJSONArray("assets")
+    if(assets!=null) for(i in 0 until assets.length()) {
+     val asset=assets.getJSONObject(i)
+     if(asset.optString("name")=="orkeit-desktop.apk") { downloadUrl=asset.optString("browser_download_url"); break }
+    }
+   } catch(_:Exception) {}
+   runOnUiThread {
+    if(latestCode>BuildConfig.VERSION_CODE && !downloadUrl.isNullOrBlank()) {
+     AlertDialog.Builder(this).setTitle("يتوفر تحديث لـ Oriket Desktop")
+      .setMessage("$releaseName\nالإصدار المثبت: ${BuildConfig.VERSION_NAME}\nالإصدار الجديد: $latestCode\n\nهل تريد تنزيل التحديث الآن؟")
+      .setPositiveButton("تنزيل التحديث") { _,_-> downloadUpdate(downloadUrl!!) }
+      .setNegativeButton("لاحقًا",null).show()
+    } else if(manual) {
+     val msg=if(latestCode<0 || downloadUrl.isNullOrBlank()) "تعذر العثور على إصدار منشور. حاول لاحقًا." else "أنت تستخدم أحدث إصدار متاح."
+     Toast.makeText(this,msg,Toast.LENGTH_LONG).show()
+    }
+   }
+  }.start()
+ }
+
+ private fun downloadUpdate(url:String) {
+  try {
+   val request=DownloadManager.Request(Uri.parse(url))
+    .setTitle("تحديث Oriket Desktop")
+    .setDescription("جارٍ تنزيل الإصدار الجديد")
+    .setMimeType("application/vnd.android.package-archive")
+    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+    .setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,"orkeit-desktop-update.apk")
+   activeDownloadId=(getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+   Toast.makeText(this,"بدأ تنزيل التحديث. سيظهر إشعار عند اكتماله.",Toast.LENGTH_LONG).show()
+  } catch(_:Exception) {
+   Toast.makeText(this,"تعذر بدء التنزيل. تحقق من اتصال الإنترنت.",Toast.LENGTH_LONG).show()
+  }
+ }
+
+ private fun installDownloadedApk(uri:Uri) {
+  try {
+   val intent=Intent(Intent.ACTION_VIEW).apply {
+    setDataAndType(uri,"application/vnd.android.package-archive")
+    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+   }
+   startActivity(intent)
+  } catch(_:Exception) {
+   Toast.makeText(this,"تعذر فتح مثبت الحزم. افتح ملف التحديث من التنزيلات يدويًا.",Toast.LENGTH_LONG).show()
+  }
+ }
+
  private fun showBrowser(start:String="https://www.google.com") {
   shell("المتصفح")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
