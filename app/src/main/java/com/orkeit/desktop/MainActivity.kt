@@ -745,6 +745,15 @@ class MainActivity : Activity() {
   if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
   if(requestCode==62 && resultCode==RESULT_OK && data?.data!=null) { (desktopArea.findViewWithTag<View>("orkeit-paint-canvas") as? PaintCanvas)?.importImage(data.data!!) }
   if(requestCode==61 && resultCode==RESULT_OK && data?.data!=null) { try { val uri=data.data!!;val name=contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use{if(it.moveToFirst())it.getString(0)else "imported-file"} ?: "imported-file";val dir=fileManagerDir ?: java.io.File(filesDir,"OriketWorkspace").apply{mkdirs()};val dest=java.io.File(dir,name);contentResolver.openInputStream(uri)?.use{input->dest.outputStream().use{input.copyTo(it)}};fileManagerDir=dir;Toast.makeText(this,"تم استيراد الملف",Toast.LENGTH_SHORT).show();showMyComputer()}catch(_:Exception){Toast.makeText(this,"تعذر الاستيراد",Toast.LENGTH_SHORT).show()} }
+  if((requestCode==63 || requestCode==64) && resultCode==RESULT_OK && data?.data!=null) {
+   try {
+    val loaded=contentResolver.openInputStream(data.data!!)?.bufferedReader()?.use{it.readText()} ?: ""
+    val tag=if(requestCode==63)"orkeit-notepad-editor" else "orkeit-word-editor"
+    val editor=desktopArea.findViewWithTag<EditText>(tag)
+    if(editor!=null){editor.setText(loaded);Toast.makeText(this,"تم فتح الملف",Toast.LENGTH_SHORT).show()}
+    else Toast.makeText(this,"افتح المفكرة أو Word أولًا",Toast.LENGTH_SHORT).show()
+   } catch(_:Exception){Toast.makeText(this,"تعذرت قراءة الملف النصي",Toast.LENGTH_SHORT).show()}
+  }
   if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
    if(selected!=null) {
@@ -852,7 +861,8 @@ class MainActivity : Activity() {
  private fun showNotepad() {
   shell("المفكرة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f }
+  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f; tag="orkeit-notepad-editor" }
+  page.addView(action("فتح ملف TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},63)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(-1,44))
   page.addView(editor,LinearLayout.LayoutParams(-1,0,1f))
   page.addView(action("حفظ TXT") {
    try {
@@ -984,7 +994,8 @@ class MainActivity : Activity() {
   shell("Word")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val toolbar=LinearLayout(this).apply { gravity=Gravity.CENTER }
-  val editor=EditText(this).apply { hint="مستند جديد"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE) }
+  val editor=EditText(this).apply { hint="مستند جديد"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor" }
+  toolbar.addView(task("فتح TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},64)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}})
   toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("sans-serif",Typeface.NORMAL) else Typeface.create("sans-serif",Typeface.BOLD)})
   toolbar.addView(task("A+"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity + 2f).coerceAtMost(40f)})
   toolbar.addView(task("A−"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity - 2f).coerceAtLeast(10f)})
