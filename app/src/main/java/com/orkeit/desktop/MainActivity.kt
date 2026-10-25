@@ -854,7 +854,8 @@ class MainActivity : Activity() {
   box.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=12f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,12,4,2) })
   AlertDialog.Builder(this).setView(box).setPositiveButton("إغلاق",null).show()
  }
-\n private fun showAbout() {
+
+ private fun showAbout() {
   shell("حول التطبيق")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
   page.addView(TextView(this).apply { text="Oriket Desktop\nواجهة أفقية مستوحاة من Windows 11. المتصفح والرسام والحاسبة والمفكرة ومعاينة الصور والنصوص وPDF تعمل داخل التطبيق.\n\nهذه واجهة سطح مكتب وليست نظام Windows فعليًا ولا تشغّل ملفات EXE."; textSize=19f; setTextColor(navy) })
