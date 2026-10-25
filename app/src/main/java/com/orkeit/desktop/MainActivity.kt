@@ -1142,4 +1142,3 @@ class MainActivity : Activity() {
   fun clear(){paths.clear();undone.clear();path.reset();cropRect=null;imported=null;invalidate()}
  }
 }
-}
