@@ -97,6 +97,26 @@ class MainActivity : Activity() {
   root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); layoutDirection=View.LAYOUT_DIRECTION_LTR }
   desktopArea=FrameLayout(this).apply { layoutDirection=View.LAYOUT_DIRECTION_LTR }
   desktopArea.addView(WindowsWallpaper(this),FrameLayout.LayoutParams(-1,-1))
+  desktopArea.isClickable=true
+  desktopArea.setOnLongClickListener {
+   android.widget.PopupMenu(this,desktopArea).apply {
+    menu.add("عرض قائمة ابدأ").setOnMenuItemClickListener { showStartMenu(); true }
+    menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
+    menu.add("فتح المتصفح").setOnMenuItemClickListener { showBrowser(); true }
+    menu.add("فتح مستكشف الملفات").setOnMenuItemClickListener { pickFile("*/*"); true }
+   }.show()
+   true
+  }
+  desktopArea.setOnGenericMotionListener { v,e ->
+   if(e.action==MotionEvent.ACTION_BUTTON_PRESS && (e.buttonState and MotionEvent.BUTTON_SECONDARY)!=0) {
+    android.widget.PopupMenu(this,v).apply {
+     menu.add("عرض قائمة ابدأ").setOnMenuItemClickListener { showStartMenu(); true }
+     menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
+     menu.add("فتح المتصفح").setOnMenuItemClickListener { showBrowser(); true }
+    }.show()
+    true
+   } else false
+  }
   root.addView(desktopArea,LinearLayout.LayoutParams(-1,0,1f))
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
@@ -155,7 +175,7 @@ class MainActivity : Activity() {
   var oldParams:FrameLayout.LayoutParams?=null
   titlebar.setOnTouchListener { _,e ->
    when(e.action) {
-    MotionEvent.ACTION_DOWN -> { downX=e.rawX; downY=e.rawY; val p=outer.layoutParams as FrameLayout.LayoutParams; startX=p.leftMargin.toFloat(); startY=p.topMargin.toFloat(); true }
+    MotionEvent.ACTION_DOWN -> { downX=e.rawX; downY=e.rawY; startX=outer.x; startY=outer.y; true }
     MotionEvent.ACTION_MOVE -> {
      if(!maximized) {
       val p=outer.layoutParams as FrameLayout.LayoutParams
