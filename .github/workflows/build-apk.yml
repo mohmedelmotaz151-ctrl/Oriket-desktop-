@@ -3,6 +3,9 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+concurrency:
+  group: oriket-desktop-apk-build
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -17,10 +20,11 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: orkeit-desktop-debug-signing-key-v1
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
       - name: Install Android 16 SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -n 1)
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
