@@ -882,7 +882,8 @@ class MainActivity : Activity() {
  private fun showNotepad() {
   shell("المفكرة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f; tag="orkeit-notepad-editor" }
+  val notePrefs=getSharedPreferences("orkeit_notepad",Context.MODE_PRIVATE)
+  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f; tag="orkeit-notepad-editor"; setText(notePrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){notePrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
   page.addView(action("فتح ملف TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},63)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(-1,44))
   page.addView(editor,LinearLayout.LayoutParams(-1,0,1f))
   page.addView(action("حفظ TXT") {
@@ -898,7 +899,10 @@ class MainActivity : Activity() {
 
  private fun showMyComputer() {
   shell("هذا الكمبيوتر")
-  val workspace=java.io.File(filesDir,"OriketWorkspace").apply{mkdirs()}
+  val workspace=java.io.File(filesDir,"OriketWorkspace").apply {
+   mkdirs()
+   listOf("Documents","Downloads","Pictures","Videos","Projects").forEach { java.io.File(this,it).mkdirs() }
+  }
   var current=fileManagerDir?.takeIf{it.exists()} ?: workspace
   val page=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
   val path=TextView(this).apply{text=current.absolutePath;textSize=11f;setTextColor(navy);setPadding(6,4,6,4)}
@@ -1015,7 +1019,8 @@ class MainActivity : Activity() {
   shell("Word")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val toolbar=LinearLayout(this).apply { gravity=Gravity.CENTER }
-  val editor=EditText(this).apply { hint="مستند جديد"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor" }
+  val wordPrefs=getSharedPreferences("orkeit_word",Context.MODE_PRIVATE)
+  val editor=EditText(this).apply { hint="مستند جديد — ابدأ الكتابة هنا"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor"; setText(wordPrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){wordPrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
   toolbar.addView(task("فتح TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},64)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}})
   toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("sans-serif",Typeface.NORMAL) else Typeface.create("sans-serif",Typeface.BOLD)})
   toolbar.addView(task("A+"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity + 2f).coerceAtMost(40f)})
