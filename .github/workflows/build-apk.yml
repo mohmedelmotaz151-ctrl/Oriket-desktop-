@@ -3,13 +3,20 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
+      # Keep the same debug signing key between CI builds so Android can update
+      # the installed APK instead of rejecting it because its signature changed.
+      - name: Restore stable Android debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: orkeit-desktop-debug-signing-key-v1
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -20,7 +27,9 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+      - name: Prepare update package
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/orkeit-desktop.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -28,3 +37,19 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Publish/update latest APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          target_commitish: main
+          name: Oriket Desktop Latest
+          body: |
+            Automated Oriket Desktop update.
+            {
+              "versionCode": ${{ github.run_number }},
+              "versionName": "1.0.${{ github.run_number }}"
+            }
+          files: app/build/outputs/apk/debug/orkeit-desktop.apk
+          overwrite_files: true
+          make_latest: false
+          prerelease: true
