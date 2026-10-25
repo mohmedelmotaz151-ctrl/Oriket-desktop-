@@ -778,8 +778,8 @@ class MainActivity : Activity() {
         var closed=false
         val total=renderer.pageCount
         val controls=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        val previous=task("‹ السابق"){if(pageIndex>0){pageIndex--;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
         val pdfPageLabel=TextView(this).apply { text="الصفحة 1 / ${total}"; textSize=13f; setTextColor(navy); gravity=Gravity.CENTER }
+        val previous=task("‹ السابق"){if(pageIndex>0){pageIndex--;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
         val next=task("التالي ›"){if(pageIndex<total-1){pageIndex++;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
         controls.addView(previous,LinearLayout.LayoutParams(0,42,1f))
         controls.addView(pdfPageLabel,LinearLayout.LayoutParams(0,42,1.2f))
