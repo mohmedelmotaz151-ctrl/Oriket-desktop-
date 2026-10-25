@@ -390,35 +390,60 @@ class MainActivity : Activity() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
   if(existing!=null) { desktopArea.removeView(existing); return }
   val menu=LinearLayout(this).apply {
-   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(18,18,18,18)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(247,248,250,255)); cornerRadius=24f; setStroke(1,border) }
-   elevation=30f
+   tag="start-menu"; orientation=LinearLayout.HORIZONTAL; setPadding(10,10,10,10)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(250,248,250,255)); cornerRadius=22f; setStroke(1,border) }
+   elevation=32f
   }
-  menu.addView(TextView(this).apply { text="ابدأ"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(4,0,4,10) })
-  val search=EditText(this).apply { tag="start-search"; hint="ابحث عن تطبيق أو أداة"; textSize=13f; setSingleLine(true) }
-  menu.addView(search,LinearLayout.LayoutParams(-1,44))
-  val grid=GridLayout(this).apply { columnCount=3 }
-  listOf(
-   Triple("🌐","Chrome / المتصفح",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
-   Triple("📂","مستكشف الملفات",{pickFile("*/*")}),Triple("📄","مشغل PDF",{pickFile("application/pdf")}),
-   Triple("🎬","VLC مشغل الفيديو",{showVideoPlayer()}),Triple("🎨","الرسام",{showPaint()}),
+  val rail=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL; setPadding(2,8,2,4)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,241,250)); cornerRadius=16f }
+  }
+  rail.addView(TextView(this).apply { text="⊞"; textSize=26f; gravity=Gravity.CENTER; setTextColor(blue); setPadding(0,8,0,20) })
+  rail.addView(task("👤"){showAbout()},LinearLayout.LayoutParams(48,48))
+  val railSpacer=View(this); rail.addView(railSpacer,LinearLayout.LayoutParams(1,0,1f))
+  rail.addView(task("⚙"){desktopArea.removeView(menu);showControlPanel()},LinearLayout.LayoutParams(48,48))
+  rail.addView(task("⏻"){AlertDialog.Builder(this).setTitle("إغلاق Oriket Desktop").setMessage("هل تريد الخروج من واجهة سطح المكتب؟").setPositiveButton("خروج"){_,_->finish()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(48,48))
+  menu.addView(rail,LinearLayout.LayoutParams(56,-1))
+  val main=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(12,4,4,4) }
+  val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+  heading.addView(TextView(this).apply { text="ابدأ"; textSize=23f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,42,1f))
+  heading.addView(task("كل التطبيقات  ›"){ Toast.makeText(this,"تظهر التطبيقات المثبتة في القائمة أدناه",Toast.LENGTH_SHORT).show() })
+  main.addView(heading)
+  val search=EditText(this).apply { tag="start-search"; hint="ابحث عن تطبيق أو أداة"; textSize=13f; setSingleLine(true); setPadding(12,2,12,2) }
+  main.addView(search,LinearLayout.LayoutParams(-1,42).apply { topMargin=4; bottomMargin=10 })
+  main.addView(TextView(this).apply { text="المثبتة"; textSize=14f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,4,2,4) })
+  val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
+  val items=listOf(
+   Triple("🌐","Chrome",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
+   Triple("📂","الملفات",{pickFile("*/*")}),Triple("📄","PDF",{pickFile("application/pdf")}),
+   Triple("🎬","VLC",{showVideoPlayer()}),Triple("🎨","الرسام",{showPaint()}),
    Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
-   Triple("⚙️","لوحة التحكم",{showControlPanel()}),Triple("📋","إدارة المهام",{showTaskManager()}),
-   Triple("⌨️","Command",{showCommand()}),Triple("🎮","ألعاب Windows",{showGames()}),
+   Triple("⚙️","لوحة التحكم",{showControlPanel()}),Triple("📋","المهام",{showTaskManager()}),
+   Triple("⌨️","Command",{showCommand()}),Triple("🎮","الألعاب",{showGames()}),
    Triple("🧮","الحاسبة",{showCalculator()}),Triple("🗒️","المفكرة",{showNotepad()}),
-   Triple("🔄","تحديث التطبيق",{checkForUpdates(true)}),Triple("ℹ️","حول Oriket",{showAbout()})
-  ).forEach { item ->
-   val b=Button(this).apply { text=item.first+"\n"+item.second; isAllCaps=false; textSize=12f; setOnClickListener { desktopArea.removeView(menu); item.third.invoke() } }
-   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=72; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
+   Triple("🔄","تحديث",{checkForUpdates(true)}),Triple("ℹ️","حول التطبيق",{showAbout()})
+  )
+  items.forEach { item ->
+   val b=Button(this).apply {
+    text=item.first+"\n"+item.second; isAllCaps=false; textSize=11f
+    setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(247,249,253)))
+    setOnClickListener { desktopArea.removeView(menu); item.third.invoke() }
+   }
+   grid.addView(b,GridLayout.LayoutParams().apply { width=0;height=66;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(2,2,2,2) })
   }
-  menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
-  menu.addView(action("إيقاف الواجهة") { finish() })
-  desktopArea.addView(menu,FrameLayout.LayoutParams(460,(desktopArea.height*0.84f).toInt().coerceAtLeast(360),Gravity.BOTTOM or Gravity.LEFT).apply { leftMargin=12; bottomMargin=10 })
+  main.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
+  main.addView(TextView(this).apply { text="موصى به"; textSize=13f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,8,2,3) })
+  main.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=11f; setTextColor(Color.DKGRAY); setPadding(2,2,2,2) })
+  menu.addView(main,LinearLayout.LayoutParams(0,-1,1f))
+  desktopArea.addView(menu,FrameLayout.LayoutParams(500,(desktopArea.height*0.86f).toInt().coerceAtLeast(370),Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=10 })
   search.addTextChangedListener(object:android.text.TextWatcher {
    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
    override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
     val q=s.toString().trim()
-    for(i in 0 until grid.childCount) grid.getChildAt(i).visibility=if(q.isEmpty() || grid.getChildAt(i).let { (it as Button).text.toString().contains(q,true) }) View.VISIBLE else View.GONE
+    for(i in 0 until grid.childCount) {
+     val b=grid.getChildAt(i) as Button
+     b.visibility=if(q.isEmpty() || b.text.toString().contains(q,true)) View.VISIBLE else View.GONE
+    }
    }
    override fun afterTextChanged(s:android.text.Editable?) {}
   })
