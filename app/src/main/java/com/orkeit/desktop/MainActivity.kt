@@ -143,16 +143,16 @@ class MainActivity : Activity() {
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding(8,5,8,5)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(245,245,248,253)); cornerRadius=22f; setStroke(1,Color.rgb(218,226,238)) }
-   elevation=12f
-  }
-  val dock=FrameLayout(this).apply {
-   setBackgroundColor(Color.argb(246,224,233,246))
+   setPadding(10,7,10,7)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(248,248,250,255)); cornerRadius=26f; setStroke(1,Color.rgb(205,219,239)) }
    elevation=14f
   }
-  dock.addView(taskbar,FrameLayout.LayoutParams(-2,48,Gravity.CENTER))
-  root.addView(dock,LinearLayout.LayoutParams(-1,58))
+  val dock=FrameLayout(this).apply {
+   setBackgroundColor(Color.argb(248,218,230,247))
+   elevation=16f
+  }
+  dock.addView(taskbar,FrameLayout.LayoutParams(-2,62,Gravity.CENTER))
+  root.addView(dock,LinearLayout.LayoutParams(-1,78))
   setContentView(root)
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
@@ -190,14 +190,14 @@ class MainActivity : Activity() {
    setPadding(12,0,4,0)
    setBackgroundColor(Color.rgb(247,249,253))
   }
-  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=16f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
+  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=18f; setTextColor(navy); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
   val minimize=windowButton("—")
   val maximize=windowButton("□")
   val close=windowButton("×")
-  titlebar.addView(minimize,LinearLayout.LayoutParams(38,38))
-  titlebar.addView(maximize,LinearLayout.LayoutParams(38,38))
-  titlebar.addView(close,LinearLayout.LayoutParams(42,38))
-  outer.addView(titlebar,LinearLayout.LayoutParams(-1,42))
+  titlebar.addView(minimize,LinearLayout.LayoutParams(46,46))
+  titlebar.addView(maximize,LinearLayout.LayoutParams(46,46))
+  titlebar.addView(close,LinearLayout.LayoutParams(48,46))
+  outer.addView(titlebar,LinearLayout.LayoutParams(-1,52))
   val body=FrameLayout(this).apply { setPadding(10,8,10,8); setBackgroundColor(Color.rgb(250,251,254)) }
   outer.addView(body,LinearLayout.LayoutParams(-1,0,1f))
   val lp=FrameLayout.LayoutParams((desktopArea.width*0.86f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280)), (desktopArea.height*0.84f).toInt().coerceIn(220,(desktopArea.height-16).coerceAtLeast(220)),Gravity.CENTER)
@@ -427,7 +427,7 @@ class MainActivity : Activity() {
    setPadding(8,10,8,8)
    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
-  val desktopColumns=((desktopArea.width-24)/104).coerceIn(2,8)
+  val desktopColumns=((desktopArea.width-32)/120).coerceIn(2,8)
   val grid=GridLayout(this).apply { columnCount=desktopColumns; useDefaultMargins=false }
   val allItems=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
@@ -507,9 +507,9 @@ class MainActivity : Activity() {
      false
     }
    }
-   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(58,58))
-   tile.addView(TextView(this).apply { text=displayName; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(3,4,3,1); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=96; setMargins(2,2,2,2) })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(64,64))
+   tile.addView(TextView(this).apply { text=displayName; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=112; height=116; setMargins(5,5,5,5) })
   }
   shortcuts.addView(grid,LinearLayout.LayoutParams(-1,-2))
   val clock=TextView(this).apply {
@@ -604,7 +604,7 @@ class MainActivity : Activity() {
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(36,36))
    tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) },LinearLayout.LayoutParams(-1,36))
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=78;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(3,2,3,2) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=88;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
   }
   menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
