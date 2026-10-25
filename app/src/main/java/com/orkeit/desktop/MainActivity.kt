@@ -317,9 +317,15 @@ class MainActivity : Activity() {
   }
  }
  private fun windowButton(label:String)=Button(this).apply {
-  text=label; textSize=18f; isAllCaps=false; setPadding(0,0,0,0); setTextColor(navy)
-  background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
-  setOnClickListener { }
+  text=label; textSize=18f; isAllCaps=false; minWidth=38; minimumWidth=38; minHeight=38; minimumHeight=38
+  gravity=Gravity.CENTER; setPadding(0,0,0,0); setTextColor(navy)
+  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
+  setOnTouchListener { v,e ->
+   if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(230,237,247)); cornerRadius=9f }
+   if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL) v.postDelayed({v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }},140)
+   false
+  }
  }
  private fun windowIcon(title:String):String = when {
   title.contains("YouTube Music")->"🎵"
@@ -333,20 +339,41 @@ class MainActivity : Activity() {
   else->"🪟"
  }
  private fun taskButton(title:String)=Button(this).apply {
-  text=windowIcon(title); textSize=18f; isAllCaps=false; setTextColor(navy)
-  setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,242,252)))
-  contentDescription=title
+  text=windowIcon(title); textSize=19f; isAllCaps=false; minWidth=48; minimumWidth=48; minHeight=44; minimumHeight=44
+  gravity=Gravity.CENTER; setPadding(6,4,6,4); setTextColor(navy)
+  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,242,252)); cornerRadius=13f; setStroke(1,Color.rgb(216,226,241)) }
+  elevation=2f; contentDescription=title
  }
- private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f); typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.rgb(18,32,54)); setPadding(7,4,7,4); if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(231,239,250))); contentDescription=s; setOnClickListener{a()} }
- private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f); typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.WHITE); setPadding(7,4,7,4); if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); contentDescription=s; setOnClickListener{a()} }
+ private fun task(s:String,a:()->Unit)=Button(this).apply {
+  text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
+  maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f)
+  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(Color.rgb(24,39,62)); setPadding(9,5,9,5)
+  if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP)
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(237,243,251)); cornerRadius=11f; setStroke(1,Color.rgb(216,226,240)) }
+  elevation=1.5f; contentDescription=s; setOnClickListener{a()}
+ }
+ private fun action(s:String,a:()->Unit)=Button(this).apply {
+  text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
+  maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f)
+  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(Color.WHITE); setPadding(9,5,9,5)
+  if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP)
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(blue); cornerRadius=11f; setStroke(1,Color.rgb(0,83,160)) }
+  elevation=2f; contentDescription=s; setOnClickListener{a()}
+ }
  private fun panel(v:View) {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
  private inner class Icon3DView(context:Context, private val symbol:String, private val label:String):View(context) {
   private val colors:IntArray = when {
+   label.contains("YouTube Music") -> intArrayOf(Color.rgb(255,145,165),Color.rgb(230,35,65),Color.rgb(120,8,30))
+   label.contains("YouTube") -> intArrayOf(Color.rgb(255,155,155),Color.rgb(235,35,45),Color.rgb(125,8,18))
+   label.contains("مشغل الموسيقى") -> intArrayOf(Color.rgb(230,190,255),Color.rgb(140,65,210),Color.rgb(65,20,115))
    label.contains("الإنترنت") -> intArrayOf(Color.rgb(96,205,255),Color.rgb(0,100,220),Color.rgb(5,45,130))
    label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(180,225,255),Color.rgb(50,115,205),Color.rgb(20,48,112))
-   label.contains("PDF") -> intArrayOf(Color.rgb(255,125,125),Color.rgb(220,35,45),Color.rgb(125,12,25))
+   label.contains("PDF") -> intArrayOf(Color.rgb(255,145,145),Color.rgb(220,35,45),Color.rgb(125,12,25))
+   label.contains("الملفات") || label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(255,225,135),Color.rgb(225,155,35),Color.rgb(120,75,12))
+   label.contains("المتصفح") -> intArrayOf(Color.rgb(125,220,255),Color.rgb(25,125,220),Color.rgb(10,45,120))
    label.contains("الفيديو") -> intArrayOf(Color.rgb(255,185,90),Color.rgb(235,90,25),Color.rgb(135,35,12))
    label.contains("الرسام") -> intArrayOf(Color.rgb(255,190,220),Color.rgb(205,65,145),Color.rgb(105,25,90))
    label.contains("Word") -> intArrayOf(Color.rgb(120,190,255),Color.rgb(25,95,205),Color.rgb(15,40,120))
@@ -480,9 +507,9 @@ class MainActivity : Activity() {
      false
     }
    }
-   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(54,54))
-   tile.addView(TextView(this).apply { text=displayName; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(2,3,2,0); maxLines=3; ellipsize=android.text.TextUtils.TruncateAt.END })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=82; setMargins(1,1,1,1) })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(58,58))
+   tile.addView(TextView(this).apply { text=displayName; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(3,4,3,1); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=96; setMargins(2,2,2,2) })
   }
   shortcuts.addView(grid,LinearLayout.LayoutParams(-1,-2))
   val clock=TextView(this).apply {
@@ -575,9 +602,9 @@ class MainActivity : Activity() {
      false
     }
    }
-   tile.addView(TextView(this).apply { text=item.first; textSize=26f; gravity=Gravity.CENTER; setTextColor(navy) },LinearLayout.LayoutParams(-1,38))
-   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END },LinearLayout.LayoutParams(-1,38))
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=70;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(2,1,2,1) })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(36,36))
+   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) },LinearLayout.LayoutParams(-1,36))
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=78;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(3,2,3,2) })
   }
   menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
@@ -841,7 +868,11 @@ class MainActivity : Activity() {
    }
   } catch(e:Exception) { viewer.addView(message("تعذرت معاينة الملف داخل التطبيق.")) }
  }
- private fun message(s:String)=TextView(this).apply { text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(20,20,20,20) }
+ private fun message(s:String)=TextView(this).apply {
+  text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(24,22,24,22)
+  typeface=Typeface.create("sans-serif",Typeface.NORMAL); includeFontPadding=true; setLineSpacing(2f,1.08f)
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=16f; setStroke(1,border) }
+ }
  private fun renderPdfPage(renderer:PdfRenderer,index:Int,zoom:Float,container:FrameLayout) {
   try {
    val pg=renderer.openPage(index)
@@ -857,7 +888,7 @@ class MainActivity : Activity() {
  private fun showCalculator() {
   shell("الحاسبة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,8,8,8) }
-  val display=TextView(this).apply { text="0"; textSize=30f; gravity=Gravity.CENTER_VERTICAL or Gravity.END; setTextColor(navy); setPadding(12,8,12,8); setBackgroundColor(Color.rgb(240,244,249)) }
+  val display=TextView(this).apply { text="0"; textSize=32f; gravity=Gravity.CENTER_VERTICAL or Gravity.END; setTextColor(navy); typeface=Typeface.create("sans-serif-light",Typeface.NORMAL); setPadding(16,10,16,10); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(239,244,251)); cornerRadius=14f; setStroke(1,border) } }
   page.addView(display,LinearLayout.LayoutParams(-1,76))
   val expression=StringBuilder()
   class ExpressionParser(private val source:String) {
