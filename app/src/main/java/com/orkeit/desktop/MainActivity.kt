@@ -574,7 +574,7 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(TextView(this).apply { text=item.first; textSize=26f; gravity=Gravity.CENTER; setTextColor(navy) },LinearLayout.LayoutParams(-1,38))
-   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; maxLines=2 },LinearLayout.LayoutParams(-1,30))
+   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END },LinearLayout.LayoutParams(-1,38))
    grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=70;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(2,1,2,1) })
   }
   menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
@@ -1149,7 +1149,7 @@ class MainActivity : Activity() {
     Toast.makeText(this,if(uri!=null)"تم حفظ المستند في التنزيلات" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
    }catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
   })
-  page.addView(toolbar); page.addView(ScrollView(this).apply { addView(editor) },LinearLayout.LayoutParams(-1,0,1f)); panel(page)
+  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=true; addView(toolbar) },LinearLayout.LayoutParams(-1,54)); page.addView(ScrollView(this).apply { addView(editor) },LinearLayout.LayoutParams(-1,0,1f)); panel(page)
  }
  private fun showExcel() {
   shell("Excel")
