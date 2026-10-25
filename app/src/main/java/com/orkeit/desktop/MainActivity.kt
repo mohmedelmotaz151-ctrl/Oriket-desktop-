@@ -3,170 +3,222 @@ package com.orkeit.desktop
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.provider.MediaStore
+import android.content.Context
+import android.content.ContentValues
+import android.graphics.*
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.content.Context
-import android.content.ContentValues
-import android.graphics.Typeface
+import android.view.WindowManager
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import android.text.InputType
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 class MainActivity : Activity() {
- private val navy = Color.rgb(16,43,78)
- private val blue = Color.rgb(23,105,170)
- private val pale = Color.rgb(233,242,252)
- private lateinit var root: LinearLayout
- private lateinit var content: LinearLayout
- private lateinit var clock: TextView
+ private val navy=Color.rgb(18,32,54)
+ private val blue=Color.rgb(0,103,192)
+ private val pale=Color.rgb(242,246,252)
+ private val border=Color.rgb(218,226,238)
+ private lateinit var root:LinearLayout
+ private lateinit var content:FrameLayout
+ private var web:WebView?=null
 
- override fun onCreate(savedInstanceState: Bundle?) {
+ override fun onCreate(savedInstanceState:Bundle?) {
   super.onCreate(savedInstanceState)
-  window.statusBarColor = navy
-  window.navigationBarColor = navy
-  window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+  window.statusBarColor=navy
+  window.navigationBarColor=navy
+  window.decorView.layoutDirection=View.LAYOUT_DIRECTION_LTR
+  window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
   showDesktop()
  }
 
- private fun base() {
-  root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(pale); layoutDirection=View.LAYOUT_DIRECTION_RTL }
-  val header = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(18,14,18,14); setBackgroundColor(Color.WHITE) }
-  val brand = TextView(this).apply { text="🪟 Oriket Desktop\nمساحة عمل ذكية"; textSize=18f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD }
-  header.addView(brand, LinearLayout.LayoutParams(0,-2,1f))
-  clock = TextView(this).apply { textSize=13f; setTextColor(navy) }
-  header.addView(clock)
-  root.addView(header)
-  val scroll=ScrollView(this)
-  content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(14,16,14,16) }
-  scroll.addView(content)
-  root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-  val taskbar=LinearLayout(this).apply { gravity=Gravity.CENTER; setPadding(8,8,8,8); setBackgroundColor(Color.WHITE) }
-  taskbar.addView(button("⊞ ابدأ",true){showDesktop()})
-  taskbar.addView(button("🌐"){showBrowser()})
-  taskbar.addView(button("📁"){pickFiles("*/*",true)})
-  taskbar.addView(button("🎨"){showPaint()})
-  root.addView(taskbar)
+ private fun shell(title:String) {
+  web=null
+  root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(pale); layoutDirection=View.LAYOUT_DIRECTION_LTR }
+  val header=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(18,6,18,6); setBackgroundColor(Color.WHITE) }
+  header.addView(TextView(this).apply { text="🪟 Oriket Desktop"; textSize=20f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD },LinearLayout.LayoutParams(0, -2,1f))
+  header.addView(TextView(this).apply { text=title; textSize=14f; setTextColor(navy) })
+  root.addView(header,LinearLayout.LayoutParams(-1,52))
+  content=FrameLayout(this).apply { setPadding(12,10,12,10) }
+  root.addView(content,LinearLayout.LayoutParams(-1,0,1f))
+  val bar=LinearLayout(this).apply { gravity=Gravity.CENTER; setPadding(5,4,5,4); setBackgroundColor(Color.WHITE) }
+  bar.addView(task("⊞ ابدأ"){showDesktop()})
+  bar.addView(task("🌐 المتصفح"){showBrowser()})
+  bar.addView(task("📁 الملفات"){pickFile("*/*")})
+  bar.addView(task("🧮 الحاسبة"){showCalculator()})
+  bar.addView(task("🎨 الرسام"){showPaint()})
+  root.addView(bar,LinearLayout.LayoutParams(-1,56))
   setContentView(root)
-  clock.text=SimpleDateFormat("EEE hh:mm a",Locale("ar")).format(Date())
  }
- private fun button(label:String, primary:Boolean=false, action:()->Unit):Button =
-  Button(this).apply { text=label; textSize=13f; isAllCaps=false; setTextColor(if(primary) Color.WHITE else navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(if(primary) navy else Color.rgb(239,245,252))); setOnClickListener{action()} }
- private fun heading(text:String) { content.addView(TextView(this).apply { this.text=text; textSize=20f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD; setPadding(4,4,4,12) }) }
- private fun card(text:String, action:()->Unit) {
-  val b=Button(this).apply { this.text=text; textSize=16f; isAllCaps=false; gravity=Gravity.CENTER; setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE)); setPadding(10,24,10,24); setOnClickListener{action()} }
-  val lp=LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,5,0,7); content.addView(b,lp)
+ private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=12f; isAllCaps=false; setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(239,244,251))); setOnClickListener{a()} }
+ private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=14f; isAllCaps=false; setTextColor(Color.WHITE); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); setOnClickListener{a()} }
+ private fun panel(v:View) {
+  val p=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(10,8,10,8); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=20f; setStroke(1,border) }; elevation=3f }
+  p.addView(v,LinearLayout.LayoutParams(-1,-1))
+  content.addView(p,FrameLayout.LayoutParams(-1,-1))
  }
  private fun showDesktop() {
-  base(); heading("مرحبًا بك في Oriket Desktop")
-  val grid=GridLayout(this).apply { columnCount=2 }
-  val apps=listOf<Pair<String,()->Unit>>(
-   "🌐\nالمتصفح" to {showBrowser()},
-   "🎨\nالرسام" to {showPaint()},
-   "📄\nملفات PDF" to {pickFiles("application/pdf",false)},
-   "📁\nملفات الهاتف" to {pickFiles("*/*",true)},
-   "🧮\nالحاسبة" to {launchPackage("com.google.android.calculator")},
-   "⚙️\nالإعدادات" to {openSystemSettings()},
-   "🖥️\nحول التطبيق" to {showAbout()}
+  shell("سطح المكتب")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(15,12,15,12) }
+  page.addView(TextView(this).apply { text="مرحبًا بك"; textSize=27f; setTextColor(navy); typeface=Typeface.DEFAULT_BOLD })
+  page.addView(TextView(this).apply { text="مساحة عمل أفقية مستوحاة من Windows 11"; textSize=14f; setTextColor(Color.DKGRAY); setPadding(0,0,0,8) })
+  val grid=GridLayout(this).apply { columnCount=5 }
+  val items=listOf(
+   Triple("🌐","المتصفح",{showBrowser()}), Triple("📁","مستكشف الملفات",{pickFile("*/*")}),
+   Triple("📄","ملفات PDF",{pickFile("application/pdf")}), Triple("🧮","الحاسبة",{showCalculator()}),
+   Triple("🎨","الرسام",{showPaint()}), Triple("📝","المفكرة",{showNotepad()}),
+   Triple("⚙️","الإعدادات",{showAbout()}), Triple("ℹ️","حول التطبيق",{showAbout()})
   )
-  apps.forEach { item ->
-   val b=Button(this).apply { text=item.first; textSize=17f; isAllCaps=false; setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE)); setOnClickListener{item.second()} }
-   val p=GridLayout.LayoutParams().apply { width=0; height=150; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(5,5,5,5) }
-   grid.addView(b,p)
-  }
-  content.addView(grid)
-  content.addView(TextView(this).apply { text="تطبيق أندرويد أصلي بواجهة سطح مكتب، وليس صفحة ويب.\nيمكنه فتح المواقع، الرسم باللمس، واختيار ملفات الهاتف."; textSize=14f; setTextColor(Color.DKGRAY); setPadding(8,20,8,8) })
- }
- private fun showBrowser() {
-  base(); heading("🌐 فتح موقع")
-  val field=EditText(this).apply { hint="أدخل عنوان الموقع مثل https://google.com"; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setText("https://www.google.com"); textSize=16f }
-  content.addView(field)
-  content.addView(button("فتح في المتصفح",true) {
-   var address=field.text.toString().trim()
-   if(address.isNotEmpty()) {
-    if(!address.startsWith("http://") && !address.startsWith("https://")) address="https://"+address
-    try { startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(address))) }
-    catch(_:Exception) { Toast.makeText(this,"تعذر فتح الموقع",Toast.LENGTH_LONG).show() }
+  items.forEach { item ->
+   val tile=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(5,6,5,6)
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=18f; setStroke(1,border) }
+    setOnClickListener{item.third.invoke()}
    }
-  })
-  listOf("Google" to "https://www.google.com","YouTube" to "https://www.youtube.com","Bing" to "https://www.bing.com").forEach { pair -> card("فتح "+pair.first){startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(pair.second)))} }
-  content.addView(TextView(this).apply { text="يفتح التطبيق متصفح أندرويد المثبت على جهازك. لا يتضمن Chrome أو إضافاته بشكل مدمج."; textSize=13f; setTextColor(Color.DKGRAY) })
+   tile.addView(TextView(this).apply { text=item.first; textSize=31f; gravity=Gravity.CENTER })
+   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); setPadding(0,4,0,0) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=0; height=108; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4) })
+  }
+  page.addView(grid)
+  page.addView(TextView(this).apply { text="المتصفح والأدوات والملفات المدعومة تفتح داخل الواجهة نفسها."; textSize=13f; setTextColor(Color.DKGRAY); setPadding(4,10,4,0) })
+  panel(page)
  }
- private fun pickFiles(mime:String,multiple:Boolean) {
-  val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type=mime; putExtra(Intent.EXTRA_ALLOW_MULTIPLE,multiple) }
-  try { startActivityForResult(intent,41) } catch(_:Exception) { Toast.makeText(this,"لا يوجد تطبيق مناسب لفتح الملفات",Toast.LENGTH_LONG).show() }
+ private fun showBrowser(start:String="https://www.google.com") {
+  shell("المتصفح")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+  val address=EditText(this).apply { hint="اكتب عنوان موقع أو كلمة بحث"; setSingleLine(true); textSize=14f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setText(start) }
+  val go=action("انتقال"){}
+  row.addView(address,LinearLayout.LayoutParams(0,48,1f)); row.addView(go,LinearLayout.LayoutParams(90,48))
+  page.addView(row)
+  val browser=WebView(this)
+  web=browser
+  browser.settings.javaScriptEnabled=true
+  browser.settings.domStorageEnabled=true
+  browser.webViewClient=object:WebViewClient() { override fun onPageFinished(view:WebView?,url:String?) { if(url!=null && !address.hasFocus()) address.setText(url) } }
+  browser.webChromeClient=WebChromeClient()
+  page.addView(browser,LinearLayout.LayoutParams(-1,0,1f))
+  panel(page)
+  fun load() { val s=address.text.toString().trim(); val target=if(s.startsWith("http://")||s.startsWith("https://")) s else if(s.contains(" ")||!s.contains(".")) "https://www.google.com/search?q="+Uri.encode(s) else "https://"+s; browser.loadUrl(target) }
+  go.setOnClickListener{load()}
+  address.setOnEditorActionListener{_,_,_->load();true}
+  browser.loadUrl(start)
+ }
+ private fun pickFile(type:String) {
+  try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); this.type=type },41) }
+  catch(_:Exception) { Toast.makeText(this,"تعذر فتح مستكشف الملفات",Toast.LENGTH_LONG).show() }
  }
  @Deprecated("Uses compatible document picker callback")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
-  if(requestCode==41 && resultCode==RESULT_OK && data!=null) {
-   val uris=mutableListOf<Uri>()
-   data.data?.let{uris.add(it)}
-   data.clipData?.let{clip-> for(i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri)}
-   uris.distinct().forEach { uri ->
-    try { startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri,contentResolver.getType(uri) ?: "*/*"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) }
-    catch(_:Exception) { Toast.makeText(this,"لا يوجد عارض مناسب لهذا الملف",Toast.LENGTH_LONG).show() }
-   }
-  }
+  if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
  }
- private fun showPaint() {
-  base(); heading("🎨 الرسام")
-  val controls=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
-  val canvasView=PaintCanvas(this)
-  controls.addView(button("مسح"){canvasView.clearCanvas()},LinearLayout.LayoutParams(0,-2,1f))
-  controls.addView(button("حفظ PNG",true){saveDrawing(canvasView)},LinearLayout.LayoutParams(0,-2,1f))
-  content.addView(controls)
-  content.addView(canvasView,LinearLayout.LayoutParams(-1,650))
-  content.addView(TextView(this).apply { text="ارسم بإصبعك ثم اضغط حفظ PNG لحفظ الصورة في معرض الهاتف."; textSize=13f; setTextColor(Color.DKGRAY) })
- }
- private fun saveDrawing(view:PaintCanvas) {
-  val bitmap=android.graphics.Bitmap.createBitmap(view.width.coerceAtLeast(1),view.height.coerceAtLeast(1),android.graphics.Bitmap.Config.ARGB_8888)
-  view.draw(Canvas(bitmap))
+ private fun showFile(uri:Uri) {
+  val mime=contentResolver.getType(uri) ?: "application/octet-stream"
+  val name=try { contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst()) it.getString(0) else "ملف" } ?: "ملف" } catch(_:Exception){"ملف"}
+  shell("الملفات")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text="📄 $name"; textSize=17f; setTextColor(navy); setPadding(4,4,4,8) })
+  val viewer=FrameLayout(this)
+  page.addView(viewer,LinearLayout.LayoutParams(-1,0,1f))
+  panel(page)
   try {
-   val values=ContentValues().apply {
-    put(MediaStore.Images.Media.DISPLAY_NAME,"orkeit-drawing-"+System.currentTimeMillis()+".png")
-    put(MediaStore.Images.Media.MIME_TYPE,"image/png")
-    put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/OrkeitDesktop")
+   when {
+    mime.startsWith("image/") -> viewer.addView(ImageView(this).apply { setImageURI(uri); scaleType=ImageView.ScaleType.FIT_CENTER },FrameLayout.LayoutParams(-1,-1))
+    mime=="application/pdf" || name.lowercase(Locale.ROOT).endsWith(".pdf") -> {
+     val fd=contentResolver.openFileDescriptor(uri,"r")
+     if(fd!=null) {
+      val renderer=PdfRenderer(fd)
+      if(renderer.pageCount>0) {
+       val pg=renderer.openPage(0)
+       val bmp=Bitmap.createBitmap(pg.width*2,pg.height*2,Bitmap.Config.ARGB_8888)
+       bmp.eraseColor(Color.WHITE); pg.render(bmp,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY); pg.close(); renderer.close(); fd.close()
+       viewer.addView(ScrollView(this).apply { addView(ImageView(this@MainActivity).apply { setImageBitmap(bmp); scaleType=ImageView.ScaleType.FIT_CENTER },ViewGroup.LayoutParams(-1,900)) })
+      } else { renderer.close(); fd.close(); viewer.addView(message("ملف PDF فارغ")) }
+     }
+    }
+    mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) -> {
+     val txt=contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()} ?: "تعذر قراءة الملف"
+     viewer.addView(ScrollView(this).apply { addView(TextView(this@MainActivity).apply { text=txt; textSize=14f; setTextColor(Color.DKGRAY); setPadding(12,12,12,12) }) })
+    }
+    else -> viewer.addView(message("تم اختيار الملف، لكن المعاينة الداخلية لا تدعم هذا النوع بعد."))
    }
-   val uri=contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
-   if(uri!=null) contentResolver.openOutputStream(uri)?.use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
-   Toast.makeText(this,if(uri!=null)"تم حفظ الرسم في الصور" else "تعذر حفظ الصورة",Toast.LENGTH_LONG).show()
-  } catch(_:Exception) { Toast.makeText(this,"تعذر حفظ الصورة",Toast.LENGTH_LONG).show() }
+  } catch(e:Exception) { viewer.addView(message("تعذرت معاينة الملف داخل التطبيق.")) }
+ }
+ private fun message(s:String)=TextView(this).apply { text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(20,20,20,20) }
+ private fun showCalculator() {
+  shell("الحاسبة")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val display=EditText(this).apply { textSize=28f; gravity=Gravity.END; inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED; setText("0") }
+  page.addView(display,LinearLayout.LayoutParams(-1,65))
+  val grid=GridLayout(this).apply { columnCount=4 }
+  listOf("7","8","9","÷","4","5","6","×","1","2","3","−","C","0","=","+").forEach { key ->
+   val b=action(key) {
+    val old=display.text.toString()
+    when(key) {
+     "C"->display.setText("0")
+     "="->try { val op=listOf("+","−","×","÷").first{old.contains(it)}; val parts=old.split(op); val a=parts[0].toDouble(); val z=parts[1].toDouble(); display.setText((when(op){"+"->a+z;"−"->a-z;"×"->a*z;else->a/z}).toString()) } catch(_:Exception){display.setText("خطأ")}
+     else->display.setText(if(old=="0") key else old+key)
+    }
+   }
+   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=56; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
+  }
+  page.addView(grid); panel(page)
+ }
+ private fun showNotepad() {
+  shell("المفكرة")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f }
+  page.addView(editor,LinearLayout.LayoutParams(-1,0,1f))
+  page.addView(action("حفظ TXT") {
+   try {
+    val values=ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME,"orkeit-note-"+System.currentTimeMillis()+".txt"); put(MediaStore.Downloads.MIME_TYPE,"text/plain") }
+    val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
+    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(editor.text.toString())}
+    Toast.makeText(this,if(uri!=null)"تم الحفظ في التنزيلات" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
+   } catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
+  })
+  panel(page)
  }
  private fun showAbout() {
-  base(); heading("حول Oriket Desktop")
-  content.addView(TextView(this).apply {
-   text="هذا تطبيق Android أصلي بواجهة سطح مكتب مستقلة. يوفّر فتح المواقع في المتصفح المثبت، اختيار ملفات الهاتف وفتحها بالتطبيقات المناسبة، ورسّامًا يعمل باللمس ويحفظ PNG.\n\nتنبيه: ليس نظام Windows ولا يشغّل برامج EXE أو تطبيقات Windows المكتبية. تشغيل Windows الحقيقي يتطلب محاكاة/توافقًا متخصصًا أو الاتصال بجهاز Windows."
-   textSize=16f; setTextColor(navy); setPadding(8,8,8,8)
-  })
+  shell("حول التطبيق")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
+  page.addView(TextView(this).apply { text="Oriket Desktop\nواجهة أفقية مستوحاة من Windows 11. المتصفح والرسام والحاسبة والمفكرة ومعاينة الصور والنصوص وPDF تعمل داخل التطبيق.\n\nهذه واجهة سطح مكتب وليست نظام Windows فعليًا ولا تشغّل ملفات EXE."; textSize=19f; setTextColor(navy) })
+  panel(page)
  }
- private fun openSystemSettings() { try { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) } catch(_:Exception) { showAbout() } }
- private fun launchPackage(packageName:String) {
-  val intent=packageManager.getLaunchIntentForPackage(packageName)
-  if(intent!=null) startActivity(intent) else Toast.makeText(this,"التطبيق غير مثبت على الهاتف",Toast.LENGTH_LONG).show()
+ private fun showPaint() {
+  shell("الرسام")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val canvas=PaintCanvas(this)
+  val buttons=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  buttons.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,48,1f))
+  buttons.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,48,1f))
+  page.addView(buttons); page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f)); panel(page)
  }
- private inner class PaintCanvas(context:Context):View(context) {
-  private val stroke=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=8f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
+ private fun saveDrawing(v:PaintCanvas) {
+  try {
+   val bmp=Bitmap.createBitmap(v.width.coerceAtLeast(1),v.height.coerceAtLeast(1),Bitmap.Config.ARGB_8888); v.draw(Canvas(bmp))
+   val values=ContentValues().apply { put(MediaStore.Images.Media.DISPLAY_NAME,"orkeit-drawing-"+System.currentTimeMillis()+".png"); put(MediaStore.Images.Media.MIME_TYPE,"image/png"); put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/OrkeitDesktop") }
+   val uri=contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
+   if(uri!=null) contentResolver.openOutputStream(uri)?.use{bmp.compress(Bitmap.CompressFormat.PNG,100,it)}
+   Toast.makeText(this,if(uri!=null)"تم حفظ الرسم" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
+  } catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
+ }
+ override fun onBackPressed() { val b=web; if(b!=null && b.canGoBack()) b.goBack() else showDesktop() }
+ private inner class PaintCanvas(c:Context):View(c) {
+  private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
   private val paths=mutableListOf<Pair<Path,Paint>>()
-  private var current=Path()
+  private var path=Path()
   init { setBackgroundColor(Color.WHITE) }
-  override fun onDraw(canvas:Canvas) { super.onDraw(canvas); canvas.drawColor(Color.WHITE); paths.forEach{canvas.drawPath(it.first,it.second)}; canvas.drawPath(current,stroke) }
-  override fun onTouchEvent(event:MotionEvent):Boolean {
-   when(event.action) {
-    MotionEvent.ACTION_DOWN->{current=Path();current.moveTo(event.x,event.y);invalidate();return true}
-    MotionEvent.ACTION_MOVE->{current.lineTo(event.x,event.y);invalidate();return true}
-    MotionEvent.ACTION_UP->{current.lineTo(event.x,event.y);paths.add(Pair(current,Paint(stroke)));current=Path();invalidate();return true}
-   };return true
-  }
-  fun clearCanvas(){paths.clear();current.reset();invalidate()}
+  override fun onDraw(c:Canvas) { super.onDraw(c); c.drawColor(Color.WHITE); paths.forEach{c.drawPath(it.first,it.second)}; c.drawPath(path,paint) }
+  override fun onTouchEvent(e:MotionEvent):Boolean { when(e.action){MotionEvent.ACTION_DOWN->{path=Path();path.moveTo(e.x,e.y);invalidate();return true};MotionEvent.ACTION_MOVE->{path.lineTo(e.x,e.y);invalidate();return true};MotionEvent.ACTION_UP->{path.lineTo(e.x,e.y);paths.add(Pair(path,Paint(paint)));path=Path();invalidate();return true}};return true }
+  fun clear(){paths.clear();path.reset();invalidate()}
  }
 }
