@@ -337,7 +337,7 @@ class MainActivity : Activity() {
  }
  private fun showDesktop() {
   initDesktop()
-  // Rebuild only the desktop shortcut layer; open app windows remain independent.
+  val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
   val old=desktopArea.findViewWithTag<View>("desktop-shortcuts")
   if(old!=null) desktopArea.removeView(old)
   val shortcuts=LinearLayout(this).apply {
@@ -348,16 +348,24 @@ class MainActivity : Activity() {
    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
   val grid=GridLayout(this).apply { columnCount=1; useDefaultMargins=false }
-  val items=listOf(
+  val allItems=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
    Triple("🎨","الرسام",{showPaint()}), Triple("📝","Word / معالج النصوص",{showWord()}),
    Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
    Triple("📋","إدارة المهام",{showTaskManager()}), Triple("⌨️","Command",{showCommand()}),
    Triple("🎮","ألعاب Windows",{showGames()}), Triple("🧮","الحاسبة",{showCalculator()}),
-   Triple("🗒️","المفكرة",{showNotepad()}), Triple("🔄","تحديث التطبيق",{checkForUpdates(true)})
+   Triple("🗒️","المفكرة",{showNotepad()}), Triple("🔄","تحديث التطبيق",{checkForUpdates(true)}),
+   Triple("🗑️","سلة المحذوفات",{showRecycleBin()})
   )
+  val hidden=prefs.getStringSet("hidden_shortcuts", emptySet())?.toMutableSet() ?: mutableSetOf()
+  val savedOrder=prefs.getString("shortcut_order","").orEmpty().split("|").filter { it.isNotBlank() }
+  val items=allItems.filter { it.second !in hidden }.sortedBy { item ->
+   val index=savedOrder.indexOf(item.second)
+   if(index<0) Int.MAX_VALUE else index
+  }
   items.forEach { item ->
+   val displayName=prefs.getString("shortcut_label_${item.second}",item.second) ?: item.second
    val tile=LinearLayout(this).apply {
     orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(5,8,5,8)
     background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
@@ -366,7 +374,49 @@ class MainActivity : Activity() {
     setOnLongClickListener {
      android.widget.PopupMenu(this@MainActivity,this).apply {
       menu.add("فتح").setOnMenuItemClickListener { item.third.invoke(); true }
-      menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
+      menu.add("إعادة التسمية").setOnMenuItemClickListener {
+       val edit=EditText(this@MainActivity).apply { setText(displayName); selectAll() }
+       AlertDialog.Builder(this@MainActivity).setTitle("إعادة تسمية الاختصار").setView(edit)
+        .setPositiveButton("حفظ") { _,_ ->
+         val value=edit.text.toString().trim()
+         if(value.isNotEmpty()) {
+          prefs.edit().putString("shortcut_label_${item.second}",value).apply()
+          showDesktop()
+         }
+        }.setNegativeButton("إلغاء",null).show()
+       true
+      }
+      fun moveShortcut(delta:Int) {
+       val order=allItems.map { it.second }.toMutableList()
+       val current=savedOrder.toMutableList().apply {
+        allItems.map { it.second }.forEach { if(it !in this) add(it) }
+       }
+       val from=current.indexOf(item.second)
+       val to=(from+delta).coerceIn(0,current.lastIndex)
+       if(from>=0 && from!=to) {
+        java.util.Collections.swap(current,from,to)
+        prefs.edit().putString("shortcut_order",current.joinToString("|")).apply()
+        showDesktop()
+       }
+      }
+      menu.add("نقل لأعلى").setOnMenuItemClickListener { moveShortcut(-1); true }
+      menu.add("نقل لأسفل").setOnMenuItemClickListener { moveShortcut(1); true }
+      menu.add("عرض الخصائص").setOnMenuItemClickListener {
+       AlertDialog.Builder(this@MainActivity).setTitle("خصائص الاختصار")
+        .setMessage("الاسم: $displayName\nنوع العنصر: اختصار داخل Oriket Desktop\nالوظيفة: فتح التطبيق الداخلي المحدد.")
+        .setPositiveButton("حسنًا",null).show()
+       true
+      }
+      if(item.second!="سلة المحذوفات") {
+       menu.add("حذف الاختصار").setOnMenuItemClickListener {
+        val updated=prefs.getStringSet("hidden_shortcuts", emptySet())?.toMutableSet() ?: mutableSetOf()
+        updated.add(item.second)
+        prefs.edit().putStringSet("hidden_shortcuts",updated).apply()
+        showDesktop()
+        Toast.makeText(this@MainActivity,"نُقل الاختصار إلى سلة المحذوفات",Toast.LENGTH_SHORT).show()
+        true
+       }
+      }
      }.show()
      true
     }
@@ -377,7 +427,7 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(TextView(this).apply { text=item.first; textSize=30f; gravity=Gravity.CENTER })
-   tile.addView(TextView(this).apply { text=item.second; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0) })
+   tile.addView(TextView(this).apply { text=displayName; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0); maxLines=2 })
    grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=82; setMargins(1,1,1,1) })
   }
   shortcuts.addView(ScrollView(this).apply { isFillViewport=false; addView(grid) },LinearLayout.LayoutParams(108,0,1f))
@@ -389,17 +439,44 @@ class MainActivity : Activity() {
   shortcuts.addView(clock,LinearLayout.LayoutParams(-2,-2).apply { gravity=Gravity.LEFT; topMargin=8 })
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
-  // Windows stay above shortcuts; move them back to front in stacking order.
   openWindows.forEach { it.frame.bringToFront() }
   val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
   val searchButton=taskButton("بحث").apply { text="⌕"; textSize=22f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
-  val browser=taskButton("Chrome").apply { text="🌐"; setOnClickListener { showBrowser() } }
+  val browser=taskButton("متصفح الإنترنت").apply { text="🌐"; setOnClickListener { showBrowser() } }
   val files=taskButton("هذا الكمبيوتر").apply { text="📁"; setOnClickListener { showMyComputer() } }
   val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
   val settings=taskButton("الإعدادات").apply { text="⚙"; setOnClickListener { showControlPanel() } }
   val staticButtons=listOf(searchButton,browser,files,paint,settings)
   staticButtons.forEach { b -> if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b) }
+ }
+
+ private fun showRecycleBin() {
+  val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
+  val hidden=prefs.getStringSet("hidden_shortcuts",emptySet())?.toList().orEmpty()
+  if(hidden.isEmpty()) {
+   AlertDialog.Builder(this).setTitle("سلة المحذوفات").setMessage("سلة المحذوفات فارغة.")
+    .setPositiveButton("إغلاق",null).show()
+   return
+  }
+  AlertDialog.Builder(this).setTitle("سلة المحذوفات — اختر اختصارًا لاستعادته")
+   .setItems(hidden.toTypedArray()) { _,which ->
+    val updated=hidden.toMutableSet()
+    val restored=hidden[which]
+    updated.remove(restored)
+    prefs.edit().putStringSet("hidden_shortcuts",updated).apply()
+    showDesktop()
+    Toast.makeText(this,"تمت استعادة الاختصار: $restored",Toast.LENGTH_SHORT).show()
+   }
+   .setNeutralButton("إفراغ السلة") { _,_ ->
+    AlertDialog.Builder(this).setTitle("إفراغ سلة المحذوفات؟")
+     .setMessage("سيتم حذف الاختصارات من السلة نهائيًا، ولن تُحذف ملفات الهاتف.")
+     .setPositiveButton("إفراغ") { _,_ ->
+      prefs.edit().putStringSet("hidden_shortcuts",emptySet()).apply()
+      showDesktop()
+     }.setNegativeButton("إلغاء",null).show()
+   }
+   .setNegativeButton("إغلاق",null).show()
  }
  private fun showStartMenu() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
