@@ -17,6 +17,10 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: orkeit-desktop-debug-signing-key-v1
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,15 +30,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+      - name: Build direct-distribution debug APK
+        run: gradle assembleDirectDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
       - name: Prepare update package
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/orkeit-desktop.apk
+        run: cp app/build/outputs/apk/direct/debug/app-direct-debug.apk app/build/outputs/apk/direct/debug/orkeit-desktop.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: orkeit-desktop-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: orkeit-desktop-direct-debug-apk
+          path: app/build/outputs/apk/direct/debug/app-direct-debug.apk
           if-no-files-found: error
           retention-days: 30
       - name: Publish/update latest APK release
