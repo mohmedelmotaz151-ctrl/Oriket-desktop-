@@ -378,12 +378,12 @@ class MainActivity : Activity() {
   openWindows.forEach { it.frame.bringToFront() }
   val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
-  val browser=taskButton("المتصفح").apply { text="🌐"; setOnClickListener { showBrowser() } }
-  val files=taskButton("الملفات").apply { text="📁"; setOnClickListener { pickFile("*/*") } }
-  val calc=taskButton("الحاسبة").apply { text="🧮"; setOnClickListener { showCalculator() } }
+  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=22f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
+  val browser=taskButton("Chrome").apply { text="🌐"; setOnClickListener { showBrowser() } }
+  val files=taskButton("هذا الكمبيوتر").apply { text="📁"; setOnClickListener { showMyComputer() } }
   val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
-  val update=taskButton("التحديث").apply { text="🔄"; setOnClickListener { checkForUpdates(true) } }
-  val staticButtons=listOf(browser,files,calc,paint,update)
+  val settings=taskButton("الإعدادات").apply { text="⚙"; setOnClickListener { showControlPanel() } }
+  val staticButtons=listOf(searchButton,browser,files,paint,settings)
   staticButtons.forEach { b -> if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b) }
  }
  private fun showStartMenu() {
@@ -395,23 +395,25 @@ class MainActivity : Activity() {
    elevation=30f
   }
   menu.addView(TextView(this).apply { text="ابدأ"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(4,0,4,10) })
-  val search=EditText(this).apply { hint="ابحث عن تطبيق أو أداة"; textSize=13f; setSingleLine(true) }
+  val search=EditText(this).apply { tag="start-search"; hint="ابحث عن تطبيق أو أداة"; textSize=13f; setSingleLine(true) }
   menu.addView(search,LinearLayout.LayoutParams(-1,44))
   val grid=GridLayout(this).apply { columnCount=3 }
   listOf(
    Triple("🌐","Chrome / المتصفح",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
-   Triple("📄","مشغل PDF",{pickFile("application/pdf")}),Triple("🎬","VLC",{showVideoPlayer()}),
-   Triple("🎨","الرسام",{showPaint()}),Triple("📝","Word",{showWord()}),
-   Triple("📊","Excel",{showExcel()}),Triple("⚙️","لوحة التحكم",{showControlPanel()}),
-   Triple("📋","إدارة المهام",{showTaskManager()}),Triple("⌨️","Command",{showCommand()}),
-   Triple("🎮","الألعاب",{showGames()}),Triple("🧮","الحاسبة",{showCalculator()})
+   Triple("📂","مستكشف الملفات",{pickFile("*/*")}),Triple("📄","مشغل PDF",{pickFile("application/pdf")}),
+   Triple("🎬","VLC مشغل الفيديو",{showVideoPlayer()}),Triple("🎨","الرسام",{showPaint()}),
+   Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
+   Triple("⚙️","لوحة التحكم",{showControlPanel()}),Triple("📋","إدارة المهام",{showTaskManager()}),
+   Triple("⌨️","Command",{showCommand()}),Triple("🎮","ألعاب Windows",{showGames()}),
+   Triple("🧮","الحاسبة",{showCalculator()}),Triple("🗒️","المفكرة",{showNotepad()}),
+   Triple("🔄","تحديث التطبيق",{checkForUpdates(true)}),Triple("ℹ️","حول Oriket",{showAbout()})
   ).forEach { item ->
    val b=Button(this).apply { text=item.first+"\n"+item.second; isAllCaps=false; textSize=12f; setOnClickListener { desktopArea.removeView(menu); item.third.invoke() } }
-   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=76; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
+   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=72; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
   }
-  menu.addView(grid)
+  menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   menu.addView(action("إيقاف الواجهة") { finish() })
-  desktopArea.addView(menu,FrameLayout.LayoutParams(420,-2,Gravity.BOTTOM or Gravity.LEFT).apply { leftMargin=12; bottomMargin=10 })
+  desktopArea.addView(menu,FrameLayout.LayoutParams(460,(desktopArea.height*0.84f).toInt().coerceAtLeast(360),Gravity.BOTTOM or Gravity.LEFT).apply { leftMargin=12; bottomMargin=10 })
   search.addTextChangedListener(object:android.text.TextWatcher {
    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
    override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
@@ -805,7 +807,29 @@ class MainActivity : Activity() {
   fun reset(){snake=mutableListOf(Pair(5,5),Pair(4,5),Pair(3,5));food=Pair(9,7);dx=1;dy=0;score=0;invalidate()}
  }
 
- private fun showAbout() {
+ private fun showQuickSettings() {
+  val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(18,16,18,16); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(246,249,255)); cornerRadius=22f; setStroke(1,border) } }
+  box.addView(TextView(this).apply { text="الإعدادات السريعة"; textSize=20f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,12) })
+  val grid=GridLayout(this).apply { columnCount=2 }
+  val settings=listOf(
+   "Wi-Fi / الشبكة" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
+   "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
+   "Bluetooth" to { try { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) } catch(_:Exception){} },
+   "إعدادات الجهاز" to { try { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) } catch(_:Exception){} },
+   "لوحة التحكم" to { showControlPanel() },
+   "إظهار/إخفاء شريط النظام" to {
+    val hidden=(window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN)!=0
+    window.decorView.systemUiVisibility=if(hidden) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+   }
+  )
+  settings.forEach { item ->
+   grid.addView(action(item.first){item.second.invoke()},GridLayout.LayoutParams().apply { width=0;height=54;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
+  }
+  box.addView(grid)
+  box.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=12f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,12,4,2) })
+  AlertDialog.Builder(this).setView(box).setPositiveButton("إغلاق",null).show()
+ }
+\n private fun showAbout() {
   shell("حول التطبيق")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
   page.addView(TextView(this).apply { text="Oriket Desktop\nواجهة أفقية مستوحاة من Windows 11. المتصفح والرسام والحاسبة والمفكرة ومعاينة الصور والنصوص وPDF تعمل داخل التطبيق.\n\nهذه واجهة سطح مكتب وليست نظام Windows فعليًا ولا تشغّل ملفات EXE."; textSize=19f; setTextColor(navy) })
