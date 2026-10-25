@@ -496,10 +496,7 @@ class MainActivity : Activity() {
   menu.addView(search,LinearLayout.LayoutParams(-1,46))
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,4) }
   heading.addView(TextView(this).apply { text="مثبّت"; textSize=16f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
-  heading.addView(task("كل التطبيقات  ›"){ 
-   search.setText("")
-   for(i in 0 until grid.childCount) grid.getChildAt(i).visibility=View.VISIBLE
-  })
+  heading.addView(task("كل التطبيقات  ›"){ search.setText("") })
   menu.addView(heading)
   val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
   val items=listOf(
@@ -699,7 +696,7 @@ class MainActivity : Activity() {
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
   if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
-  if(requestCode==52 && resultCode==RESULT_OK) {
+  if(requestCode==62 && resultCode==RESULT_OK && data?.data!=null) { (desktopArea.findViewWithTag<View>("orkeit-paint-canvas") as? PaintCanvas)?.importImage(data.data!!) }\n  if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
    if(selected!=null) {
     val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")
@@ -1027,26 +1024,27 @@ class MainActivity : Activity() {
  private fun showPaint() {
   shell("الرسام")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val canvas=PaintCanvas(this)
+  val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
   val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf("قلم","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,42,1f)) }
+  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,40,1f)) }
   page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,44))
   val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color ->
-   val swatch=Button(this).apply { text="●"; textSize=20f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} }
-   palette.addView(swatch,LinearLayout.LayoutParams(42,38))
-  }
-  page.addView(palette)
+  listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color -> palette.addView(Button(this).apply { text="●"; textSize=18f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} },LinearLayout.LayoutParams(38,36)) }
+  palette.addView(task("لون مخصص"){ val input=EditText(this).apply{hint="#RRGGBB";setSingleLine(true)}; AlertDialog.Builder(this).setTitle("لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"أدخل لونًا مثل #3366FF",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show() },LinearLayout.LayoutParams(90,36))
+  page.addView(HorizontalScrollView(this).apply{addView(palette)})
   val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(task("تراجع"){canvas.undo()},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,42,1f))
   actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,42,1f))
-  page.addView(actions)
+  page.addView(HorizontalScrollView(this).apply{addView(actions)})
   page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
  }
+
  private fun saveDrawing(v:PaintCanvas) {
   try {
    val bmp=v.exportBitmap()
@@ -1113,6 +1111,23 @@ class MainActivity : Activity() {
  }
  private inner class PaintCanvas(c:Context):View(c) {
   private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
+  private val paths=mutableListOf<Pair<Path,Paint>>()
+  private val undone=mutableListOf<Pair<Path,Paint>>()
+  private var path=Path(); private var tool="قلم"; private var startX=0f; private var startY=0f; private var zoom=1f; private var cropRect:RectF?=null; private var imported:Bitmap?=null
+  init { setBackgroundColor(Color.WHITE) }
+  fun setTool(value:String){tool=value;Toast.makeText(context,"أداة الرسم: $value",Toast.LENGTH_SHORT).show()}
+  fun setColor(value:Int){paint.color=value;paint.xfermode=null;paint.strokeWidth=7f}
+  fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.5f,3f);invalidate()}
+  fun undo(){if(paths.isNotEmpty())undone.add(paths.removeAt(paths.lastIndex));invalidate()}
+  fun redo(){if(undone.isNotEmpty())paths.add(undone.removeAt(undone.lastIndex));invalidate()}
+  fun importImage(uri:Uri){try{imported=this@MainActivity.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it)};invalidate()}catch(_:Exception){Toast.makeText(context,"تعذر استيراد الصورة",Toast.LENGTH_SHORT).show()}}
+  private fun addText(text:String,x:Float,y:Float){val p=Paint(paint).apply{style=Paint.Style.FILL;textSize=32f};val glyph=Path();p.getTextPath(text,0,text.length,x,y,glyph);paths.add(Pair(glyph,p));undone.clear();invalidate()}
+  override fun onDraw(c:Canvas){super.onDraw(c);c.drawColor(Color.WHITE);c.save();c.scale(zoom,zoom);imported?.let{c.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};paths.forEach{c.drawPath(it.first,it.second)};if(!path.isEmpty)c.drawPath(path,paint);c.restore();cropRect?.let{val p=Paint(3).apply{color=Color.RED;style=Paint.Style.STROKE;pathEffect=DashPathEffect(floatArrayOf(10f,6f),0f)};c.drawRect(it,p)}}
+  override fun onTouchEvent(e:MotionEvent):Boolean{val x=e.x/zoom;val y=e.y/zoom;when(e.action){MotionEvent.ACTION_DOWN->{startX=x;startY=y;path=Path();path.moveTo(x,y);return true};MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="ممحاة")path.lineTo(x,y)else{path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);"مستطيل"->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW);"قص"->path.addRect(RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y)),Path.Direction.CW)}};invalidate();return true};MotionEvent.ACTION_UP->{if(tool=="نص"){val input=EditText(context).apply{hint="اكتب النص"};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show()}else if(tool=="قص")cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y))else{val p=Paint(paint);if(tool=="ممحاة"){p.color=Color.WHITE;p.strokeWidth=26f};paths.add(Pair(Path(path),p));undone.clear()};path=Path();invalidate();return true}};return true}
+  fun exportBitmap():Bitmap{val bmp=Bitmap.createBitmap(width.coerceAtLeast(1),height.coerceAtLeast(1),Bitmap.Config.ARGB_8888);val cv=Canvas(bmp);cv.drawColor(Color.WHITE);imported?.let{cv.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};cv.save();cv.scale(zoom,zoom);paths.forEach{cv.drawPath(it.first,it.second)};cv.restore();val r=cropRect;if(r!=null&&r.width()>2&&r.height()>2){val l=r.left.toInt().coerceIn(0,bmp.width-1);val t=r.top.toInt().coerceIn(0,bmp.height-1);val rr=r.right.toInt().coerceIn(l+1,bmp.width);val b=r.bottom.toInt().coerceIn(t+1,bmp.height);return Bitmap.createBitmap(bmp,l,t,rr-l,b-t)};return bmp}
+  fun clear(){paths.clear();undone.clear();path.reset();cropRect=null;imported=null;invalidate()}
+ }
+}
   private val paths=mutableListOf<Pair<Path,Paint>>()
   private var path=Path()
   private var tool="قلم"
