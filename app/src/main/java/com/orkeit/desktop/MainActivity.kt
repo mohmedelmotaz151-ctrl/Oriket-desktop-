@@ -52,6 +52,7 @@ class MainActivity : Activity() {
  private val uiHandler=Handler(Looper.getMainLooper())
  private var clockLabel:TextView?=null
  private var clockRunnable:Runnable?=null
+ private var fileManagerDir:java.io.File?=null
  private val updateReceiver=object:BroadcastReceiver() {
   override fun onReceive(context:Context?,intent:Intent?) {
    if(intent?.action!=DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
@@ -696,7 +697,7 @@ class MainActivity : Activity() {
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
   if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
-  if(requestCode==62 && resultCode==RESULT_OK && data?.data!=null) { (desktopArea.findViewWithTag<View>("orkeit-paint-canvas") as? PaintCanvas)?.importImage(data.data!!) }\n  if(requestCode==52 && resultCode==RESULT_OK) {
+  if(requestCode==62 && resultCode==RESULT_OK && data?.data!=null) { (desktopArea.findViewWithTag<View>("orkeit-paint-canvas") as? PaintCanvas)?.importImage(data.data!!) }\n  if(requestCode==61 && resultCode==RESULT_OK && data?.data!=null) { try { val uri=data.data!!;val name=contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use{if(it.moveToFirst())it.getString(0)else "imported-file"} ?: "imported-file";val dir=fileManagerDir ?: java.io.File(filesDir,"OriketWorkspace").apply{mkdirs()};val dest=java.io.File(dir,name);contentResolver.openInputStream(uri)?.use{input->dest.outputStream().use{input.copyTo(it)}};fileManagerDir=dir;Toast.makeText(this,"تم استيراد الملف",Toast.LENGTH_SHORT).show();showMyComputer()}catch(_:Exception){Toast.makeText(this,"تعذر الاستيراد",Toast.LENGTH_SHORT).show()} }\n  if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
    if(selected!=null) {
     val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")
@@ -774,22 +775,37 @@ class MainActivity : Activity() {
 
  private fun showMyComputer() {
   shell("هذا الكمبيوتر")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="هذا الكمبيوتر"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(8,4,8,10) })
-  val grid=GridLayout(this).apply { columnCount=2 }
-  listOf(
-   Triple("📂","فتح الملفات",{pickFile("*/*")}),
-   Triple("📄","ملفات PDF",{pickFile("application/pdf")}),
-   Triple("🖼️","الصور",{pickFile("image/*")}),
-   Triple("🎬","الفيديوهات",{showVideoPlayer()}),
-   Triple("⬇️","التنزيلات",{try { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) } catch(_:Exception) { pickFile("*/*") }}),
-   Triple("⚙️","إعدادات الجهاز",{showControlPanel()})
-  ).forEach { item ->
-   grid.addView(action(item.first+"  "+item.second){ item.third.invoke() },GridLayout.LayoutParams().apply { width=0; height=64; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4) })
+  val workspace=java.io.File(filesDir,"OriketWorkspace").apply{mkdirs()}
+  var current=fileManagerDir?.takeIf{it.exists()} ?: workspace
+  val page=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+  val path=TextView(this).apply{text=current.absolutePath;textSize=11f;setTextColor(navy);setPadding(6,4,6,4)}
+  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+  fun refresh(){
+   path.text=current.absolutePath;list.removeAllViews()
+   if(current!=workspace)list.addView(task("⬆ رجوع"){current=current.parentFile ?: workspace;fileManagerDir=current;refresh()})
+   val entries=current.listFiles()?.sortedWith(compareBy<java.io.File>({!it.isDirectory},{it.name.lowercase(Locale.ROOT)})).orEmpty()
+   if(entries.isEmpty())list.addView(message("المجلد فارغ"))
+   entries.forEach{f->
+    val row=task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;fileManagerDir=f;refresh()}else showFile(Uri.fromFile(f))}
+    row.setOnLongClickListener{
+     val choices=arrayOf("إعادة تسمية","نسخ","نقل للمجلد السابق","حذف")
+     AlertDialog.Builder(this@MainActivity).setTitle(f.name).setItems(choices){_,choice->when(choice){
+      0->{val edit=EditText(this@MainActivity).apply{setText(f.name);selectAll()};AlertDialog.Builder(this@MainActivity).setTitle("إعادة تسمية").setView(edit).setPositiveButton("حفظ"){_,_->val n=edit.text.toString().trim();if(n.isNotEmpty()&&!n.contains("/")&&f.renameTo(java.io.File(current,n)))refresh()else Toast.makeText(this@MainActivity,"تعذرت إعادة التسمية",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()}
+      1->{val dest=java.io.File(current,f.nameWithoutExtension+" - نسخة"+if(f.extension.isNotEmpty())"."+f.extension else "");try{if(f.isDirectory)f.copyRecursively(dest)else f.copyTo(dest);refresh()}catch(_:Exception){Toast.makeText(this@MainActivity,"تعذر النسخ",Toast.LENGTH_SHORT).show()}}
+      2->{val parent=current.parentFile;if(parent!=null&&current!=workspace)try{val dest=java.io.File(parent,f.name);if(f.isDirectory)f.copyRecursively(dest)else f.copyTo(dest);if(f.isDirectory)f.deleteRecursively()else f.delete();current=parent;fileManagerDir=parent;refresh()}catch(_:Exception){Toast.makeText(this@MainActivity,"تعذر النقل",Toast.LENGTH_SHORT).show()}else Toast.makeText(this@MainActivity,"لا يوجد مجلد أعلى",Toast.LENGTH_SHORT).show()}
+      3->AlertDialog.Builder(this@MainActivity).setTitle("حذف العنصر؟").setMessage("سيحذف من مساحة Oriket الداخلية فقط").setPositiveButton("حذف"){_,_->if(f.isDirectory)f.deleteRecursively()else f.delete();refresh()}.setNegativeButton("إلغاء",null).show()
+     }}.show();true
+    }
+    list.addView(row,LinearLayout.LayoutParams(-1,46).apply{bottomMargin=2})
+   }
   }
-  page.addView(grid)
-  page.addView(TextView(this).apply { text="التخزين الظاهر هنا هو تخزين Android الذي يسمح النظام للتطبيق بالوصول إليه. افتح الملفات لاختيار المستندات والصور والفيديوهات."; textSize=13f; setTextColor(navy); setPadding(8,12,8,8) })
-  panel(page)
+  val bar=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+  bar.addView(task("مجلد جديد"){val input=EditText(this).apply{hint="اسم المجلد"};AlertDialog.Builder(this).setTitle("إنشاء مجلد").setView(input).setPositiveButton("إنشاء"){_,_->val n=input.text.toString().trim();if(n.isNotEmpty()&&!n.contains("/")&&java.io.File(current,n).mkdir())refresh()else Toast.makeText(this,"اسم غير صالح أو موجود",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,44,1f))
+  bar.addView(task("استيراد ملف"){try{fileManagerDir=current;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}},LinearLayout.LayoutParams(0,44,1f))
+  page.addView(TextView(this).apply{text="هذا الكمبيوتر — مساحة ملفات Oriket";textSize=19f;typeface=Typeface.DEFAULT_BOLD;setTextColor(navy)})
+  page.addView(path);page.addView(bar);page.addView(ScrollView(this).apply{addView(list)},LinearLayout.LayoutParams(-1,0,1f))
+  page.addView(TextView(this).apply{text="تُدار الملفات داخل مساحة التطبيق؛ يمكن استيراد ملفات من الهاتف عبر منتقي Android.";textSize=10f;setTextColor(navy)})
+  panel(page);refresh()
  }
  private fun showControlPanel() {
   shell("لوحة التحكم")
