@@ -335,8 +335,8 @@ class MainActivity : Activity() {
   setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,242,252)))
   contentDescription=title
  }
- private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=14f; minHeight=46; minimumHeight=46; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END; typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.rgb(18,32,54)); setPadding(5,5,5,5); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(231,239,250))); contentDescription=s; setOnClickListener{a()} }
- private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=14f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END; typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.WHITE); setPadding(5,5,5,5); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); contentDescription=s; setOnClickListener{a()} }
+ private fun task(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f); typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.rgb(18,32,54)); setPadding(7,4,7,4); if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(231,239,250))); contentDescription=s; setOnClickListener{a()} }
+ private fun action(s:String,a:()->Unit)=Button(this).apply { text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER; maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f); typeface=Typeface.create("sans-serif",Typeface.BOLD); setTextColor(Color.WHITE); setPadding(7,4,7,4); if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP); setBackgroundTintList(android.content.res.ColorStateList.valueOf(blue)); contentDescription=s; setOnClickListener{a()} }
  private fun panel(v:View) {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
@@ -1291,7 +1291,7 @@ class MainActivity : Activity() {
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
   val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(0,50,1f)) }
+  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(76,50).apply { setMargins(3,0,3,0) }) }
   page.addView(TextView(this).apply { text="أدوات الرسم — اختر أداة ثم ارسم في المساحة البيضاء"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,6) })
   page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,54))
   val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
@@ -1300,13 +1300,13 @@ class MainActivity : Activity() {
   page.addView(TextView(this).apply { text="الألوان"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
   page.addView(HorizontalScrollView(this).apply{addView(palette)},LinearLayout.LayoutParams(-1,48))
   val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
-  actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(task("تراجع"){canvas.undo()},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(0,42,1f))
-  actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(0,42,1f))
+  actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(task("تراجع"){canvas.undo()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
+  actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
   page.addView(TextView(this).apply { text="إجراءات الرسم"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
   page.addView(HorizontalScrollView(this).apply{addView(actions)},LinearLayout.LayoutParams(-1,54))
   page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
