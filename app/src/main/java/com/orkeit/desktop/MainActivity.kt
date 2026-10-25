@@ -774,6 +774,39 @@ class MainActivity : Activity() {
    }
    .setNegativeButton("إغلاق",null).show()
  }
+ private fun showPowerMenu() {
+  val options=arrayOf("🌙  سكون","⏻  إيقاف Oriket Desktop","🔄  إعادة تشغيل Oriket Desktop")
+  AlertDialog.Builder(this).setTitle("خيارات الطاقة").setItems(options) { _,which ->
+   when(which) {
+    0 -> {
+     playDesktopSound("sleep")
+     val screen=FrameLayout(this).apply {
+      setBackgroundColor(Color.rgb(3,10,25))
+      isClickable=true
+      addView(TextView(this@MainActivity).apply {
+       text="☾\\nOriket Desktop في وضع السكون\\nالمس الشاشة للعودة"
+       textSize=22f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+      },FrameLayout.LayoutParams(-1,-1))
+      setOnClickListener { desktopArea.removeView(this); playDesktopSound("start"); showDesktop() }
+     }
+     desktopArea.addView(screen,FrameLayout.LayoutParams(-1,-1)); screen.bringToFront()
+    }
+    1 -> AlertDialog.Builder(this).setTitle("إيقاف التشغيل")
+     .setMessage("سيتم إغلاق Oriket Desktop فقط؛ لا يستطيع التطبيق إطفاء هاتف Android نفسه.")
+     .setPositiveButton("إيقاف") { _,_ -> playDesktopSound("shutdown"); uiHandler.postDelayed({ finish() },650L) }
+     .setNegativeButton("إلغاء",null).show()
+    2 -> AlertDialog.Builder(this).setTitle("إعادة التشغيل")
+     .setMessage("سيُعاد تشغيل واجهة Oriket Desktop، وليس هاتف Android.")
+     .setPositiveButton("إعادة التشغيل") { _,_ ->
+      playDesktopSound("restart")
+      openWindows.clear()
+      desktopInitialized=false
+      uiHandler.postDelayed({ if(!isFinishing) showBootSequence() },500L)
+     }.setNegativeButton("إلغاء",null).show()
+   }
+  }.setNegativeButton("إلغاء",null).show()
+ }
+
  private fun showStartMenu() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
   if(existing!=null) { desktopArea.removeView(existing); return }
@@ -851,7 +884,7 @@ class MainActivity : Activity() {
   }
   footer.addView(TextView(this).apply { text="👤  Oriket Desktop"; textSize=12f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,42,1f))
   footer.addView(task("⚙"){ desktopArea.removeView(menu); showControlPanel() })
-  footer.addView(task("⏻"){ AlertDialog.Builder(this).setTitle("إغلاق Oriket Desktop").setMessage("هل تريد الخروج من واجهة سطح المكتب؟").setPositiveButton("خروج"){_,_->finish()}.setNegativeButton("إلغاء",null).show() })
+   footer.addView(task("⏻"){ desktopArea.removeView(menu); showPowerMenu() })
   menu.addView(footer,LinearLayout.LayoutParams(-1,48).apply { topMargin=8 })
   desktopArea.addView(menu,FrameLayout.LayoutParams(panelWidth,panelHeight,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=12 })
   menu.bringToFront()
