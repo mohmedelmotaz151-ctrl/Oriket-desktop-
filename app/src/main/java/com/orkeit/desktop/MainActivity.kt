@@ -1033,24 +1033,26 @@ class MainActivity : Activity() {
  private fun showExcel() {
   shell("Excel")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="Excel — جدول بيانات بسيط"; textSize=19f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) })
-  val grid=GridLayout(this).apply { columnCount=4; rowCount=10 }
+  page.addView(TextView(this).apply { text="Excel — جدول بيانات Oriket"; textSize=19f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,5) })
+  val prefs=getSharedPreferences("orkeit_excel",Context.MODE_PRIVATE)
+  val grid=GridLayout(this).apply { columnCount=5; rowCount=11 }
   val cells=mutableListOf<EditText>()
+  listOf("#","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; gravity=Gravity.CENTER; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(218,232,248)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=36; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
+  val saved=prefs.getString("data","").orEmpty().split("\u001F")
+  fun cellIndex(ref:String):Int { val s=ref.trim().uppercase(Locale.ROOT); if(s.length<2)return -1; val col=s[0]-'A'; val row=s.substring(1).toIntOrNull()?.minus(1) ?: return -1; return if(col in 0..3 && row in 0..9) row*4+col else -1 }
+  fun cellValue(i:Int,depth:Int=0):Double { if(i !in cells.indices || depth>8)return Double.NaN; val raw=cells[i].text.toString().trim(); if(!raw.startsWith("="))return raw.replace(",",".").toDoubleOrNull() ?: 0.0; val e=raw.drop(1).trim(); val ref=cellIndex(e); if(ref>=0)return cellValue(ref,depth+1); val sum=Regex("(?i)SUM\\(([A-D]\\d+):([A-D]\\d+)\\)").matchEntire(e); if(sum!=null){val x=cellIndex(sum.groupValues[1]);val y=cellIndex(sum.groupValues[2]);if(x>=0&&y>=0)return (minOf(x,y)..maxOf(x,y)).sumOf{cellValue(it,depth+1)}}; val m=Regex("(-?\\d+(?:[.,]\\d+)?)\\s*([+*/-])\\s*(-?\\d+(?:[.,]\\d+)?)").matchEntire(e); if(m!=null){val x=m.groupValues[1].replace(",",".").toDoubleOrNull()?:return Double.NaN;val y=m.groupValues[3].replace(",",".").toDoubleOrNull()?:return Double.NaN;return when(m.groupValues[2]){"+"->x+y;"-"->x-y;"*"->x*y;"/"->if(y==0.0)Double.NaN else x/y;else->Double.NaN}};return Double.NaN }
+  fun persist(){prefs.edit().putString("data",cells.joinToString("\u001F"){it.text.toString()}).apply()}
   repeat(40) { i ->
-   val cell=EditText(this).apply { setSingleLine(true); textSize=12f; gravity=Gravity.CENTER; setPadding(2,2,2,2); setText(if(i<4) listOf("A","B","C","D")[i] else ""); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(if(i<4) Color.rgb(222,235,247) else Color.WHITE); setStroke(1,border) }) }
-   cells.add(cell)
-   grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=42; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
+   val cell=EditText(this).apply { setSingleLine(true); textSize=12f; gravity=Gravity.CENTER; setPadding(2,2,2,2); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
+   cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=42; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
   }
+  val buttons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+  buttons.addView(task("حساب الصيغ") { val results=cells.mapIndexedNotNull { i,e -> if(e.text.toString().trim().startsWith("=")){val v=cellValue(i); ("خلية "+('A'+i%4)+(i/4+1)+" = "+(if(v.isNaN()||v.isInfinite()) "#ERROR" else v.toString()))}else null }; AlertDialog.Builder(this).setTitle("نتائج الصيغ").setMessage(results.joinToString("\n").ifEmpty{"لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A4)"}).setPositiveButton("حسنًا",null).show() },LinearLayout.LayoutParams(0,42,1f))
+  buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,42,1f))
+  buttons.addView(action("تصدير CSV"){try{val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->val i=r*4+col;val raw=cells[i].text.toString().trim();val value=if(raw.startsWith("="))cellValue(i).let{if(it.isNaN()||it.isInfinite())"#ERROR" else it.toString()}else raw;"\""+value.replace("\"","\"\"")+"\""}};val values=ContentValues().apply{put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv");put(MediaStore.Downloads.MIME_TYPE,"text/csv")};val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);if(uri!=null)contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)};Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()}catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}},LinearLayout.LayoutParams(0,42,1f))
+  page.addView(buttons)
+  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. الصيغ الأساسية: =A1+B1 و=SUM(A1:A4)."; textSize=11f; setTextColor(navy); setPadding(3,4,3,4) })
   page.addView(ScrollView(this).apply { addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
-  page.addView(action("تصدير CSV"){
-   try {
-    val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->"\""+cells[r*4+col].text.toString().replace("\"","\"\"")+"\""}}
-    val values=ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv"); put(MediaStore.Downloads.MIME_TYPE,"text/csv") }
-    val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
-    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)}
-    Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى CSV" else "تعذر التصدير",Toast.LENGTH_LONG).show()
-   }catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}
-  })
   panel(page)
  }
  private fun showGames() {
