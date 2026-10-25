@@ -294,7 +294,21 @@ class MainActivity : Activity() {
    if(web!=null) web?.stopLoading()
    if(openWindows.isNotEmpty()) { openWindows.last().frame.visibility=View.VISIBLE; openWindows.last().frame.bringToFront() }
   }
-  outer.setOnTouchListener { v,e -> if(e.action==MotionEvent.ACTION_DOWN) v.bringToFront(); false }
+  outer.setOnTouchListener { v,e -> if(e.action==MotionEvent.ACTION_DOWN) { v.bringToFront(); openWindows.forEach { it.taskButton.isSelected=it.id==id } }; false }
+  outer.setOnGenericMotionListener { v,e ->
+   if(e.action==MotionEvent.ACTION_BUTTON_PRESS && (e.buttonState and MotionEvent.BUTTON_SECONDARY)!=0) {
+    android.widget.PopupMenu(this,v).apply {
+     menu.add("تصغير").setOnMenuItemClickListener { outer.visibility=View.GONE; true }
+     menu.add(if(maximized) "استعادة" else "تكبير").setOnMenuItemClickListener {
+      if(!maximized) { oldParams=outer.layoutParams as? FrameLayout.LayoutParams ?: lp; outer.layoutParams=FrameLayout.LayoutParams(-1,-1); maximized=true; maximize.text="❐" }
+      else { outer.layoutParams=oldParams ?: lp; maximized=false; maximize.text="□" }
+      true
+     }
+     menu.add("إغلاق").setOnMenuItemClickListener { close.performClick(); true }
+    }.show()
+    true
+   } else false
+  }
  }
  private fun windowButton(label:String)=Button(this).apply {
   text=label; textSize=18f; isAllCaps=false; setPadding(0,0,0,0); setTextColor(navy)
@@ -893,7 +907,30 @@ class MainActivity : Activity() {
    Toast.makeText(this,if(uri!=null)"تم حفظ الرسم" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
   } catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
  }
- override fun onBackPressed() { val b=web; if(b!=null && b.canGoBack()) b.goBack() else showDesktop() }
+ override fun onBackPressed() {
+  val start=desktopArea.findViewWithTag<View>("start-menu")
+  if(start!=null) { desktopArea.removeView(start); return }
+  val quick=desktopArea.findViewWithTag<View>("quick-panel")
+  if(quick!=null) { desktopArea.removeView(quick); return }
+  val b=web
+  if(b!=null && b.canGoBack()) b.goBack() else showDesktop()
+ }
+ override fun dispatchKeyEvent(event:android.view.KeyEvent):Boolean {
+  if(event.action==android.view.KeyEvent.ACTION_DOWN) {
+   val ctrl=(event.metaState and android.view.KeyEvent.META_CTRL_ON)!=0
+   val shift=(event.metaState and android.view.KeyEvent.META_SHIFT_ON)!=0
+   when {
+    ctrl && shift && event.keyCode==android.view.KeyEvent.KEYCODE_ESCAPE -> { showTaskManager(); return true }
+    event.keyCode==android.view.KeyEvent.KEYCODE_F5 -> { showDesktop(); return true }
+    event.keyCode==android.view.KeyEvent.KEYCODE_ESCAPE -> {
+     val menu=desktopArea.findViewWithTag<View>("start-menu")
+     if(menu!=null) { desktopArea.removeView(menu); return true }
+    }
+    event.keyCode==android.view.KeyEvent.KEYCODE_META_LEFT || event.keyCode==android.view.KeyEvent.KEYCODE_META_RIGHT -> { showStartMenu(); return true }
+   }
+  }
+  return super.dispatchKeyEvent(event)
+ }
  private inner class WindowsWallpaper(c:Context):View(c) {
   private val p=Paint(Paint.ANTI_ALIAS_FLAG)
   override fun onDraw(canvas:Canvas) {
