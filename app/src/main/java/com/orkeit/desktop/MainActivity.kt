@@ -43,7 +43,7 @@ class MainActivity : Activity() {
  private var windowCounter=0
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
- private data class WindowEntry(val id:Int,val title:String,val frame:FrameLayout,val taskButton:Button)
+ private data class WindowEntry(val id:Int,val title:String,val frame:View,val taskButton:Button)
  private var activeDownloadId=-1L
  private var updateReceiverRegistered=false
  private val updateReceiver=object:BroadcastReceiver() {
