@@ -773,24 +773,27 @@ class MainActivity : Activity() {
       try {
        val renderer=PdfRenderer(fd)
        if(renderer.pageCount>0) {
-        val pages=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(6,6,6,6) }
-        val count=renderer.pageCount
-        for(index in 0 until count) {
-         val pg=renderer.openPage(index)
-         val scale=minOf(1.6f,1600f/maxOf(pg.width,pg.height))
-         val bmp=Bitmap.createBitmap((pg.width*scale).toInt().coerceAtLeast(1),(pg.height*scale).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
-         bmp.eraseColor(Color.WHITE)
-         pg.render(bmp,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-         pg.close()
-         pages.addView(TextView(this).apply { text="الصفحة ${index+1} من ${count}"; textSize=12f; setTextColor(navy); setPadding(4,8,4,4) })
-         pages.addView(ImageView(this).apply { setImageBitmap(bmp); scaleType=ImageView.ScaleType.FIT_CENTER; adjustViewBounds=true; contentDescription="صفحة PDF ${index+1}" },LinearLayout.LayoutParams(-1,-2))
-         pages.addView(View(this).apply { setBackgroundColor(border) },LinearLayout.LayoutParams(-1,1))
-        }
-        renderer.close()
-        viewer.addView(ScrollView(this).apply { addView(pages) },FrameLayout.LayoutParams(-1,-1))
+        var pageIndex=0
+        var zoom=1f
+        var closed=false
+        val total=renderer.pageCount
+        val controls=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        val previous=task("‹ السابق"){if(pageIndex>0){pageIndex--;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
+        val pdfPageLabel=TextView(this).apply { text="الصفحة 1 / ${total}"; textSize=13f; setTextColor(navy); gravity=Gravity.CENTER }
+        val next=task("التالي ›"){if(pageIndex<total-1){pageIndex++;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
+        controls.addView(previous,LinearLayout.LayoutParams(0,42,1f))
+        controls.addView(pdfPageLabel,LinearLayout.LayoutParams(0,42,1.2f))
+        controls.addView(next,LinearLayout.LayoutParams(0,42,1f))
+        controls.addView(task("−"){zoom=(zoom/1.2f).coerceAtLeast(0.5f);renderPdfPage(renderer,pageIndex,zoom,viewer)},LinearLayout.LayoutParams(42,42))
+        controls.addView(task("+"){zoom=(zoom*1.2f).coerceAtMost(2.5f);renderPdfPage(renderer,pageIndex,zoom,viewer)},LinearLayout.LayoutParams(42,42))
+        page.addView(controls)
+        renderPdfPage(renderer,pageIndex,zoom,viewer)
+        viewer.addOnAttachStateChangeListener(object:View.OnAttachStateChangeListener{
+         override fun onViewAttachedToWindow(v:View){}
+         override fun onViewDetachedFromWindow(v:View){if(!closed){closed=true;try{renderer.close()}catch(_:Exception){};try{fd.close()}catch(_:Exception){}}}
+        })
        } else { renderer.close(); viewer.addView(message("ملف PDF فارغ")) }
-      } catch(_:Exception) { viewer.addView(message("تعذر عرض ملف PDF")) }
-      finally { try{fd.close()}catch(_:Exception){} }
+      } catch(_:Exception) { try{fd.close()}catch(_:Exception){}; viewer.addView(message("تعذر عرض ملف PDF")) }
      } else viewer.addView(message("تعذر فتح ملف PDF"))
     }
     mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) -> {
@@ -802,6 +805,18 @@ class MainActivity : Activity() {
   } catch(e:Exception) { viewer.addView(message("تعذرت معاينة الملف داخل التطبيق.")) }
  }
  private fun message(s:String)=TextView(this).apply { text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(20,20,20,20) }
+ private fun renderPdfPage(renderer:PdfRenderer,index:Int,zoom:Float,container:FrameLayout) {
+  try {
+   val pg=renderer.openPage(index)
+   val scale=minOf(1.4f,1400f/maxOf(pg.width,pg.height))*zoom
+   val bmp=Bitmap.createBitmap((pg.width*scale).toInt().coerceAtLeast(1),(pg.height*scale).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
+   bmp.eraseColor(Color.WHITE)
+   pg.render(bmp,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+   pg.close()
+   container.removeAllViews()
+   container.addView(ScrollView(this).apply { addView(ImageView(this@MainActivity).apply { setImageBitmap(bmp); scaleType=ImageView.ScaleType.FIT_CENTER; adjustViewBounds=true },ViewGroup.LayoutParams(-1,-2)) },FrameLayout.LayoutParams(-1,-1))
+  } catch(_:Exception) { container.removeAllViews();container.addView(message("تعذر عرض هذه الصفحة")) }
+ }
  private fun showCalculator() {
   shell("الحاسبة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,8,8,8) }
