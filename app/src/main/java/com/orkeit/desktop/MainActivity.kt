@@ -56,6 +56,13 @@ class MainActivity : Activity() {
  private var clockRunnable:Runnable?=null
  private var fileManagerDir:java.io.File?=null
  private var musicPlayer:MediaPlayer?=null
+ private data class PhotoItem(val uri:Uri,val name:String,val date:Long)
+ private var selectedPhoto:PhotoItem?=null
+ private var editorBitmap:Bitmap?=null
+ private var galleryContainer:LinearLayout?=null
+ private var galleryGrid:GridLayout?=null
+ private var galleryStatus:TextView?=null
+ private var galleryPermissionRequested=false
  private val updateReceiver=object:BroadcastReceiver() {
   override fun onReceive(context:Context?,intent:Intent?) {
    if(intent?.action!=DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
@@ -647,7 +654,7 @@ class MainActivity : Activity() {
   val allItems=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🧯","زيارات الدفاع المدني",{showBrowser("https://orkeitstm.vercel.app","زيارات الدفاع المدني")}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
-   Triple("🎨","الرسام",{showPaint()}), Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}), Triple("▶️","YouTube",{showYouTube()}), Triple("🎧","YouTube Music",{showYouTubeMusic()}), Triple("📝","Word / معالج النصوص",{showWord()}),
+   Triple("🎨","الرسام",{showPaint()}), Triple("🖼️","الصور",{showPhotos()}), Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}), Triple("▶️","YouTube",{showYouTube()}), Triple("🎧","YouTube Music",{showYouTubeMusic()}), Triple("📝","Word / معالج النصوص",{showWord()}),
    Triple("📊","Excel / الجداول",{showExcel()}), Triple("⚙️","لوحة التحكم",{showControlPanel()}),
    Triple("📋","إدارة المهام",{showTaskManager()}), Triple("⌨️","Command",{showCommand()}),
    Triple("🎮","ألعاب Windows",{showGames()}), Triple("🧮","الحاسبة",{showCalculator()}),
@@ -747,6 +754,154 @@ class MainActivity : Activity() {
   staticButtons.forEach { b -> if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b) }
  }
 
+
+ private fun hasPhotoPermission():Boolean {
+  return if(Build.VERSION.SDK_INT>=34) {
+   checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES)==PackageManager.PERMISSION_GRANTED ||
+    checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED")==PackageManager.PERMISSION_GRANTED
+  } else if(Build.VERSION.SDK_INT>=33) checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES)==PackageManager.PERMISSION_GRANTED
+  else Build.VERSION.SDK_INT<23 || checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED
+ }
+ private fun requestPhotoPermission() {
+  val perms=when {
+   Build.VERSION.SDK_INT>=34 -> arrayOf(android.Manifest.permission.READ_MEDIA_IMAGES,"android.permission.READ_MEDIA_VISUAL_USER_SELECTED")
+   Build.VERSION.SDK_INT>=33 -> arrayOf(android.Manifest.permission.READ_MEDIA_IMAGES)
+   Build.VERSION.SDK_INT>=23 -> arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+   else -> emptyArray()
+  }
+  if(perms.isEmpty()) { refreshPhotoGallery(); return }
+  requestPermissions(perms,705)
+ }
+ override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray) {
+  super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+  if(requestCode==705) {
+   if(hasPhotoPermission()) refreshPhotoGallery()
+   else {
+    galleryStatus?.text="لم يتم منح إذن عرض الصور. يمكنك الضغط على «إضافة صورة» لاختيار صورة يدويًا."
+    galleryGrid?.removeAllViews()
+   }
+  }
+ }
+ private fun showPhotos() {
+  shell("الصور")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(6,4,6,4) }
+  val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  header.addView(TextView(this).apply { text="صور الجهاز";textSize=20f;typeface=Typeface.DEFAULT_BOLD;setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
+  header.addView(task("＋ إضافة صورة"){ pickPhotoToImport() },LinearLayout.LayoutParams(112,44))
+  header.addView(task("↻ تحديث"){ if(hasPhotoPermission()) refreshPhotoGallery() else requestPhotoPermission() },LinearLayout.LayoutParams(96,44))
+  page.addView(header)
+  galleryStatus=TextView(this).apply { text="جارٍ تحميل الصور…";textSize=13f;setTextColor(navy);setPadding(5,5,5,8) }
+  page.addView(galleryStatus)
+  galleryContainer=page
+  val scroll=ScrollView(this)
+  galleryGrid=GridLayout(this).apply { columnCount=4;useDefaultMargins=false }
+  scroll.addView(galleryGrid,ScrollView.LayoutParams(-1,-2))
+  page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+  panel(page)
+  if(hasPhotoPermission()) refreshPhotoGallery() else requestPhotoPermission()
+ }
+ private fun refreshPhotoGallery() {
+  val grid=galleryGrid ?: return
+  grid.removeAllViews()
+  val photos=mutableListOf<PhotoItem>()
+  try {
+   val collection=MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+   val projection=arrayOf(MediaStore.Images.Media._ID,MediaStore.Images.Media.DISPLAY_NAME,MediaStore.Images.Media.DATE_ADDED)
+   contentResolver.query(collection,projection,null,null,MediaStore.Images.Media.DATE_ADDED+" DESC")?.use { c ->
+    val idCol=c.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+    val nameCol=c.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+    val dateCol=c.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+    while(c.moveToNext()) {
+     val id=c.getLong(idCol); val uri=Uri.withAppendedPath(collection,id.toString())
+     photos.add(PhotoItem(uri,c.getString(nameCol) ?: "صورة",c.getLong(dateCol)))
+    }
+   }
+  } catch(_:SecurityException) { galleryStatus?.text="يحتاج التطبيق إلى إذن الوصول إلى الصور."; return }
+    catch(_:Exception) { galleryStatus?.text="تعذر تحميل الصور."; return }
+  galleryStatus?.text="عدد الصور: ${photos.size} • اضغط على أي صورة لعرضها وتعديلها"
+  if(photos.isEmpty()) {
+   grid.addView(TextView(this).apply { text="لا توجد صور ظاهرة. اضغط «إضافة صورة» لاختيار صور من الجهاز.";textSize=16f;setTextColor(navy);gravity=Gravity.CENTER;setPadding(16,24,16,24) },GridLayout.LayoutParams().apply { width=-1;height=120;columnSpec=GridLayout.spec(0,4) })
+  }
+  photos.forEach { photo ->
+   val tile=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(4,4,4,8);isClickable=true;setOnClickListener{openPhotoEditor(photo)} }
+   val thumb=ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP;contentDescription=photo.name;background=android.graphics.drawable.ColorDrawable(Color.rgb(230,235,243)) }
+   try {
+    if(Build.VERSION.SDK_INT>=29) thumb.setImageBitmap(contentResolver.loadThumbnail(photo.uri,android.util.Size(240,240),null))
+    else contentResolver.openInputStream(photo.uri)?.use { thumb.setImageBitmap(BitmapFactory.decodeStream(it)) }
+   } catch(_:Exception) {}
+   tile.addView(thumb,LinearLayout.LayoutParams(-1,112))
+   tile.addView(TextView(this).apply { text=photo.name;textSize=10f;setTextColor(navy);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;gravity=Gravity.CENTER;setPadding(2,3,2,0) },LinearLayout.LayoutParams(-1,34))
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=152;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(3,3,3,3) })
+  }
+ }
+ private fun pickPhotoToImport() {
+  try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE);type="image/*";putExtra(Intent.EXTRA_ALLOW_MULTIPLE,false) },71) }
+  catch(_:Exception) { Toast.makeText(this,"تعذر فتح معرض الصور",Toast.LENGTH_LONG).show() }
+ }
+ private fun saveImportedPhoto(uri:Uri) {
+  try {
+   val bmp=contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+   if(bmp==null) { Toast.makeText(this,"تعذر قراءة الصورة",Toast.LENGTH_SHORT).show();return }
+   savePhotoBitmap(bmp,"orkeit-photo")
+   bmp.recycle()
+  } catch(_:Exception) { Toast.makeText(this,"تعذر استيراد الصورة",Toast.LENGTH_LONG).show() }
+ }
+ private fun savePhotoBitmap(bitmap:Bitmap,baseName:String) {
+  try {
+   val values=ContentValues().apply {
+    put(MediaStore.Images.Media.DISPLAY_NAME,baseName+"-"+System.currentTimeMillis()+".jpg")
+    put(MediaStore.Images.Media.MIME_TYPE,"image/jpeg")
+    if(Build.VERSION.SDK_INT>=29) put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/OriketDesktop")
+   }
+   val uri=contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
+   if(uri==null) { Toast.makeText(this,"تعذر حفظ الصورة",Toast.LENGTH_LONG).show();return }
+   val ok=contentResolver.openOutputStream(uri)?.use { bitmap.compress(Bitmap.CompressFormat.JPEG,94,it) } ?: false
+   if(!ok) contentResolver.delete(uri,null,null)
+   Toast.makeText(this,if(ok)"تم حفظ نسخة في صور الجهاز / OriketDesktop" else "تعذر حفظ الصورة",Toast.LENGTH_LONG).show()
+   refreshPhotoGallery()
+  } catch(_:Exception) { Toast.makeText(this,"تعذر حفظ الصورة",Toast.LENGTH_LONG).show() }
+ }
+ private fun openPhotoEditor(photo:PhotoItem) {
+  val bitmap=try { contentResolver.openInputStream(photo.uri)?.use { BitmapFactory.decodeStream(it) } } catch(_:Exception){null}
+  if(bitmap==null) { Toast.makeText(this,"تعذر فتح الصورة",Toast.LENGTH_SHORT).show();return }
+  selectedPhoto=photo
+  editorBitmap?.recycle();editorBitmap=bitmap
+  shell("عارض الصور")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  page.addView(TextView(this).apply { text=photo.name;textSize=14f;setTextColor(navy);gravity=Gravity.CENTER;maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.MIDDLE },LinearLayout.LayoutParams(-1,32))
+  val image=ImageView(this).apply { tag="orkeit-photo-preview";setImageBitmap(bitmap);scaleType=ImageView.ScaleType.FIT_CENTER;adjustViewBounds=true;setBackgroundColor(Color.rgb(24,31,43)) }
+  page.addView(image,LinearLayout.LayoutParams(-1,0,1f))
+  val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER }
+  fun add(label:String,fn:()->Unit) { row.addView(task(label,fn),LinearLayout.LayoutParams(0,46,1f).apply { setMargins(2,2,2,2) }) }
+  var zoom=1f
+  add("− تصغير") { zoom=(zoom/1.25f).coerceAtLeast(0.5f);image.scaleType=ImageView.ScaleType.MATRIX;image.imageMatrix=Matrix().apply{setScale(zoom,zoom)} }
+  add("＋ تكبير") { zoom=(zoom*1.25f).coerceAtMost(5f);image.scaleType=ImageView.ScaleType.MATRIX;image.imageMatrix=Matrix().apply{setScale(zoom,zoom)} }
+  add("↻ تدوير") { val current=editorBitmap ?: return@add; val matrix=Matrix().apply{postRotate(90f)};val rotated=Bitmap.createBitmap(current,0,0,current.width,current.height,matrix,true);editorBitmap=rotated;if(current!==rotated)current.recycle();image.setImageBitmap(rotated);zoom=1f;image.scaleType=ImageView.ScaleType.FIT_CENTER }
+  add("قص مربع") { val current=editorBitmap ?: return@add;val side=minOf(current.width,current.height);val x=(current.width-side)/2;val y=(current.height-side)/2;val cropped=Bitmap.createBitmap(current,x,y,side,side);editorBitmap=cropped;if(current!==cropped)current.recycle();image.setImageBitmap(cropped);zoom=1f;image.scaleType=ImageView.ScaleType.FIT_CENTER }
+  add("حفظ نسخة") { editorBitmap?.let { savePhotoBitmap(it,"orkeit-edited") } }
+  add("حذف") { confirmDeletePhoto(photo) }
+  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(row) },LinearLayout.LayoutParams(-1,52))
+  val footer=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER }
+  footer.addView(action("حفظ التعديلات كصورة جديدة"){editorBitmap?.let{savePhotoBitmap(it,"orkeit-edited")}},LinearLayout.LayoutParams(-1,44))
+  page.addView(footer)
+  panel(page)
+ }
+ private fun confirmDeletePhoto(photo:PhotoItem) {
+  AlertDialog.Builder(this).setTitle("حذف الصورة؟").setMessage("سيطلب Android تأكيد حذف الصورة من الجهاز.")
+   .setPositiveButton("حذف") { _,_ ->
+    try {
+     if(Build.VERSION.SDK_INT>=30) {
+      val pending=MediaStore.createDeleteRequest(contentResolver,listOf(photo.uri))
+      startIntentSenderForResult(pending.intentSender,67,null,0,0,0)
+     } else {
+      val deleted=contentResolver.delete(photo.uri,null,null)>0
+      Toast.makeText(this,if(deleted)"تم حذف الصورة" else "لم يتم حذف الصورة",Toast.LENGTH_SHORT).show()
+      refreshPhotoGallery()
+     }
+    } catch(_:Exception) { Toast.makeText(this,"تعذر حذف الصورة. قد تحتاج إلى تأكيد الحذف من تطبيق الصور.",Toast.LENGTH_LONG).show() }
+   }.setNegativeButton("إلغاء",null).show()
+ }
+
  private fun showRecycleBin() {
   val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
   val hidden=prefs.getStringSet("hidden_shortcuts",emptySet())?.toList().orEmpty()
@@ -831,7 +986,7 @@ class MainActivity : Activity() {
   val items=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
-   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("▶️","YouTube",{showYouTube()}),Triple("🎧","YouTube Music",{showYouTubeMusic()}),Triple("🎨","الرسام",{showPaint()}),
+   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🖼️","الصور",{showPhotos()}),Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("▶️","YouTube",{showYouTube()}),Triple("🎧","YouTube Music",{showYouTubeMusic()}),Triple("🎨","الرسام",{showPaint()}),
    Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
    Triple("⚙️","الإعدادات",{showControlPanel()}),Triple("📋","إدارة المهام",{showTaskManager()}),
    Triple("⌨️","Command",{showCommand()}),Triple("🎮","الألعاب",{showGames()}),
@@ -1046,6 +1201,8 @@ class MainActivity : Activity() {
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
   if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
+  if(requestCode==71 && resultCode==RESULT_OK && data?.data!=null) { try { val uri=data.data!!; contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION); saveImportedPhoto(uri) } catch(_:Exception) { Toast.makeText(this,"تعذر استيراد الصورة",Toast.LENGTH_SHORT).show() } }
+  if(requestCode==67) { editorBitmap?.recycle(); editorBitmap=null; refreshPhotoGallery() }
   if(requestCode==62 && resultCode==RESULT_OK && data?.data!=null) { (desktopArea.findViewWithTag<View>("orkeit-paint-canvas") as? PaintCanvas)?.importImage(data.data!!) }
   if(requestCode==61 && resultCode==RESULT_OK && data?.data!=null) { try { val uri=data.data!!;val name=contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use{if(it.moveToFirst())it.getString(0)else "imported-file"} ?: "imported-file";val dir=fileManagerDir ?: java.io.File(filesDir,"OriketWorkspace").apply{mkdirs()};val dest=java.io.File(dir,name);contentResolver.openInputStream(uri)?.use{input->dest.outputStream().use{input.copyTo(it)}};fileManagerDir=dir;Toast.makeText(this,"تم استيراد الملف",Toast.LENGTH_SHORT).show();showMyComputer()}catch(_:Exception){Toast.makeText(this,"تعذر الاستيراد",Toast.LENGTH_SHORT).show()} }
   if((requestCode==63 || requestCode==64) && resultCode==RESULT_OK && data?.data!=null) {
