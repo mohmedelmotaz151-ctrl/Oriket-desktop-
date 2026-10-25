@@ -127,6 +127,21 @@ class MainActivity : Activity() {
   } catch(_:Exception) {}
  }
 
+ private fun playDesktopSound(kind:String) {
+  try {
+   val generator=android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC,70)
+   val notes=when(kind) {
+    "boot" -> listOf(0L to android.media.ToneGenerator.TONE_PROP_ACK,180L to android.media.ToneGenerator.TONE_PROP_BEEP,360L to android.media.ToneGenerator.TONE_PROP_ACK)
+    "start" -> listOf(0L to android.media.ToneGenerator.TONE_PROP_BEEP,110L to android.media.ToneGenerator.TONE_PROP_ACK)
+    "sleep" -> listOf(0L to android.media.ToneGenerator.TONE_PROP_BEEP,200L to android.media.ToneGenerator.TONE_PROP_BEEP,400L to android.media.ToneGenerator.TONE_PROP_ACK)
+    "shutdown" -> listOf(0L to android.media.ToneGenerator.TONE_PROP_ACK,180L to android.media.ToneGenerator.TONE_PROP_BEEP,360L to android.media.ToneGenerator.TONE_PROP_BEEP)
+    else -> listOf(0L to android.media.ToneGenerator.TONE_PROP_BEEP,150L to android.media.ToneGenerator.TONE_PROP_ACK,300L to android.media.ToneGenerator.TONE_PROP_BEEP)
+   }
+   notes.forEach { (delay,tone) -> uiHandler.postDelayed({ try { generator.startTone(tone,130) } catch(_:Exception) {} },delay) }
+   uiHandler.postDelayed({ try { generator.release() } catch(_:Exception) {} },850L)
+  } catch(_:Exception) {}
+ }
+
  private fun showBootSequence() {
   val boot=FrameLayout(this).apply {
    setBackgroundColor(Color.rgb(5,18,42))
@@ -173,7 +188,7 @@ class MainActivity : Activity() {
   logo.animate().alpha(1f).setDuration(650).start()
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
   subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
-  playWindowsInspiredStartupTone()
+  playDesktopSound("boot")
   uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
  }
 
