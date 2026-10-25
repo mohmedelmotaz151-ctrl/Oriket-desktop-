@@ -350,8 +350,9 @@ class MainActivity : Activity() {
    setBackgroundColor(Color.argb(248,218,230,247))
    elevation=16f
   }
-  dock.addView(taskbar,FrameLayout.LayoutParams(-2,62,Gravity.CENTER))
-  root.addView(dock,LinearLayout.LayoutParams(-1,78))
+  val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,HorizontalScrollView.LayoutParams(-2,68)) }
+  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin=4; rightMargin=82 })
+  root.addView(dock,LinearLayout.LayoutParams(-1,86))
   setContentView(root)
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
