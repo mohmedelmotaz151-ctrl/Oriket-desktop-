@@ -381,7 +381,7 @@ class MainActivity : Activity() {
   dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin=4; rightMargin=82 })
   val adView=AdView(this).apply {
    setAdSize(AdSize.BANNER)
-   adUnitId="ca-app-pub-3940256099942544/6300978111"
+   adUnitId="ca-app-pub-6392100417582868/3734272938"
    loadAd(AdRequest.Builder().build())
   }
   root.addView(adView,LinearLayout.LayoutParams(-1,50))
