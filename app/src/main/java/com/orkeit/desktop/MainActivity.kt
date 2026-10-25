@@ -457,7 +457,14 @@ class MainActivity : Activity() {
  @Deprecated("Uses compatible document picker callback")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
   super.onActivityResult(requestCode,resultCode,data)
-  if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)\n  if(requestCode==52 && resultCode==RESULT_OK && data?.data!=null) {\n   val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")\n   if(video!=null) { video.setVideoURI(data.data); video.start() }\n  }
+  if(requestCode==41 && resultCode==RESULT_OK && data?.data!=null) showFile(data.data!!)
+  if(requestCode==52 && resultCode==RESULT_OK) {
+   val selected=data?.data
+   if(selected!=null) {
+    val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")
+    if(video!=null) { video.setVideoURI(selected); video.start() }
+   }
+  }
  }
  private fun showFile(uri:Uri) {
   val mime=contentResolver.getType(uri) ?: "application/octet-stream"
