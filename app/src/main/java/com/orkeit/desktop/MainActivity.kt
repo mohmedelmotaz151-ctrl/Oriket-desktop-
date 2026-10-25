@@ -92,14 +92,12 @@ class MainActivity : Activity() {
    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-  initDesktop()
-  showDesktop()
+  showBootSequence()
   try {
    if(Build.VERSION.SDK_INT>=33) registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),RECEIVER_EXPORTED)
    else registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
    updateReceiverRegistered=true
   } catch(_:Exception) {}
-  checkForUpdates(false)
  }
 
  override fun onDestroy() {
@@ -110,6 +108,207 @@ class MainActivity : Activity() {
    for(i in 0 until group.childCount) (group.getChildAt(i) as? WebView)?.destroy()
   }
   super.onDestroy()
+ }
+
+
+ private fun playWindowsInspiredStartupTone() {
+  // نغمة قصيرة مولّدة من نغمات النظام، مستوحاة من أجواء بدء تشغيل Windows.
+  try {
+   val tone=android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC,65)
+   val notes=listOf(
+    0L to android.media.ToneGenerator.TONE_PROP_ACK,
+    170L to android.media.ToneGenerator.TONE_PROP_BEEP,
+    360L to android.media.ToneGenerator.TONE_PROP_ACK
+   )
+   notes.forEach { (delay,kind) ->
+    uiHandler.postDelayed({ try { tone.startTone(kind,115) } catch(_:Exception) {} },delay)
+   }
+   uiHandler.postDelayed({ try { tone.release() } catch(_:Exception) {} },650L)
+  } catch(_:Exception) {}
+ }
+
+ private fun showBootSequence() {
+  val boot=FrameLayout(this).apply {
+   setBackgroundColor(Color.rgb(5,18,42))
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+  }
+  val panel=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   gravity=Gravity.CENTER
+   setPadding(28,24,28,24)
+  }
+  val logo=ImageView(this).apply {
+   setImageResource(R.drawable.ic_windows_launcher)
+   scaleType=ImageView.ScaleType.FIT_CENTER
+   alpha=0f
+   contentDescription="شعار Windows"
+  }
+  panel.addView(logo,LinearLayout.LayoutParams(132,132))
+  val title=TextView(this).apply {
+   text="Windows"
+   textSize=30f
+   setTextColor(Color.WHITE)
+   gravity=Gravity.CENTER
+   typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+   setPadding(0,18,0,4)
+   alpha=0f
+  }
+  panel.addView(title,LinearLayout.LayoutParams(-1,-2))
+  val subtitle=TextView(this).apply {
+   text="Oriket Desktop"
+   textSize=15f
+   setTextColor(Color.rgb(190,211,239))
+   gravity=Gravity.CENTER
+   alpha=0f
+  }
+  panel.addView(subtitle,LinearLayout.LayoutParams(-1,-2))
+  val spinner=ProgressBar(this).apply {
+   isIndeterminate=true
+   indeterminateTintList=android.content.res.ColorStateList.valueOf(Color.WHITE)
+  }
+  val spinLp=LinearLayout.LayoutParams(38,38).apply { topMargin=36 }
+  panel.addView(spinner,spinLp)
+  boot.addView(panel,FrameLayout.LayoutParams(-1,-1))
+  setContentView(boot)
+  logo.animate().alpha(1f).setDuration(650).start()
+  title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
+  subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
+  playWindowsInspiredStartupTone()
+  uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
+ }
+
+ private fun passwordDigest(password:String,salt:String):String {
+  val bytes=java.security.MessageDigest.getInstance("SHA-256")
+   .digest((salt+":"+password).toByteArray(Charsets.UTF_8))
+  return bytes.joinToString("") { "%02x".format(it) }
+ }
+
+ private fun showLocalLoginScreen() {
+  val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
+  val hasPassword=!prefs.getString("login_hash",null).isNullOrBlank() &&
+   !prefs.getString("login_salt",null).isNullOrBlank()
+  val page=FrameLayout(this).apply {
+   setBackgroundColor(Color.rgb(12,39,77))
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+  }
+  val card=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   gravity=Gravity.CENTER_HORIZONTAL
+   setPadding(30,28,30,28)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.argb(242,18,43,78)); cornerRadius=24f
+    setStroke(1,Color.argb(90,220,235,255))
+   }
+   elevation=12f
+  }
+  val logo=ImageView(this).apply {
+   setImageResource(R.drawable.ic_windows_launcher)
+   scaleType=ImageView.ScaleType.FIT_CENTER
+   contentDescription="Windows"
+  }
+  card.addView(logo,LinearLayout.LayoutParams(86,86))
+  card.addView(TextView(this).apply {
+   text=if(hasPassword) "مرحبًا بعودتك" else "إعداد تسجيل الدخول"
+   textSize=26f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+   setPadding(0,14,0,5)
+  },LinearLayout.LayoutParams(-1,-2))
+  card.addView(TextView(this).apply {
+   text=if(hasPassword) "أدخل كلمة المرور لفتح Oriket Desktop" else "أنشئ كلمة مرور لاستخدامها عند كل تشغيل"
+   textSize=14f; setTextColor(Color.rgb(207,222,242)); gravity=Gravity.CENTER
+   setPadding(0,0,0,22)
+  },LinearLayout.LayoutParams(-1,-2))
+  val username=TextView(this).apply {
+   text="◉   مستخدم Oriket"
+   textSize=16f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   setPadding(0,0,0,18)
+  }
+  card.addView(username,LinearLayout.LayoutParams(-1,-2))
+  fun makePasswordField(hintText:String):EditText = EditText(this).apply {
+   hint=hintText
+   setSingleLine(true)
+   textSize=16f
+   setTextColor(Color.WHITE)
+   setHintTextColor(Color.rgb(190,207,230))
+   inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.argb(110,255,255,255)); cornerRadius=10f
+    setStroke(1,Color.argb(120,220,235,255))
+   }
+   setPadding(16,12,16,12)
+  }
+  val password=makePasswordField(if(hasPassword) "كلمة المرور" else "أنشئ كلمة مرور")
+  card.addView(password,LinearLayout.LayoutParams(-1,54))
+  val confirm=makePasswordField("أعد كتابة كلمة المرور")
+  if(!hasPassword) {
+   val confirmLp=LinearLayout.LayoutParams(-1,54).apply { topMargin=12 }
+   card.addView(confirm,confirmLp)
+  }
+  val message=TextView(this).apply {
+   text=""
+   textSize=13f
+   setTextColor(Color.rgb(255,190,190))
+   gravity=Gravity.CENTER
+   setPadding(0,10,0,0)
+  }
+  card.addView(message,LinearLayout.LayoutParams(-1,-2))
+  val button=Button(this).apply {
+   text=if(hasPassword) "تسجيل الدخول" else "حفظ كلمة المرور والمتابعة"
+   isAllCaps=false
+   textSize=15f
+   setTextColor(Color.WHITE)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.rgb(0,103,192)); cornerRadius=12f
+   }
+  }
+  card.addView(button,LinearLayout.LayoutParams(-1,52).apply { topMargin=18 })
+  card.addView(TextView(this).apply {
+   text="كلمة المرور محفوظة على هذا الجهاز فقط"
+   textSize=11f; setTextColor(Color.rgb(174,196,224)); gravity=Gravity.CENTER
+   setPadding(0,18,0,0)
+  },LinearLayout.LayoutParams(-1,-2))
+  val width=(resources.displayMetrics.widthPixels*0.82f).toInt().coerceIn(300,470)
+  page.addView(card,FrameLayout.LayoutParams(width,-2,Gravity.CENTER))
+  setContentView(page)
+  password.requestFocus()
+  button.setOnClickListener {
+   val value=password.text.toString()
+   if(value.length<6) {
+    message.text="استخدم كلمة مرور من 6 أحرف أو أرقام على الأقل."
+    return@setOnClickListener
+   }
+   if(!hasPassword) {
+    if(value!=confirm.text.toString()) {
+     message.text="كلمتا المرور غير متطابقتين."
+     return@setOnClickListener
+    }
+    val salt=java.util.UUID.randomUUID().toString()
+    val hash=passwordDigest(value,salt)
+    val saved=prefs.edit().putString("login_salt",salt).putString("login_hash",hash).commit()
+    if(!saved) {
+     message.text="تعذر حفظ كلمة المرور. حاول مرة أخرى."
+     return@setOnClickListener
+    }
+   } else {
+    val salt=prefs.getString("login_salt","").orEmpty()
+    val expected=prefs.getString("login_hash","").orEmpty()
+    val actual=passwordDigest(value,salt)
+    if(!java.security.MessageDigest.isEqual(actual.toByteArray(Charsets.UTF_8),expected.toByteArray(Charsets.UTF_8))) {
+     message.text="كلمة المرور غير صحيحة."
+     password.text.clear()
+     return@setOnClickListener
+    }
+   }
+   button.isEnabled=false
+   message.setTextColor(Color.rgb(190,235,205))
+   message.text="جارٍ فتح سطح المكتب…"
+   uiHandler.postDelayed({
+    if(isFinishing) return@postDelayed
+    initDesktop()
+    showDesktop()
+    checkForUpdates(false)
+   },250L)
+  }
  }
 
  private fun initDesktop() {
