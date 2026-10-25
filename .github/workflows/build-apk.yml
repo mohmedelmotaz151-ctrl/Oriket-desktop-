@@ -53,7 +53,7 @@ jobs:
               "versionCode": ${{ github.run_number }},
               "versionName": "1.0.${{ github.run_number }}"
             }
-          files: app/build/outputs/apk/debug/orkeit-desktop.apk
+          files: app/build/outputs/apk/direct/debug/orkeit-desktop.apk
           overwrite_files: true
           make_latest: false
           prerelease: true
