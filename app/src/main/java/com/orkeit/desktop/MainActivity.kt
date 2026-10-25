@@ -724,6 +724,7 @@ class MainActivity : Activity() {
   listOf(
    "الشاشة والاتجاه" to { AlertDialog.Builder(this).setTitle("الشاشة").setMessage("تم تصميم الواجهة للوضع الأفقي. يمكنك تدوير الجهاز من إعدادات Android.").setPositiveButton("حسنًا",null).show() },
    "خلفية سطح المكتب" to { showWallpaperPicker() },
+   "سياسة الخصوصية" to { showPrivacyPolicy() },
    "الشبكة والإنترنت" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
    "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
    "إعدادات التطبيقات" to { try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+packageName))) } catch(_:Exception){} },
@@ -885,6 +886,21 @@ class MainActivity : Activity() {
    if(snake.drop(1).contains(next)){reset(); Toast.makeText(context,"انتهت اللعبة",Toast.LENGTH_SHORT).show()} else invalidate()
   }
   fun reset(){snake=mutableListOf(Pair(5,5),Pair(4,5),Pair(3,5));food=Pair(9,7);dx=1;dy=0;score=0;invalidate()}
+ }
+
+ private fun showPrivacyPolicy() {
+  AlertDialog.Builder(this)
+   .setTitle("سياسة الخصوصية")
+   .setMessage("تُحفظ إعدادات سطح المكتب محليًا على الجهاز. عند اختيار ملف، يستخدم التطبيق منتقي ملفات Android. المواقع التي تفتحها قد تعالج بيانات وفق سياساتها الخاصة. نسخة Google Play لا تثبّت تحديثات APK من خارج المتجر. اقرأ السياسة الكاملة قبل الاستخدام.")
+   .setPositiveButton("قراءة السياسة الكاملة") { _,_ ->
+    try {
+     startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://mohmedelmotaz151-ctrl.github.io/Oriket-desktop-/privacy-policy.html")))
+    } catch(_:Exception) {
+     Toast.makeText(this,"تعذر فتح صفحة سياسة الخصوصية",Toast.LENGTH_LONG).show()
+    }
+   }
+   .setNegativeButton("إغلاق",null)
+   .show()
  }
 
  private fun showWallpaperPicker() {
