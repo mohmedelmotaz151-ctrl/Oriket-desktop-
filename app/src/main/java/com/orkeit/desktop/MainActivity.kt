@@ -1113,7 +1113,13 @@ class MainActivity : Activity() {
   private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
   private val paths=mutableListOf<Pair<Path,Paint>>()
   private val undone=mutableListOf<Pair<Path,Paint>>()
-  private var path=Path(); private var tool="قلم"; private var startX=0f; private var startY=0f; private var zoom=1f; private var cropRect:RectF?=null; private var imported:Bitmap?=null
+  private var path=Path()
+  private var tool="قلم"
+  private var startX=0f
+  private var startY=0f
+  private var zoom=1f
+  private var cropRect:RectF?=null
+  private var imported:Bitmap?=null
   init { setBackgroundColor(Color.WHITE) }
   fun setTool(value:String){tool=value;Toast.makeText(context,"أداة الرسم: $value",Toast.LENGTH_SHORT).show()}
   fun setColor(value:Int){paint.color=value;paint.xfermode=null;paint.strokeWidth=7f}
@@ -1123,62 +1129,17 @@ class MainActivity : Activity() {
   fun importImage(uri:Uri){try{imported=this@MainActivity.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it)};invalidate()}catch(_:Exception){Toast.makeText(context,"تعذر استيراد الصورة",Toast.LENGTH_SHORT).show()}}
   private fun addText(text:String,x:Float,y:Float){val p=Paint(paint).apply{style=Paint.Style.FILL;textSize=32f};val glyph=Path();p.getTextPath(text,0,text.length,x,y,glyph);paths.add(Pair(glyph,p));undone.clear();invalidate()}
   override fun onDraw(c:Canvas){super.onDraw(c);c.drawColor(Color.WHITE);c.save();c.scale(zoom,zoom);imported?.let{c.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};paths.forEach{c.drawPath(it.first,it.second)};if(!path.isEmpty)c.drawPath(path,paint);c.restore();cropRect?.let{val p=Paint(3).apply{color=Color.RED;style=Paint.Style.STROKE;pathEffect=DashPathEffect(floatArrayOf(10f,6f),0f)};c.drawRect(it,p)}}
-  override fun onTouchEvent(e:MotionEvent):Boolean{val x=e.x/zoom;val y=e.y/zoom;when(e.action){MotionEvent.ACTION_DOWN->{startX=x;startY=y;path=Path();path.moveTo(x,y);return true};MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="ممحاة")path.lineTo(x,y)else{path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);"مستطيل"->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW);"قص"->path.addRect(RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y)),Path.Direction.CW)}};invalidate();return true};MotionEvent.ACTION_UP->{if(tool=="نص"){val input=EditText(context).apply{hint="اكتب النص"};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show()}else if(tool=="قص")cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y))else{val p=Paint(paint);if(tool=="ممحاة"){p.color=Color.WHITE;p.strokeWidth=26f};paths.add(Pair(Path(path),p));undone.clear()};path=Path();invalidate();return true}};return true}
+  override fun onTouchEvent(e:MotionEvent):Boolean {
+   val x=e.x/zoom;val y=e.y/zoom
+   when(e.action){
+    MotionEvent.ACTION_DOWN->{startX=x;startY=y;path=Path();path.moveTo(x,y);return true}
+    MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="ممحاة")path.lineTo(x,y)else{path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);"مستطيل"->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW);"قص"->path.addRect(RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y)),Path.Direction.CW)}};invalidate();return true}
+    MotionEvent.ACTION_UP->{if(tool=="نص"){val input=EditText(context).apply{hint="اكتب النص"};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show()}else if(tool=="قص")cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y))else{val p=Paint(paint);if(tool=="ممحاة"){p.color=Color.WHITE;p.strokeWidth=26f};paths.add(Pair(Path(path),p));undone.clear()};path=Path();invalidate();return true}
+   }
+   return true
+  }
   fun exportBitmap():Bitmap{val bmp=Bitmap.createBitmap(width.coerceAtLeast(1),height.coerceAtLeast(1),Bitmap.Config.ARGB_8888);val cv=Canvas(bmp);cv.drawColor(Color.WHITE);imported?.let{cv.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};cv.save();cv.scale(zoom,zoom);paths.forEach{cv.drawPath(it.first,it.second)};cv.restore();val r=cropRect;if(r!=null&&r.width()>2&&r.height()>2){val l=r.left.toInt().coerceIn(0,bmp.width-1);val t=r.top.toInt().coerceIn(0,bmp.height-1);val rr=r.right.toInt().coerceIn(l+1,bmp.width);val b=r.bottom.toInt().coerceIn(t+1,bmp.height);return Bitmap.createBitmap(bmp,l,t,rr-l,b-t)};return bmp}
   fun clear(){paths.clear();undone.clear();path.reset();cropRect=null;imported=null;invalidate()}
  }
 }
-  private val paths=mutableListOf<Pair<Path,Paint>>()
-  private var path=Path()
-  private var tool="قلم"
-  private var startX=0f
-  private var startY=0f
-  private var endX=0f
-  private var endY=0f
-  private var zoom=1f
-  private var cropRect:RectF?=null
-  init { setBackgroundColor(Color.WHITE) }
-  fun setTool(value:String){tool=value;Toast.makeText(context,"أداة الرسم: $value",Toast.LENGTH_SHORT).show()}
-  fun setColor(value:Int){paint.color=value}
-  fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.5f,3f);invalidate()}
-  fun undo(){if(paths.isNotEmpty())paths.removeAt(paths.lastIndex);invalidate()}
-  override fun onDraw(c:Canvas) {
-   super.onDraw(c); c.drawColor(Color.WHITE)
-   c.save(); c.scale(zoom,zoom)
-   paths.forEach{c.drawPath(it.first,it.second)}
-   if(tool=="قلم") c.drawPath(path,paint)
-   else if(path.isEmpty.not()) c.drawPath(path,paint)
-   c.restore()
-   cropRect?.let { r -> val marker=Paint(3).apply{color=Color.RED;style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(10f,6f),0f)}; c.drawRect(r,marker) }
-  }
-  override fun onTouchEvent(e:MotionEvent):Boolean {
-   val x=e.x/zoom; val y=e.y/zoom
-   when(e.action){
-    MotionEvent.ACTION_DOWN->{startX=x;startY=y;endX=x;endY=y;path=Path();path.moveTo(x,y);return true}
-    MotionEvent.ACTION_MOVE->{endX=x;endY=y;if(tool=="قلم"){path.lineTo(x,y)}else{path=Path();when(tool){"خط"->path.moveTo(startX,startY).also{path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);else->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW)}};invalidate();return true}
-    MotionEvent.ACTION_UP->{
-     endX=x;endY=y
-     if(tool=="قص"){cropRect=RectF(minOf(startX,endX),minOf(startY,endY),maxOf(startX,endX),maxOf(startY,endY))}
-     else {
-      if(tool!="قلم"){path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(endX,endY)};"دائرة"->path.addOval(RectF(startX,startY,endX,endY),Path.Direction.CW);else->path.addRect(RectF(startX,startY,endX,endY),Path.Direction.CW)}}
-      paths.add(Pair(Path(path),Paint(paint)))
-     }
-     path=Path();invalidate();return true
-    }
-   }
-   return true
-  }
-  fun exportBitmap():Bitmap {
-   val full=Bitmap.createBitmap(width.coerceAtLeast(1),height.coerceAtLeast(1),Bitmap.Config.ARGB_8888)
-   val cv=Canvas(full);cv.drawColor(Color.WHITE);cv.save();cv.scale(zoom,zoom);paths.forEach{cv.drawPath(it.first,it.second)};cv.restore()
-   val r=cropRect
-   if(r!=null && r.width()>2 && r.height()>2) {
-    val left=r.left.toInt().coerceIn(0,full.width-1);val top=r.top.toInt().coerceIn(0,full.height-1)
-    val right=r.right.toInt().coerceIn(left+1,full.width);val bottom=r.bottom.toInt().coerceIn(top+1,full.height)
-    return Bitmap.createBitmap(full,left,top,right-left,bottom-top)
-   }
-   return full
-  }
-  fun clear(){paths.clear();path.reset();cropRect=null;invalidate()}
- }
 }
