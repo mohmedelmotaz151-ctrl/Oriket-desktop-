@@ -748,8 +748,10 @@ class MainActivity : Activity() {
   if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
    if(selected!=null) {
+    try { contentResolver.takePersistableUriPermission(selected,Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch(_:Exception) {}
+    getSharedPreferences("orkeit_video",Context.MODE_PRIVATE).edit().putString("uri",selected.toString()).putInt("position",0).apply()
     val video=desktopArea.findViewWithTag<VideoView>("orkeit-video-view")
-    if(video!=null) { video.setVideoURI(selected); video.start() }
+    if(video!=null) { video.setVideoURI(selected); video.setOnPreparedListener { player -> player.seekTo(0); video.start() } }
    }
   }
  }
@@ -768,14 +770,28 @@ class MainActivity : Activity() {
     mime=="application/pdf" || name.lowercase(Locale.ROOT).endsWith(".pdf") -> {
      val fd=contentResolver.openFileDescriptor(uri,"r")
      if(fd!=null) {
-      val renderer=PdfRenderer(fd)
-      if(renderer.pageCount>0) {
-       val pg=renderer.openPage(0)
-       val bmp=Bitmap.createBitmap(pg.width*2,pg.height*2,Bitmap.Config.ARGB_8888)
-       bmp.eraseColor(Color.WHITE); pg.render(bmp,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY); pg.close(); renderer.close(); fd.close()
-       viewer.addView(ScrollView(this).apply { addView(ImageView(this@MainActivity).apply { setImageBitmap(bmp); scaleType=ImageView.ScaleType.FIT_CENTER },ViewGroup.LayoutParams(-1,900)) })
-      } else { renderer.close(); fd.close(); viewer.addView(message("ملف PDF فارغ")) }
-     }
+      try {
+       val renderer=PdfRenderer(fd)
+       if(renderer.pageCount>0) {
+        val pages=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(6,6,6,6) }
+        val count=renderer.pageCount
+        for(index in 0 until count) {
+         val pg=renderer.openPage(index)
+         val scale=minOf(1.6f,1600f/maxOf(pg.width,pg.height))
+         val bmp=Bitmap.createBitmap((pg.width*scale).toInt().coerceAtLeast(1),(pg.height*scale).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
+         bmp.eraseColor(Color.WHITE)
+         pg.render(bmp,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+         pg.close()
+         pages.addView(TextView(this).apply { text="الصفحة ${index+1} من ${count}"; textSize=12f; setTextColor(navy); setPadding(4,8,4,4) })
+         pages.addView(ImageView(this).apply { setImageBitmap(bmp); scaleType=ImageView.ScaleType.FIT_CENTER; adjustViewBounds=true; contentDescription="صفحة PDF ${index+1}" },LinearLayout.LayoutParams(-1,-2))
+         pages.addView(View(this).apply { setBackgroundColor(border) },LinearLayout.LayoutParams(-1,1))
+        }
+        renderer.close()
+        viewer.addView(ScrollView(this).apply { addView(pages) },FrameLayout.LayoutParams(-1,-1))
+       } else { renderer.close(); viewer.addView(message("ملف PDF فارغ")) }
+      } catch(_:Exception) { viewer.addView(message("تعذر عرض ملف PDF")) }
+      finally { try{fd.close()}catch(_:Exception){} }
+     } else viewer.addView(message("تعذر فتح ملف PDF"))
     }
     mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) -> {
      val txt=contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()} ?: "تعذر قراءة الملف"
@@ -788,22 +804,35 @@ class MainActivity : Activity() {
  private fun message(s:String)=TextView(this).apply { text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(20,20,20,20) }
  private fun showCalculator() {
   shell("الحاسبة")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val display=EditText(this).apply { textSize=28f; gravity=Gravity.END; inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED; setText("0") }
-  page.addView(display,LinearLayout.LayoutParams(-1,65))
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,8,8,8) }
+  val display=TextView(this).apply { text="0"; textSize=30f; gravity=Gravity.CENTER_VERTICAL or Gravity.END; setTextColor(navy); setPadding(12,8,12,8); setBackgroundColor(Color.rgb(240,244,249)) }
+  page.addView(display,LinearLayout.LayoutParams(-1,76))
+  val expression=StringBuilder()
+  class ExpressionParser(private val source:String) {
+   private var p=0
+   fun parse():Double { val v=addSub(); if(p<source.length) throw IllegalArgumentException(); return v }
+   private fun addSub():Double { var v=mulDiv(); while(p<source.length) { val op=source[p]; if(op!='+'&&op!='-') break; p++; val r=mulDiv(); v=if(op=='+')v+r else v-r }; return v }
+   private fun mulDiv():Double { var v=atom(); while(p<source.length) { val op=source[p]; if(op!='×'&&op!='÷'&&op!='*'&&op!='/') break; p++; val r=atom(); v=when(op){'×','*'->v*r;else->{if(r==0.0)throw ArithmeticException();v/r}} }; return v }
+   private fun atom():Double { if(p>=source.length)throw IllegalArgumentException(); if(source[p]=='+'||source[p]=='-'){val sign=source[p++];val n=atom();return if(sign=='-')-n else n}; if(source[p]=='('){p++;val n=addSub();if(p>=source.length||source[p]!=')')throw IllegalArgumentException();p++;return n}; val start=p; while(p<source.length&&(source[p].isDigit()||source[p]=='.'))p++; if(start==p)throw IllegalArgumentException(); return source.substring(start,p).toDouble() }
+  }
+  fun render(){display.text=if(expression.isEmpty())"0" else expression.toString()}
   val grid=GridLayout(this).apply { columnCount=4 }
-  listOf("7","8","9","÷","4","5","6","×","1","2","3","−","C","0","=","+").forEach { key ->
+  listOf("C","⌫","(",")","7","8","9","÷","4","5","6","×","1","2","3","−","%","0",".","+","=","00","±").forEach { key ->
    val b=action(key) {
-    val old=display.text.toString()
     when(key) {
-     "C"->display.setText("0")
-     "="->try { val op=listOf("+","−","×","÷").first{old.contains(it)}; val parts=old.split(op); val a=parts[0].toDouble(); val z=parts[1].toDouble(); display.setText((when(op){"+"->a+z;"−"->a-z;"×"->a*z;else->a/z}).toString()) } catch(_:Exception){display.setText("خطأ")}
-     else->display.setText(if(old=="0") key else old+key)
+     "C"->{expression.clear();render()}
+     "⌫"->{if(expression.isNotEmpty())expression.deleteCharAt(expression.lastIndex);render()}
+     "="->{try { var src=expression.toString().replace('−','-').replace('÷','÷'); if(src.isNotBlank()){val value=ExpressionParser(src).parse(); if(!value.isFinite())throw ArithmeticException(); expression.clear();expression.append(if(value%1.0==0.0)value.toLong().toString() else String.format(Locale.US,"%.8f",value).trimEnd('0').trimEnd('.'));render()} }catch(_:Exception){display.text="خطأ في العملية";expression.clear()} }
+     "%"->{if(expression.isNotEmpty()){expression.append("/100");render()}}
+     "±"->{if(expression.isNotEmpty()){expression.insert(0,"-");render()}}
+     else->{if(key=="00"&&expression.isEmpty())return@action;expression.append(when(key){"−"->"-";else->key});render()}
     }
    }
-   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=56; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
+   grid.addView(b,GridLayout.LayoutParams().apply { width=0; height=54; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(3,3,3,3) })
   }
-  page.addView(grid); panel(page)
+  page.addView(grid,LinearLayout.LayoutParams(-1,-2))
+  page.addView(action("نسخ النتيجة"){ val clipboard=getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager;clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Oriket Calculator",display.text));Toast.makeText(this,"تم نسخ النتيجة",Toast.LENGTH_SHORT).show() })
+  panel(page)
  }
  private fun showNotepad() {
   shell("المفكرة")
@@ -922,12 +951,14 @@ class MainActivity : Activity() {
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val bar=LinearLayout(this).apply { gravity=Gravity.CENTER }
   val video=VideoView(this)
+  val videoPrefs=getSharedPreferences("orkeit_video",Context.MODE_PRIVATE)
+  videoPrefs.getString("uri",null)?.let { saved -> try { video.setVideoURI(Uri.parse(saved)); video.setOnPreparedListener { player -> player.seekTo(videoPrefs.getInt("position",0)) } } catch(_:Exception) {} }
   bar.addView(action("فتح فيديو") {
    try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type="video/*" },52) }
    catch(_:Exception){Toast.makeText(this,"تعذر فتح منتقي الفيديو",Toast.LENGTH_SHORT).show()}
   })
   bar.addView(action("تشغيل"){video.start()})
-  bar.addView(action("إيقاف مؤقت"){video.pause()})
+  bar.addView(action("إيقاف مؤقت"){ if(video.isPlaying)video.pause(); videoPrefs.edit().putInt("position",video.currentPosition).apply() })
   page.addView(bar)
   video.setMediaController(MediaController(this))
   page.addView(video,LinearLayout.LayoutParams(-1,0,1f))
