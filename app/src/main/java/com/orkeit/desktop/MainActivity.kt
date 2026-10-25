@@ -336,6 +336,52 @@ class MainActivity : Activity() {
  private fun panel(v:View) {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
+ private inner class Icon3DView(context:Context, private val symbol:String, private val label:String):View(context) {
+  private val colors:IntArray = when {
+   label.contains("الإنترنت") -> intArrayOf(Color.rgb(96,205,255),Color.rgb(0,100,220),Color.rgb(5,45,130))
+   label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(180,225,255),Color.rgb(50,115,205),Color.rgb(20,48,112))
+   label.contains("PDF") -> intArrayOf(Color.rgb(255,125,125),Color.rgb(220,35,45),Color.rgb(125,12,25))
+   label.contains("الفيديو") -> intArrayOf(Color.rgb(255,185,90),Color.rgb(235,90,25),Color.rgb(135,35,12))
+   label.contains("الرسام") -> intArrayOf(Color.rgb(255,190,220),Color.rgb(205,65,145),Color.rgb(105,25,90))
+   label.contains("Word") -> intArrayOf(Color.rgb(120,190,255),Color.rgb(25,95,205),Color.rgb(15,40,120))
+   label.contains("Excel") -> intArrayOf(Color.rgb(130,240,170),Color.rgb(20,155,85),Color.rgb(8,75,45))
+   label.contains("التحكم") -> intArrayOf(Color.rgb(220,225,240),Color.rgb(105,125,160),Color.rgb(45,55,85))
+   label.contains("المهام") -> intArrayOf(Color.rgb(175,230,255),Color.rgb(30,135,190),Color.rgb(10,60,105))
+   label.contains("Command") -> intArrayOf(Color.rgb(115,145,165),Color.rgb(35,55,75),Color.rgb(8,15,25))
+   label.contains("ألعاب") -> intArrayOf(Color.rgb(210,165,255),Color.rgb(125,60,220),Color.rgb(55,20,120))
+   label.contains("الحاسبة") -> intArrayOf(Color.rgb(180,245,220),Color.rgb(35,155,125),Color.rgb(10,65,65))
+   label.contains("المفكرة") -> intArrayOf(Color.rgb(255,245,160),Color.rgb(225,175,45),Color.rgb(120,75,12))
+   label.contains("تحديث") -> intArrayOf(Color.rgb(145,220,255),Color.rgb(30,130,220),Color.rgb(12,55,130))
+   else -> intArrayOf(Color.rgb(220,230,245),Color.rgb(100,125,165),Color.rgb(35,48,78))
+  }
+  private val fill=Paint(Paint.ANTI_ALIAS_FLAG)
+  init { setLayerType(View.LAYER_TYPE_SOFTWARE,null); contentDescription=label }
+  override fun onDraw(canvas:Canvas) {
+   super.onDraw(canvas)
+   val side=minOf(width,height).toFloat()
+   if(side<=0f) return
+   val left=(width-side)/2f+4f; val top=4f
+   val right=left+side-8f; val bottom=top+side-8f
+   val rect=RectF(left,top,right,bottom)
+   fill.style=Paint.Style.FILL
+   fill.color=colors[2]; fill.setShadowLayer(5f,0f,5f,Color.argb(120,0,0,0))
+   canvas.drawRoundRect(RectF(left+1f,top+2f,right+1f,bottom+2f),side*.2f,side*.2f,fill)
+   fill.clearShadowLayer()
+   fill.shader=LinearGradient(left,top,left,bottom,colors,null,Shader.TileMode.CLAMP)
+   canvas.drawRoundRect(rect,side*.2f,side*.2f,fill)
+   fill.shader=null
+   fill.style=Paint.Style.STROKE; fill.strokeWidth=1.2f; fill.color=Color.argb(190,255,255,255)
+   canvas.drawRoundRect(RectF(left+1f,top+1f,right-1f,bottom-1f),side*.2f,side*.2f,fill)
+   fill.style=Paint.Style.FILL
+   fill.shader=LinearGradient(left,top,left,top+side*.46f,Color.argb(150,255,255,255),Color.argb(0,255,255,255),Shader.TileMode.CLAMP)
+   canvas.drawRoundRect(RectF(left+3f,top+3f,right-3f,top+side*.42f),side*.16f,side*.16f,fill)
+   fill.shader=null
+   fill.color=Color.WHITE; fill.textAlign=Paint.Align.CENTER; fill.typeface=Typeface.create("sans-serif",Typeface.BOLD)
+   fill.textSize=side*.46f
+   val fm=fill.fontMetrics
+   canvas.drawText(symbol,width/2f,(top+bottom)/2f-(fm.ascent+fm.descent)/2f,fill)
+  }
+ }
  private fun showDesktop() {
   initDesktop()
   val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
@@ -427,7 +473,7 @@ class MainActivity : Activity() {
      false
     }
    }
-   tile.addView(TextView(this).apply { text=item.first; textSize=30f; gravity=Gravity.CENTER })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(54,54))
    tile.addView(TextView(this).apply { text=displayName; textSize=11f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(0,3,0,0); maxLines=2 })
    grid.addView(tile,GridLayout.LayoutParams().apply { width=100; height=82; setMargins(1,1,1,1) })
   }
