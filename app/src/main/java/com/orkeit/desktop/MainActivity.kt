@@ -408,22 +408,47 @@ class MainActivity : Activity() {
   shell("المتصفح")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-  val address=EditText(this).apply { hint="اكتب عنوان موقع أو كلمة بحث"; setSingleLine(true); textSize=14f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setText(start) }
-  val go=action("انتقال"){}
-  row.addView(address,LinearLayout.LayoutParams(0,48,1f)); row.addView(go,LinearLayout.LayoutParams(90,48))
-  page.addView(row)
   val browser=WebView(this)
   web=browser
+  val address=EditText(this).apply { hint="اكتب عنوان موقع أو كلمة بحث"; setSingleLine(true); textSize=13f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setText(start) }
+  fun loadAddress() { val s=address.text.toString().trim(); val target=if(s.startsWith("http://")||s.startsWith("https://")) s else if(s.contains(" ")||!s.contains(".")) "https://www.google.com/search?q="+Uri.encode(s) else "https://"+s; browser.loadUrl(target) }
+  row.addView(task("‹"){if(browser.canGoBack())browser.goBack()},LinearLayout.LayoutParams(38,44))
+  row.addView(task("›"){if(browser.canGoForward())browser.goForward()},LinearLayout.LayoutParams(38,44))
+  row.addView(task("↻"){browser.reload()},LinearLayout.LayoutParams(42,44))
+  row.addView(address,LinearLayout.LayoutParams(0,44,1f))
+  row.addView(action("اذهب"){loadAddress()},LinearLayout.LayoutParams(72,44))
+  page.addView(row)
+  val bar=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+  bar.addView(task("الرئيسية"){browser.loadUrl("https://www.google.com")})
+  bar.addView(task("إضافة للمفضلة"){ 
+   val url=browser.url ?: return@task
+   val prefs=getSharedPreferences("browser_bookmarks",Context.MODE_PRIVATE)
+   val saved=prefs.getStringSet("urls",emptySet())?.toMutableSet() ?: mutableSetOf()
+   saved.add(url); prefs.edit().putStringSet("urls",saved).apply()
+   Toast.makeText(this,"تمت إضافة الصفحة للمفضلة",Toast.LENGTH_SHORT).show()
+  })
+  bar.addView(task("المفضلة"){ 
+   val saved=getSharedPreferences("browser_bookmarks",Context.MODE_PRIVATE).getStringSet("urls",emptySet())?.toList() ?: emptyList()
+   if(saved.isEmpty()) Toast.makeText(this,"لا توجد صفحات محفوظة",Toast.LENGTH_SHORT).show()
+   else AlertDialog.Builder(this).setTitle("المفضلة").setItems(saved.toTypedArray()){_,which->browser.loadUrl(saved[which])}.show()
+  })
+  page.addView(bar)
   browser.settings.javaScriptEnabled=true
   browser.settings.domStorageEnabled=true
+  browser.settings.loadsImagesAutomatically=true
   browser.webViewClient=object:WebViewClient() { override fun onPageFinished(view:WebView?,url:String?) { if(url!=null && !address.hasFocus()) address.setText(url) } }
   browser.webChromeClient=WebChromeClient()
+  browser.setDownloadListener { url,_,contentDisposition,mimeType,_ ->
+   try {
+    val request=DownloadManager.Request(Uri.parse(url)).setTitle(contentDisposition ?: "تنزيل من المتصفح").setMimeType(mimeType).setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED).setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,"browser-download-"+System.currentTimeMillis())
+    (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+    Toast.makeText(this,"بدأ تنزيل الملف",Toast.LENGTH_SHORT).show()
+   } catch(_:Exception){Toast.makeText(this,"تعذر تنزيل الملف",Toast.LENGTH_SHORT).show()}
+  }
   page.addView(browser,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
-  fun load() { val s=address.text.toString().trim(); val target=if(s.startsWith("http://")||s.startsWith("https://")) s else if(s.contains(" ")||!s.contains(".")) "https://www.google.com/search?q="+Uri.encode(s) else "https://"+s; browser.loadUrl(target) }
-  go.setOnClickListener{load()}
-  address.setOnEditorActionListener{_,_,_->load();true}
   browser.loadUrl(start)
+  address.setOnEditorActionListener{_,_,_->loadAddress();true}
  }
  private fun pickFile(type:String) {
   try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); this.type=type },41) }
