@@ -1381,7 +1381,7 @@ class MainActivity : Activity() {
   var current:java.io.File?=null
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE) }
   val toolbar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(7,4,7,4);setBackgroundColor(Color.rgb(246,248,251)) }
-  toolbar.addView(task("←"){ if(current!=null){current=current?.parentFile?.takeIf{it==workspace||it.startsWith(workspace)};render()}else showDesktop() },LinearLayout.LayoutParams(44,40))
+  toolbar.addView(task("←"){ if(current!=null){current=current?.parentFile?.takeIf{it.absolutePath.startsWith(workspace.absolutePath + java.io.File.separator)};render()}else showDesktop() },LinearLayout.LayoutParams(44,40))
   toolbar.addView(task("→"){Toast.makeText(this,"لا يوجد مسار تالٍ",Toast.LENGTH_SHORT).show()},LinearLayout.LayoutParams(44,40))
   val address=TextView(this).apply { text="⌂  هذا الكمبيوتر";textSize=14f;setTextColor(navy);setPadding(12,8,12,8);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(210,216,224))} }
   toolbar.addView(address,LinearLayout.LayoutParams(0,40,1f))
@@ -1402,7 +1402,7 @@ class MainActivity : Activity() {
    tile.addView(TextView(this).apply{text=icon;textSize=26f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(45,48))
    tile.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_VERTICAL
     addView(TextView(this@MainActivity).apply{text=label;textSize=13f;setTextColor(navy)})
-    addView(TextView(this@MainActivity).apply{text=if(f.listFiles().isNullOrEmpty())"مجلد";else "العناصر: ${f.listFiles()?.size ?: 0}";textSize=10f;setTextColor(Color.GRAY)})
+    addView(TextView(this@MainActivity).apply{text=if(f.listFiles().isNullOrEmpty()) "مجلد" else "العناصر: ${f.listFiles()?.size ?: 0}";textSize=10f;setTextColor(Color.GRAY)})
    },LinearLayout.LayoutParams(0,48,1f))
    main.addView(tile,LinearLayout.LayoutParams(-1,58).apply{bottomMargin=5})
   }
