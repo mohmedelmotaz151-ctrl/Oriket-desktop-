@@ -217,18 +217,15 @@ class MainActivity : Activity() {
   val hasPassword=!prefs.getString("login_hash",null).isNullOrBlank() &&
    !prefs.getString("login_salt",null).isNullOrBlank()
   val page=FrameLayout(this).apply {
-   setBackgroundColor(Color.rgb(12,39,77))
+   addView(ScenicLockWallpaper(this@MainActivity),FrameLayout.LayoutParams(-1,-1))
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
   val card=LinearLayout(this).apply {
    orientation=LinearLayout.VERTICAL
    gravity=Gravity.CENTER_HORIZONTAL
-   setPadding(30,28,30,28)
-   background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.argb(242,18,43,78)); cornerRadius=24f
-    setStroke(1,Color.argb(90,220,235,255))
-   }
-   elevation=12f
+   setPadding(30,12,30,12)
+   background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+   elevation=0f
   }
   val logo=ImageView(this).apply {
    setImageResource(R.drawable.ic_windows_launcher)
@@ -237,34 +234,36 @@ class MainActivity : Activity() {
   }
   card.addView(logo,LinearLayout.LayoutParams(86,86))
   card.addView(TextView(this).apply {
-   text=if(hasPassword) "مرحبًا بعودتك" else "إعداد تسجيل الدخول"
-   textSize=26f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
-   typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-   setPadding(0,14,0,5)
+   text=if(hasPassword) "SCANOR" else "إعداد تسجيل الدخول"
+   textSize=30f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+   setShadowLayer(5f,1f,2f,Color.BLACK)
+   setPadding(0,10,0,8)
   },LinearLayout.LayoutParams(-1,-2))
   card.addView(TextView(this).apply {
-   text=if(hasPassword) "أدخل كلمة المرور لفتح Oriket Desktop" else "أنشئ كلمة مرور لاستخدامها عند كل تشغيل"
-   textSize=14f; setTextColor(Color.rgb(207,222,242)); gravity=Gravity.CENTER
-   setPadding(0,0,0,22)
+   text=""
+   textSize=14f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   setPadding(0,0,0,8)
   },LinearLayout.LayoutParams(-1,-2))
   val username=TextView(this).apply {
-   text="◉   مستخدم Oriket"
-   textSize=16f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
-   setPadding(0,0,0,18)
+   text="◯"
+   textSize=64f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   setShadowLayer(4f,1f,2f,Color.BLACK)
+   setPadding(0,0,0,4)
   }
   card.addView(username,LinearLayout.LayoutParams(-1,-2))
   fun makePasswordField(hintText:String):EditText = EditText(this).apply {
-   hint=hintText
+   hint=if(hasPassword) "PIN" else hintText
    setSingleLine(true)
    textSize=16f
-   setTextColor(Color.WHITE)
-   setHintTextColor(Color.rgb(190,207,230))
+   setTextColor(Color.DKGRAY)
+   setHintTextColor(Color.DKGRAY)
    inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.argb(110,255,255,255)); cornerRadius=10f
-    setStroke(1,Color.argb(120,220,235,255))
+    setColor(Color.WHITE); cornerRadius=0f
+    setStroke(1,Color.rgb(160,160,160))
    }
-   setPadding(16,12,16,12)
+   setPadding(16,7,16,7)
   }
   val password=makePasswordField(if(hasPassword) "كلمة المرور" else "أنشئ كلمة مرور")
   card.addView(password,LinearLayout.LayoutParams(-1,54))
@@ -296,7 +295,7 @@ class MainActivity : Activity() {
    textSize=11f; setTextColor(Color.rgb(174,196,224)); gravity=Gravity.CENTER
    setPadding(0,18,0,0)
   },LinearLayout.LayoutParams(-1,-2))
-  val width=(resources.displayMetrics.widthPixels*0.82f).toInt().coerceIn(300,470)
+  val width=(resources.displayMetrics.widthPixels*0.42f).toInt().coerceIn(300,470)
   page.addView(card,FrameLayout.LayoutParams(width,-2,Gravity.CENTER))
   setContentView(page)
   password.requestFocus()
@@ -372,15 +371,15 @@ class MainActivity : Activity() {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
    setPadding(12,5,12,5)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(248,248,250,255)); cornerRadius=26f; setStroke(1,Color.rgb(205,219,239)) }
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(0,248,250,255)); cornerRadius=26f }
    elevation=14f
   }
   val dock=FrameLayout(this).apply {
-   setBackgroundColor(Color.argb(248,218,230,247))
+   setBackgroundColor(Color.argb(225,20,25,35))
    elevation=16f
   }
   val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,68)) }
-  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin=4; rightMargin=82 })
+  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.CENTER).apply { leftMargin=4; rightMargin=82 })
   val adView=AdView(this).apply {
    // Use a full-width adaptive banner so it fits the phone's landscape width.
    val widthDp=(resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt().coerceAtLeast(320)
@@ -962,12 +961,19 @@ class MainActivity : Activity() {
     0 -> {
      playDesktopSound("sleep")
      val screen=FrameLayout(this).apply {
-      setBackgroundColor(Color.rgb(3,10,25))
+      addView(ScenicLockWallpaper(this@MainActivity),FrameLayout.LayoutParams(-1,-1))
       isClickable=true
-      addView(TextView(this@MainActivity).apply {
-       text="☾\\nOriket Desktop في وضع السكون\\nالمس الشاشة للعودة"
-       textSize=22f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
-      },FrameLayout.LayoutParams(-1,-1))
+      val shade=View(this@MainActivity).apply { setBackgroundColor(Color.argb(45,0,0,0)) }
+      addView(shade,FrameLayout.LayoutParams(-1,-1))
+      val clock=TextView(this@MainActivity).apply {
+       text=java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(java.util.Date())+"\\n"+
+        java.text.SimpleDateFormat("EEEE، d MMMM yyyy",Locale("ar")).format(java.util.Date())+
+        "\\n\\nالمس الشاشة للعودة"
+       textSize=25f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+       typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+       setShadowLayer(5f,1f,2f,Color.BLACK)
+      }
+      addView(clock,FrameLayout.LayoutParams(-1,-1))
       setOnClickListener { desktopArea.removeView(this); playDesktopSound("start"); showDesktop() }
      }
      desktopArea.addView(screen,FrameLayout.LayoutParams(-1,-1)); screen.bringToFront()
@@ -1813,6 +1819,23 @@ class MainActivity : Activity() {
    }
   }
   return super.dispatchKeyEvent(event)
+ }
+ private inner class ScenicLockWallpaper(c:Context):View(c) {
+  private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
+  override fun onDraw(canvas:Canvas) {
+   super.onDraw(canvas)
+   val w=width.toFloat(); val h=height.toFloat()
+   canvas.drawRect(0f,0f,w,h,Paint().apply{shader=LinearGradient(0f,0f,0f,h,intArrayOf(Color.rgb(12,38,73),Color.rgb(73,154,193),Color.rgb(244,190,112),Color.rgb(35,35,36)),null,Shader.TileMode.CLAMP)})
+   paint.shader=null; paint.color=Color.rgb(255,224,165); canvas.drawCircle(w*.68f,h*.43f,h*.11f,paint)
+   paint.color=Color.rgb(35,91,108)
+   val sea=Path().apply{moveTo(0f,h*.56f);lineTo(w,h*.53f);lineTo(w,h*.79f);lineTo(0f,h*.78f);close()};canvas.drawPath(sea,paint)
+   paint.color=Color.rgb(231,166,96)
+   val sand=Path().apply{moveTo(0f,h*.73f);cubicTo(w*.28f,h*.69f,w*.62f,h*.88f,w,h*.72f);lineTo(w,h);lineTo(0f,h);close()};canvas.drawPath(sand,paint)
+   paint.color=Color.rgb(22,27,29)
+   val leftRock=Path().apply{moveTo(0f,0f);lineTo(w*.16f,0f);cubicTo(w*.08f,h*.18f,w*.23f,h*.3f,w*.12f,h*.49f);cubicTo(w*.08f,h*.68f,w*.33f,h*.78f,w*.48f,h);lineTo(0f,h);close()};canvas.drawPath(leftRock,paint)
+   val rightRock=Path().apply{moveTo(w*.86f,0f);lineTo(w,0f);lineTo(w,h);lineTo(w*.85f,h*.86f);cubicTo(w*.76f,h*.67f,w*.88f,h*.5f,w*.79f,h*.33f);close()};canvas.drawPath(rightRock,paint)
+   paint.color=Color.argb(35,255,255,255);canvas.drawRect(0f,0f,w,h,paint)
+  }
  }
  private inner class WindowsWallpaper(c:Context):View(c) {
   private val p=Paint(Paint.ANTI_ALIAS_FLAG)
