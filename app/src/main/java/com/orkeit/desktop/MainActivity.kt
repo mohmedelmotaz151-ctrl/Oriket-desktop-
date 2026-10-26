@@ -35,6 +35,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
 import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
@@ -380,13 +382,26 @@ class MainActivity : Activity() {
   val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,68)) }
   dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin=4; rightMargin=82 })
   val adView=AdView(this).apply {
-   setAdSize(AdSize.BANNER)
+   // Use a full-width adaptive banner so it fits the phone's landscape width.
+   val widthDp=(resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt().coerceAtLeast(320)
+   setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this@MainActivity,widthDp))
    adUnitId="ca-app-pub-6392100417582868/3734272938"
-   loadAd(AdRequest.Builder().build())
+   adListener=object:AdListener() {
+    override fun onAdLoaded() {
+     android.util.Log.i("OriketAdMob","Banner ad loaded successfully")
+    }
+    override fun onAdFailedToLoad(error:LoadAdError) {
+     android.util.Log.e("OriketAdMob","Banner failed: code=${error.code}, domain=${error.domain}, message=${error.message}")
+     Toast.makeText(this@MainActivity,"تعذر تحميل الإعلان (رمز ${error.code}). تحقق من إعداد AdMob والإنترنت.",Toast.LENGTH_LONG).show()
+    }
+   }
   }
-  root.addView(adView,LinearLayout.LayoutParams(-1,50))
+  // Banner height must be measured in dp, not raw pixels; attach before requesting an ad.
+  val adHeightDp=adView.adSize?.height ?: AdSize.BANNER.height
+  root.addView(adView,LinearLayout.LayoutParams(-1,(adHeightDp*resources.displayMetrics.density).toInt()))
   root.addView(dock,LinearLayout.LayoutParams(-1,86))
   setContentView(root)
+  adView.loadAd(AdRequest.Builder().build())
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
    textSize=11f
