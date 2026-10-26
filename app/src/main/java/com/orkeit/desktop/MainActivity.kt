@@ -262,7 +262,6 @@ class MainActivity : Activity() {
   panel.addView(spinner,spinLp)
   boot.addView(panel,FrameLayout.LayoutParams(-1,-1))
   setContentView(boot)
-  if(!startupAdAttempted) loadStartupAppOpenAd()
   startupSplashVisible=true
   logo.animate().alpha(1f).setDuration(650).start()
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
