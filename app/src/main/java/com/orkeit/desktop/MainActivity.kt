@@ -57,6 +57,7 @@ class MainActivity : Activity() {
  private var startupAdHandled=false
  private var startupSplashVisible=false
  private var startupAdAttempted=false
+ private var bootSequenceShown=false
  private val appOpenAdUnitId="ca-app-pub-3940256099942544/9257395921" // Google official test ID; replace with Oriket's App Open ad unit before release
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
@@ -220,6 +221,8 @@ class MainActivity : Activity() {
  }
 
  private fun showBootSequence() {
+  val isFirstBootSequence=!bootSequenceShown
+  bootSequenceShown=true
   val boot=FrameLayout(this).apply {
    setBackgroundColor(Color.rgb(5,18,42))
    layoutDirection=View.LAYOUT_DIRECTION_LTR
@@ -262,18 +265,22 @@ class MainActivity : Activity() {
   panel.addView(spinner,spinLp)
   boot.addView(panel,FrameLayout.LayoutParams(-1,-1))
   setContentView(boot)
-  startupSplashVisible=true
+  startupSplashVisible=isFirstBootSequence
   logo.animate().alpha(1f).setDuration(650).start()
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
   subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
   playDesktopSound("boot")
-  // Keep the boot screen available briefly for an App Open ad, but never stall startup.
-  uiHandler.postDelayed({
-   if(!isFinishing && startupSplashVisible) {
-    if(startupAppOpenAd!=null && !startupAdHandled) showStartupAppOpenAd()
-    else finishStartupSplash()
-   }
-  },5000L)
+  // Keep the first boot screen available briefly for an App Open ad; later restarts use the normal boot delay.
+  if(isFirstBootSequence) {
+   uiHandler.postDelayed({
+    if(!isFinishing && startupSplashVisible) {
+     if(startupAppOpenAd!=null && !startupAdHandled) showStartupAppOpenAd()
+     else finishStartupSplash()
+    }
+   },5000L)
+  } else {
+   uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
+  }
  }
 
  private fun passwordDigest(password:String,salt:String):String {
