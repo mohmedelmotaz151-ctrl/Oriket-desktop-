@@ -35,11 +35,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
 import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.appopen.AppOpenAd
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.AdError
 
 class MainActivity : Activity() {
  private val navy=Color.rgb(18,32,54)
@@ -52,6 +52,12 @@ class MainActivity : Activity() {
  private lateinit var taskbar:LinearLayout
  private var desktopInitialized=false
  private var windowCounter=0
+ private var startupAppOpenAd:AppOpenAd?=null
+ private var startupAdLoadInProgress=false
+ private var startupAdHandled=false
+ private var startupSplashVisible=false
+ private var startupAdAttempted=false
+ private val appOpenAdUnitId="ca-app-pub-3940256099942544/9257395921" // Google official test ID; replace with Oriket's App Open ad unit before release
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
  private data class WindowEntry(val id:Int,val title:String,val frame:View,val taskButton:Button)
@@ -105,7 +111,9 @@ class MainActivity : Activity() {
    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-  MobileAds.initialize(this) {}
+  MobileAds.initialize(this) {
+   runOnUiThread { loadStartupAppOpenAd() }
+  }
   showBootSequence()
   try {
    if(Build.VERSION.SDK_INT>=33) registerReceiver(updateReceiver,IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),RECEIVER_EXPORTED)
@@ -156,6 +164,61 @@ class MainActivity : Activity() {
   } catch(_:Exception) {}
  }
 
+ private fun loadStartupAppOpenAd() {
+  if(startupAdAttempted || isFinishing) return
+  startupAdAttempted=true
+  startupAdLoadInProgress=true
+  AppOpenAd.load(
+   this,
+   appOpenAdUnitId,
+   AdRequest.Builder().build(),
+   object:AppOpenAd.AppOpenAdLoadCallback() {
+    override fun onAdLoaded(ad:AppOpenAd) {
+     startupAdLoadInProgress=false
+     startupAppOpenAd=ad
+     android.util.Log.i("OriketAdMob","App Open ad loaded")
+     if(startupSplashVisible && !startupAdHandled && !isFinishing) showStartupAppOpenAd()
+    }
+    override fun onAdFailedToLoad(error:LoadAdError) {
+     startupAdLoadInProgress=false
+     startupAppOpenAd=null
+     android.util.Log.e("OriketAdMob","App Open failed: code=${error.code}, domain=${error.domain}, message=${error.message}")
+     // Ads are optional: never block startup or show a disruptive error toast.
+    }
+   }
+  )
+ }
+
+ private fun showStartupAppOpenAd() {
+  val ad=startupAppOpenAd ?: return
+  if(startupAdHandled || !startupSplashVisible || isFinishing) return
+  startupAdHandled=true
+  startupAppOpenAd=null
+  ad.fullScreenContentCallback=object:FullScreenContentCallback() {
+   override fun onAdDismissedFullScreenContent() {
+    android.util.Log.i("OriketAdMob","App Open ad dismissed")
+    finishStartupSplash()
+   }
+   override fun onAdFailedToShowFullScreenContent(error:AdError) {
+    android.util.Log.e("OriketAdMob","App Open failed to show: ${error.message}")
+    finishStartupSplash()
+   }
+   override fun onAdShowedFullScreenContent() {
+    android.util.Log.i("OriketAdMob","App Open ad shown")
+   }
+  }
+  try { ad.show(this) } catch(e:Exception) {
+   android.util.Log.e("OriketAdMob","App Open show exception",e)
+   finishStartupSplash()
+  }
+ }
+
+ private fun finishStartupSplash() {
+  if(!startupSplashVisible || isFinishing) return
+  startupSplashVisible=false
+  uiHandler.post { if(!isFinishing) showLocalLoginScreen() }
+ }
+
  private fun showBootSequence() {
   val boot=FrameLayout(this).apply {
    setBackgroundColor(Color.rgb(5,18,42))
@@ -199,11 +262,19 @@ class MainActivity : Activity() {
   panel.addView(spinner,spinLp)
   boot.addView(panel,FrameLayout.LayoutParams(-1,-1))
   setContentView(boot)
+  if(!startupAdAttempted) loadStartupAppOpenAd()
+  startupSplashVisible=true
   logo.animate().alpha(1f).setDuration(650).start()
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
   subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
   playDesktopSound("boot")
-  uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
+  // Keep the boot screen available briefly for an App Open ad, but never stall startup.
+  uiHandler.postDelayed({
+   if(!isFinishing && startupSplashVisible) {
+    if(startupAppOpenAd!=null && !startupAdHandled) showStartupAppOpenAd()
+    else finishStartupSplash()
+   }
+  },5000L)
  }
 
  private fun passwordDigest(password:String,salt:String):String {
@@ -380,27 +451,8 @@ class MainActivity : Activity() {
   }
   val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,68)) }
   dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.CENTER).apply { leftMargin=4; rightMargin=82 })
-  val adView=AdView(this).apply {
-   // Use a full-width adaptive banner so it fits the phone's landscape width.
-   val widthDp=(resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt().coerceAtLeast(320)
-   setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this@MainActivity,widthDp))
-   adUnitId="ca-app-pub-6392100417582868/3734272938"
-   adListener=object:AdListener() {
-    override fun onAdLoaded() {
-     android.util.Log.i("OriketAdMob","Banner ad loaded successfully")
-    }
-    override fun onAdFailedToLoad(error:LoadAdError) {
-     android.util.Log.e("OriketAdMob","Banner failed: code=${error.code}, domain=${error.domain}, message=${error.message}")
-     Toast.makeText(this@MainActivity,"تعذر تحميل الإعلان (رمز ${error.code}). تحقق من إعداد AdMob والإنترنت.",Toast.LENGTH_LONG).show()
-    }
-   }
-  }
-  // Banner height must be measured in dp, not raw pixels; attach before requesting an ad.
-  val adHeightDp=adView.adSize?.height ?: AdSize.BANNER.height
-  root.addView(adView,LinearLayout.LayoutParams(-1,(adHeightDp*resources.displayMetrics.density).toInt()))
   root.addView(dock,LinearLayout.LayoutParams(-1,86))
   setContentView(root)
-  adView.loadAd(AdRequest.Builder().build())
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
    textSize=11f
