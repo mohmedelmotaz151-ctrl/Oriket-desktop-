@@ -1379,6 +1379,7 @@ class MainActivity : Activity() {
    listOf("Documents","Downloads","Pictures","Videos","Projects","Music","Desktop").forEach { java.io.File(this,it).mkdirs() }
   }
   var current:java.io.File?=null
+  lateinit var render: () -> Unit
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE) }
   val toolbar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(7,4,7,4);setBackgroundColor(Color.rgb(246,248,251)) }
   toolbar.addView(task("←"){ if(current!=null){current=current?.parentFile?.takeIf{it.absolutePath.startsWith(workspace.absolutePath + java.io.File.separator)};render()}else showDesktop() },LinearLayout.LayoutParams(44,40))
@@ -1394,7 +1395,7 @@ class MainActivity : Activity() {
   content.addView(ScrollView(this).apply{addView(main)},LinearLayout.LayoutParams(0,-1,1f))
   page.addView(content,LinearLayout.LayoutParams(-1,0,1f))
   fun sectionTitle(text:String) {
-   main.addView(TextView(this).apply{text=text;textSize=17f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(30,42,60));setPadding(3,8,3,8)})
+   main.addView(TextView(this).apply{this.text=text;textSize=17f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(30,42,60));setPadding(3,8,3,8)})
   }
   fun folderTile(label:String,icon:String,folder:String) {
    val f=java.io.File(workspace,folder).apply{mkdirs()}
@@ -1417,7 +1418,7 @@ class MainActivity : Activity() {
    },LinearLayout.LayoutParams(0,54,1f))
    main.addView(tile,LinearLayout.LayoutParams(-1,64).apply{bottomMargin=7})
   }
-  fun render() {
+  render = {
    address.text=if(current==null)"⌂  هذا الكمبيوتر" else "⌂  هذا الكمبيوتر  ›  "+current!!.name
    sidebar.removeAllViews();main.removeAllViews()
    sidebar.addView(TextView(this).apply{text="الوصول السريع";textSize=12f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.GRAY);setPadding(5,4,0,7)})
