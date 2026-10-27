@@ -14,7 +14,7 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
-        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-6392100417582868~6241102495" />
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-6392100417582868~8391858779" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
