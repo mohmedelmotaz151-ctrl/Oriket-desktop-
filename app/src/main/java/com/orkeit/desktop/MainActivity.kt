@@ -241,17 +241,17 @@ class MainActivity : Activity() {
   panel.addView(logo,LinearLayout.LayoutParams(132,132))
   val title=TextView(this).apply {
    text="Windows"
-   textSize=30f
+   textSize=26.4f
    setTextColor(Color.WHITE)
    gravity=Gravity.CENTER
-   typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+   typeface=Typeface.create("Arial",Typeface.NORMAL)
    setPadding(0,18,0,4)
    alpha=0f
   }
   panel.addView(title,LinearLayout.LayoutParams(-1,-2))
   val subtitle=TextView(this).apply {
    text="Oriket Desktop"
-   textSize=15f
+   textSize=13.2f
    setTextColor(Color.rgb(190,211,239))
    gravity=Gravity.CENTER
    alpha=0f
@@ -316,19 +316,19 @@ class MainActivity : Activity() {
   card.addView(logo,LinearLayout.LayoutParams(86,86))
   card.addView(TextView(this).apply {
    text=if(hasPassword) "SCANOR" else "إعداد تسجيل الدخول"
-   textSize=30f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
-   typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+   textSize=26.4f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   typeface=Typeface.create("Arial",Typeface.NORMAL)
    setShadowLayer(5f,1f,2f,Color.BLACK)
    setPadding(0,10,0,8)
   },LinearLayout.LayoutParams(-1,-2))
   card.addView(TextView(this).apply {
    text=""
-   textSize=14f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   textSize=12.32f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
    setPadding(0,0,0,8)
   },LinearLayout.LayoutParams(-1,-2))
   val username=TextView(this).apply {
    text="◯"
-   textSize=64f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
+   textSize=56.32f; setTextColor(Color.WHITE); gravity=Gravity.CENTER
    setShadowLayer(4f,1f,2f,Color.BLACK)
    setPadding(0,0,0,4)
   }
@@ -336,7 +336,7 @@ class MainActivity : Activity() {
   fun makePasswordField(hintText:String):EditText = EditText(this).apply {
    hint=if(hasPassword) "PIN" else hintText
    setSingleLine(true)
-   textSize=16f
+   textSize=14.08f
    setTextColor(Color.DKGRAY)
    setHintTextColor(Color.DKGRAY)
    inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -355,7 +355,7 @@ class MainActivity : Activity() {
   }
   val message=TextView(this).apply {
    text=""
-   textSize=13f
+   textSize=11.44f
    setTextColor(Color.rgb(255,190,190))
    gravity=Gravity.CENTER
    setPadding(0,10,0,0)
@@ -364,7 +364,7 @@ class MainActivity : Activity() {
   val button=Button(this).apply {
    text=if(hasPassword) "تسجيل الدخول" else "حفظ كلمة المرور والمتابعة"
    isAllCaps=false
-   textSize=15f
+   textSize=13.2f
    setTextColor(Color.WHITE)
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.rgb(0,103,192)); cornerRadius=12f
@@ -373,7 +373,7 @@ class MainActivity : Activity() {
   card.addView(button,LinearLayout.LayoutParams(-1,52).apply { topMargin=18 })
   card.addView(TextView(this).apply {
    text="كلمة المرور محفوظة على هذا الجهاز فقط"
-   textSize=11f; setTextColor(Color.rgb(174,196,224)); gravity=Gravity.CENTER
+   textSize=9.68f; setTextColor(Color.rgb(174,196,224)); gravity=Gravity.CENTER
    setPadding(0,18,0,0)
   },LinearLayout.LayoutParams(-1,-2))
   val width=(resources.displayMetrics.widthPixels*0.42f).toInt().coerceIn(300,470)
@@ -465,7 +465,7 @@ class MainActivity : Activity() {
   setContentView(root)
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
-   textSize=11f
+   textSize=9.68f
    setTextColor(navy)
    setPadding(8,2,10,2)
    setOnClickListener { showQuickSettings() }
@@ -499,7 +499,7 @@ class MainActivity : Activity() {
    setPadding(12,0,4,0)
    setBackgroundColor(Color.rgb(247,249,253))
   }
-  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=18f; setTextColor(navy); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
+  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=15.84f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
   val minimize=windowButton("—")
   val maximize=windowButton("□")
   val close=windowButton("×")
@@ -626,9 +626,9 @@ class MainActivity : Activity() {
   }
  }
  private fun windowButton(label:String)=Button(this).apply {
-  text=label; textSize=18f; isAllCaps=false; minWidth=38; minimumWidth=38; minHeight=38; minimumHeight=38
+  text=label; textSize=15.84f; isAllCaps=false; minWidth=38; minimumWidth=38; minHeight=38; minimumHeight=38
   gravity=Gravity.CENTER; setPadding(0,0,0,0); setTextColor(navy)
-  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+  typeface=Typeface.create("Arial",Typeface.BOLD)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
   setOnTouchListener { v,e ->
    if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(230,237,247)); cornerRadius=9f }
@@ -648,24 +648,24 @@ class MainActivity : Activity() {
   else->"🪟"
  }
  private fun taskButton(title:String)=Button(this).apply {
-  text=windowIcon(title); textSize=23f; isAllCaps=false; minWidth=58; minimumWidth=58; minHeight=54; minimumHeight=54
+  text=windowIcon(title); textSize=20.24f; isAllCaps=false; minWidth=58; minimumWidth=58; minHeight=54; minimumHeight=54
   gravity=Gravity.CENTER; setPadding(8,5,8,5); setTextColor(navy)
-  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+  typeface=Typeface.create("Arial",Typeface.BOLD)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,242,252)); cornerRadius=13f; setStroke(1,Color.rgb(216,226,241)) }
   elevation=2f; contentDescription=title
  }
  private fun task(s:String,a:()->Unit)=Button(this).apply {
-  text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
+  text=s; textSize=11.44f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
   maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f)
-  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(Color.rgb(24,39,62)); setPadding(9,5,9,5)
+  typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(24,39,62)); setPadding(9,5,9,5)
   if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(237,243,251)); cornerRadius=11f; setStroke(1,Color.rgb(216,226,240)) }
   elevation=1.5f; contentDescription=s; setOnClickListener{a()}
  }
  private fun action(s:String,a:()->Unit)=Button(this).apply {
-  text=s; textSize=13f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
+  text=s; textSize=11.44f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
   maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f)
-  typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(Color.WHITE); setPadding(9,5,9,5)
+  typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.WHITE); setPadding(9,5,9,5)
   if(Build.VERSION.SDK_INT>=26) setAutoSizeTextTypeUniformWithConfiguration(10,13,1,android.util.TypedValue.COMPLEX_UNIT_SP)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(blue); cornerRadius=11f; setStroke(1,Color.rgb(0,83,160)) }
   elevation=2f; contentDescription=s; setOnClickListener{a()}
@@ -718,7 +718,7 @@ class MainActivity : Activity() {
    fill.shader=LinearGradient(left,top,left,top+side*.46f,Color.argb(150,255,255,255),Color.argb(0,255,255,255),Shader.TileMode.CLAMP)
    canvas.drawRoundRect(RectF(left+3f,top+3f,right-3f,top+side*.42f),side*.16f,side*.16f,fill)
    fill.shader=null
-   fill.color=Color.WHITE; fill.textAlign=Paint.Align.CENTER; fill.typeface=Typeface.create("sans-serif",Typeface.BOLD)
+   fill.color=Color.WHITE; fill.textAlign=Paint.Align.CENTER; fill.typeface=Typeface.create("Arial",Typeface.BOLD)
    fill.textSize=side*.46f
    val fm=fill.fontMetrics
    canvas.drawText(symbol,width/2f,(top+bottom)/2f-(fm.ascent+fm.descent)/2f,fill)
@@ -817,12 +817,12 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(76,76))
-   tile.addView(TextView(this).apply { text=displayName; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
+   tile.addView(TextView(this).apply { text=displayName; textSize=10.56f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
    grid.addView(tile,GridLayout.LayoutParams().apply { width=132; height=136; setMargins(5,5,5,5) })
   }
   shortcuts.addView(grid,LinearLayout.LayoutParams(-1,-2))
   val clock=TextView(this).apply {
-   text="Oriket Desktop"; textSize=12f; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK)
+   text="Oriket Desktop"; textSize=10.56f; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK)
    gravity=Gravity.CENTER; setPadding(14,8,14,8)
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(85,25,50,90)); cornerRadius=18f }
   }
@@ -830,9 +830,9 @@ class MainActivity : Activity() {
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
   openWindows.forEach { it.frame.bringToFront() }
-  val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
+  val start=taskButton("ابدأ").apply { text="⊞"; textSize=19.36f; setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
-  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=22f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
+  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=19.36f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
   val browser=taskButton("متصفح الإنترنت").apply { text="🌐"; setOnClickListener { showBrowser() } }
   val files=taskButton("هذا الكمبيوتر").apply { text="📁"; setOnClickListener { showMyComputer() } }
   val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
@@ -873,11 +873,11 @@ class MainActivity : Activity() {
   shell("الصور")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(6,4,6,4) }
   val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
-  header.addView(TextView(this).apply { text="صور الجهاز";textSize=20f;typeface=Typeface.DEFAULT_BOLD;setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
+  header.addView(TextView(this).apply { text="صور الجهاز";textSize=17.6f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
   header.addView(task("＋ إضافة صورة"){ pickPhotoToImport() },LinearLayout.LayoutParams(112,44))
   header.addView(task("↻ تحديث"){ if(hasPhotoPermission()) refreshPhotoGallery() else requestPhotoPermission() },LinearLayout.LayoutParams(96,44))
   page.addView(header)
-  galleryStatus=TextView(this).apply { text="جارٍ تحميل الصور…";textSize=13f;setTextColor(navy);setPadding(5,5,5,8) }
+  galleryStatus=TextView(this).apply { text="جارٍ تحميل الصور…";textSize=11.44f;setTextColor(navy);setPadding(5,5,5,8) }
   page.addView(galleryStatus)
   galleryContainer=page
   val scroll=ScrollView(this)
@@ -907,7 +907,7 @@ class MainActivity : Activity() {
     catch(_:Exception) { galleryStatus?.text="تعذر تحميل الصور."; return }
   galleryStatus?.text="عدد الصور: ${photos.size} • اضغط على أي صورة لعرضها وتعديلها"
   if(photos.isEmpty()) {
-   grid.addView(TextView(this).apply { text="لا توجد صور ظاهرة. اضغط «إضافة صورة» لاختيار صور من الجهاز.";textSize=16f;setTextColor(navy);gravity=Gravity.CENTER;setPadding(16,24,16,24) },GridLayout.LayoutParams().apply { width=-1;height=120;columnSpec=GridLayout.spec(0,4) })
+   grid.addView(TextView(this).apply { text="لا توجد صور ظاهرة. اضغط «إضافة صورة» لاختيار صور من الجهاز.";textSize=14.08f;setTextColor(navy);gravity=Gravity.CENTER;setPadding(16,24,16,24) },GridLayout.LayoutParams().apply { width=-1;height=120;columnSpec=GridLayout.spec(0,4) })
   }
   photos.forEach { photo ->
    val tile=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(4,4,4,8);isClickable=true;setOnClickListener{openPhotoEditor(photo)} }
@@ -917,7 +917,7 @@ class MainActivity : Activity() {
     else contentResolver.openInputStream(photo.uri)?.use { thumb.setImageBitmap(BitmapFactory.decodeStream(it)) }
    } catch(_:Exception) {}
    tile.addView(thumb,LinearLayout.LayoutParams(-1,112))
-   tile.addView(TextView(this).apply { text=photo.name;textSize=10f;setTextColor(navy);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;gravity=Gravity.CENTER;setPadding(2,3,2,0) },LinearLayout.LayoutParams(-1,34))
+   tile.addView(TextView(this).apply { text=photo.name;textSize=8.8f;setTextColor(navy);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;gravity=Gravity.CENTER;setPadding(2,3,2,0) },LinearLayout.LayoutParams(-1,34))
    grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=152;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(3,3,3,3) })
   }
  }
@@ -955,7 +955,7 @@ class MainActivity : Activity() {
   editorBitmap?.recycle();editorBitmap=bitmap
   shell("عارض الصور")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text=photo.name;textSize=14f;setTextColor(navy);gravity=Gravity.CENTER;maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.MIDDLE },LinearLayout.LayoutParams(-1,32))
+  page.addView(TextView(this).apply { text=photo.name;textSize=12.32f;setTextColor(navy);gravity=Gravity.CENTER;maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.MIDDLE },LinearLayout.LayoutParams(-1,32))
   val image=ImageView(this).apply { tag="orkeit-photo-preview";setImageBitmap(bitmap);scaleType=ImageView.ScaleType.FIT_CENTER;adjustViewBounds=true;setBackgroundColor(Color.rgb(24,31,43)) }
   page.addView(image,LinearLayout.LayoutParams(-1,0,1f))
   val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER }
@@ -1031,8 +1031,8 @@ class MainActivity : Activity() {
        text=java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(java.util.Date())+"\\n"+
         java.text.SimpleDateFormat("EEEE، d MMMM yyyy",Locale("ar")).format(java.util.Date())+
         "\\n\\nالمس الشاشة للعودة"
-       textSize=25f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
-       typeface=Typeface.create("sans-serif-light",Typeface.NORMAL)
+       textSize=22f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+       typeface=Typeface.create("Arial",Typeface.NORMAL)
        setShadowLayer(5f,1f,2f,Color.BLACK)
       }
       addView(clock,FrameLayout.LayoutParams(-1,-1))
@@ -1067,13 +1067,13 @@ class MainActivity : Activity() {
    elevation=36f
   }
   val search=EditText(this).apply {
-   tag="start-search"; hint="🔎  البحث عن التطبيقات"; textSize=13f; setSingleLine(true)
+   tag="start-search"; hint="🔎  البحث عن التطبيقات"; textSize=11.44f; setSingleLine(true)
    setPadding(16,2,16,2); setTextColor(navy); setHintTextColor(Color.rgb(105,120,143))
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=22f; setStroke(1,Color.rgb(220,228,240)) }
   }
   menu.addView(search,LinearLayout.LayoutParams(-1,46))
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,4) }
-  heading.addView(TextView(this).apply { text="مثبّت"; textSize=18f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
+  heading.addView(TextView(this).apply { text="مثبّت"; textSize=15.84f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
   heading.addView(task("كل التطبيقات  ›"){ search.setText("") })
   menu.addView(heading)
   val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
@@ -1100,12 +1100,12 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(44,44))
-   tile.addView(TextView(this).apply { text=item.second; textSize=12f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) },LinearLayout.LayoutParams(-1,36))
+   tile.addView(TextView(this).apply { text=item.second; textSize=10.56f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) },LinearLayout.LayoutParams(-1,36))
    grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=96;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
   }
   menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
-   text="موصى به"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,9,2,5)
+   text="موصى به"; textSize=13.2f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,9,2,5)
   }
   menu.addView(recommendedHeading)
   val rec=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
@@ -1119,10 +1119,10 @@ class MainActivity : Activity() {
     isClickable=true
     setOnClickListener { desktopArea.removeView(menu); if(index==0) pickFile("application/pdf") else showPaint() }
    }
-   row.addView(TextView(this).apply { text=item.first; textSize=23f; gravity=Gravity.CENTER },LinearLayout.LayoutParams(42,42))
+   row.addView(TextView(this).apply { text=item.first; textSize=20.24f; gravity=Gravity.CENTER },LinearLayout.LayoutParams(42,42))
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-   labels.addView(TextView(this).apply { text=item.second; textSize=12f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) })
-   labels.addView(TextView(this).apply { text=item.third; textSize=10f; setTextColor(Color.DKGRAY) })
+   labels.addView(TextView(this).apply { text=item.second; textSize=10.56f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
+   labels.addView(TextView(this).apply { text=item.third; textSize=8.8f; setTextColor(Color.DKGRAY) })
    row.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
    rec.addView(row,LinearLayout.LayoutParams(-1,48).apply { bottomMargin=3 })
   }
@@ -1131,7 +1131,7 @@ class MainActivity : Activity() {
    gravity=Gravity.CENTER_VERTICAL; setPadding(8,8,8,0)
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,240,248)); cornerRadius=16f }
   }
-  footer.addView(TextView(this).apply { text="👤  Oriket Desktop"; textSize=12f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy) },LinearLayout.LayoutParams(0,42,1f))
+  footer.addView(TextView(this).apply { text="👤  Oriket Desktop"; textSize=10.56f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,42,1f))
   footer.addView(task("⚙"){ desktopArea.removeView(menu); showControlPanel() })
    footer.addView(task("⏻"){ desktopArea.removeView(menu); showPowerMenu() })
   menu.addView(footer,LinearLayout.LayoutParams(-1,48).apply { topMargin=8 })
@@ -1229,7 +1229,7 @@ class MainActivity : Activity() {
   val address=EditText(this).apply {
    hint="اكتب رابط الموقع مثل example.com أو ابحث في Google"
    setSingleLine(true)
-   textSize=14f
+   textSize=12.32f
    inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
    imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_GO
    setText(start)
@@ -1323,7 +1323,7 @@ class MainActivity : Activity() {
   val name=try { contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst()) it.getString(0) else "ملف" } ?: "ملف" } catch(_:Exception){"ملف"}
   shell("الملفات")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="📄 $name"; textSize=17f; setTextColor(navy); setPadding(4,4,4,8) })
+  page.addView(TextView(this).apply { text="📄 $name"; textSize=14.96f; setTextColor(navy); setPadding(4,4,4,8) })
   val viewer=FrameLayout(this)
   page.addView(viewer,LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
@@ -1341,7 +1341,7 @@ class MainActivity : Activity() {
         var closed=false
         val total=renderer.pageCount
         val controls=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        val pdfPageLabel=TextView(this).apply { text="الصفحة 1 / ${total}"; textSize=13f; setTextColor(navy); gravity=Gravity.CENTER }
+        val pdfPageLabel=TextView(this).apply { text="الصفحة 1 / ${total}"; textSize=11.44f; setTextColor(navy); gravity=Gravity.CENTER }
         val previous=task("‹ السابق"){if(pageIndex>0){pageIndex--;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
         val next=task("التالي ›"){if(pageIndex<total-1){pageIndex++;renderPdfPage(renderer,pageIndex,zoom,viewer);pdfPageLabel.text="الصفحة ${pageIndex+1} / ${total}"}}
         controls.addView(previous,LinearLayout.LayoutParams(0,42,1f))
@@ -1361,15 +1361,15 @@ class MainActivity : Activity() {
     }
     mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) -> {
      val txt=contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()} ?: "تعذر قراءة الملف"
-     viewer.addView(ScrollView(this).apply { addView(TextView(this@MainActivity).apply { text=txt; textSize=14f; setTextColor(Color.DKGRAY); setPadding(12,12,12,12) }) })
+     viewer.addView(ScrollView(this).apply { addView(TextView(this@MainActivity).apply { text=txt; textSize=12.32f; setTextColor(Color.DKGRAY); setPadding(12,12,12,12) }) })
     }
     else -> viewer.addView(message("تم اختيار الملف، لكن المعاينة الداخلية لا تدعم هذا النوع بعد."))
    }
   } catch(e:Exception) { viewer.addView(message("تعذرت معاينة الملف داخل التطبيق.")) }
  }
  private fun message(s:String)=TextView(this).apply {
-  text=s; textSize=17f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(24,22,24,22)
-  typeface=Typeface.create("sans-serif",Typeface.NORMAL); includeFontPadding=true; setLineSpacing(2f,1.08f)
+  text=s; textSize=14.96f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(24,22,24,22)
+  typeface=Typeface.create("Arial",Typeface.NORMAL); includeFontPadding=true; setLineSpacing(2f,1.08f)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=16f; setStroke(1,border) }
  }
  private fun renderPdfPage(renderer:PdfRenderer,index:Int,zoom:Float,container:FrameLayout) {
@@ -1387,7 +1387,7 @@ class MainActivity : Activity() {
  private fun showCalculator() {
   shell("الحاسبة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,8,8,8) }
-  val display=TextView(this).apply { text="0"; textSize=32f; gravity=Gravity.CENTER_VERTICAL or Gravity.END; setTextColor(navy); typeface=Typeface.create("sans-serif-light",Typeface.NORMAL); setPadding(16,10,16,10); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(239,244,251)); cornerRadius=14f; setStroke(1,border) } }
+  val display=TextView(this).apply { text="0"; textSize=28.16f; gravity=Gravity.CENTER_VERTICAL or Gravity.END; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(16,10,16,10); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(239,244,251)); cornerRadius=14f; setStroke(1,border) } }
   page.addView(display,LinearLayout.LayoutParams(-1,76))
   val expression=StringBuilder()
   class ExpressionParser(private val source:String) {
@@ -1420,7 +1420,7 @@ class MainActivity : Activity() {
   shell("المفكرة")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val notePrefs=getSharedPreferences("orkeit_notepad",Context.MODE_PRIVATE)
-  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=16f; tag="orkeit-notepad-editor"; setText(notePrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){notePrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
+  val editor=EditText(this).apply { hint="اكتب ملاحظاتك هنا"; gravity=Gravity.TOP or Gravity.START; textSize=14.08f; tag="orkeit-notepad-editor"; setText(notePrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){notePrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
   page.addView(action("فتح ملف TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},63)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(-1,44))
   page.addView(editor,LinearLayout.LayoutParams(-1,0,1f))
   page.addView(action("حفظ TXT") {
@@ -1446,7 +1446,7 @@ class MainActivity : Activity() {
   val toolbar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(7,4,7,4);setBackgroundColor(Color.rgb(246,248,251)) }
   toolbar.addView(task("←"){ if(current!=null){current=current?.parentFile?.takeIf{it.absolutePath.startsWith(workspace.absolutePath + java.io.File.separator)};render()}else showDesktop() },LinearLayout.LayoutParams(44,40))
   toolbar.addView(task("→"){Toast.makeText(this,"لا يوجد مسار تالٍ",Toast.LENGTH_SHORT).show()},LinearLayout.LayoutParams(44,40))
-  val address=TextView(this).apply { text="⌂  هذا الكمبيوتر";textSize=14f;setTextColor(navy);setPadding(12,8,12,8);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(210,216,224))} }
+  val address=TextView(this).apply { text="⌂  هذا الكمبيوتر";textSize=12.32f;setTextColor(navy);setPadding(12,8,12,8);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(210,216,224))} }
   toolbar.addView(address,LinearLayout.LayoutParams(0,40,1f))
   toolbar.addView(task("⟳"){render()},LinearLayout.LayoutParams(44,40))
   page.addView(toolbar)
@@ -1457,24 +1457,24 @@ class MainActivity : Activity() {
   content.addView(ScrollView(this).apply{addView(main)},LinearLayout.LayoutParams(0,-1,1f))
   page.addView(content,LinearLayout.LayoutParams(-1,0,1f))
   fun sectionTitle(text:String) {
-   main.addView(TextView(this).apply{this.text=text;textSize=17f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(30,42,60));setPadding(3,8,3,8)})
+   main.addView(TextView(this).apply{this.text=text;textSize=14.96f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(Color.rgb(30,42,60));setPadding(3,8,3,8)})
   }
   fun folderTile(label:String,icon:String,folder:String) {
    val f=java.io.File(workspace,folder).apply{mkdirs()}
    val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(229,233,239))};isClickable=true;setOnClickListener{current=f;render()}}
-   tile.addView(TextView(this).apply{text=icon;textSize=26f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(45,48))
+   tile.addView(TextView(this).apply{text=icon;textSize=22.88f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(45,48))
    tile.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_VERTICAL
-    addView(TextView(this@MainActivity).apply{text=label;textSize=13f;setTextColor(navy)})
-    addView(TextView(this@MainActivity).apply{text=if(f.listFiles().isNullOrEmpty()) "مجلد" else "العناصر: ${f.listFiles()?.size ?: 0}";textSize=10f;setTextColor(Color.GRAY)})
+    addView(TextView(this@MainActivity).apply{text=label;textSize=11.44f;setTextColor(navy)})
+    addView(TextView(this@MainActivity).apply{text=if(f.listFiles().isNullOrEmpty()) "مجلد" else "العناصر: ${f.listFiles()?.size ?: 0}";textSize=8.8f;setTextColor(Color.GRAY)})
    },LinearLayout.LayoutParams(0,48,1f))
    main.addView(tile,LinearLayout.LayoutParams(-1,58).apply{bottomMargin=5})
   }
   fun driveTile(title:String,sub:String,icon:String,onClick:()->Unit) {
    val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(220,226,234))};isClickable=true;setOnClickListener{onClick()}}
-   tile.addView(TextView(this).apply{text=icon;textSize=30f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(52,54))
+   tile.addView(TextView(this).apply{text=icon;textSize=26.4f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(52,54))
    tile.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_VERTICAL
-    addView(TextView(this@MainActivity).apply{text=title;textSize=14f;setTextColor(navy)})
-    addView(TextView(this@MainActivity).apply{text=sub;textSize=10f;setTextColor(Color.GRAY)})
+    addView(TextView(this@MainActivity).apply{text=title;textSize=12.32f;setTextColor(navy)})
+    addView(TextView(this@MainActivity).apply{text=sub;textSize=8.8f;setTextColor(Color.GRAY)})
     val track=ProgressBar(this@MainActivity,null,android.R.attr.progressBarStyleHorizontal).apply{progress=if(title.contains("الهاتف"))45 else 22}
     addView(track,LinearLayout.LayoutParams(-1,5).apply{topMargin=4})
    },LinearLayout.LayoutParams(0,54,1f))
@@ -1483,7 +1483,7 @@ class MainActivity : Activity() {
   render = {
    address.text=if(current==null)"⌂  هذا الكمبيوتر" else "⌂  هذا الكمبيوتر  ›  "+current!!.name
    sidebar.removeAllViews();main.removeAllViews()
-   sidebar.addView(TextView(this).apply{text="الوصول السريع";textSize=12f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.GRAY);setPadding(5,4,0,7)})
+   sidebar.addView(TextView(this).apply{text="الوصول السريع";textSize=10.56f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(Color.GRAY);setPadding(5,4,0,7)})
    listOf("سطح المكتب" to "🖥","التنزيلات" to "⬇","المستندات" to "📄","الصور" to "🖼","الفيديو" to "🎬","الموسيقى" to "♫","هذا الكمبيوتر" to "💻").forEach { item ->
     sidebar.addView(task(item.second+"  "+item.first){
      current=when(item.first){"سطح المكتب"->java.io.File(workspace,"Desktop");"التنزيلات"->java.io.File(workspace,"Downloads");"المستندات"->java.io.File(workspace,"Documents");"الصور"->java.io.File(workspace,"Pictures");"الفيديو"->java.io.File(workspace,"Videos");"الموسيقى"->java.io.File(workspace,"Music");else->null}
@@ -1496,9 +1496,9 @@ class MainActivity : Activity() {
     sectionTitle("الأجهزة ومحركات الأقراص")
     driveTile("القرص المحلي (C:)","مساحة ملفات Oriket الداخلية","💽"){current=workspace;render()}
     driveTile("التخزين الداخلي للهاتف","فتح ملفات الهاتف واستيرادها","📱"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}}
-    main.addView(TextView(this).apply{text="ملاحظة: محركات الأقراص المعروضة واجهة تنظيمية؛ Android لا يتيح للتطبيق إدارة أقراص Windows الفعلية.";textSize=10f;setTextColor(Color.GRAY);setPadding(3,8,3,4)})
+    main.addView(TextView(this).apply{text="ملاحظة: محركات الأقراص المعروضة واجهة تنظيمية؛ Android لا يتيح للتطبيق إدارة أقراص Windows الفعلية.";textSize=8.8f;setTextColor(Color.GRAY);setPadding(3,8,3,4)})
    } else {
-    main.addView(TextView(this).apply{text=current!!.absolutePath;textSize=11f;setTextColor(Color.GRAY);setPadding(2,2,2,8)})
+    main.addView(TextView(this).apply{text=current!!.absolutePath;textSize=9.68f;setTextColor(Color.GRAY);setPadding(2,2,2,8)})
     main.addView(LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL
      addView(task("＋ مجلد جديد"){val input=EditText(this@MainActivity).apply{hint="اسم المجلد"};AlertDialog.Builder(this@MainActivity).setTitle("مجلد جديد").setView(input).setPositiveButton("إنشاء"){_,_->val n=input.text.toString().trim();if(n.isNotEmpty()&&!n.contains("/")&&java.io.File(current,n).mkdir())render()else Toast.makeText(this@MainActivity,"اسم غير صالح أو موجود",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,40,1f))
      addView(task("استيراد ملف"){fileManagerDir=current;try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}},LinearLayout.LayoutParams(0,40,1f))
@@ -1514,7 +1514,7 @@ class MainActivity : Activity() {
  private fun showControlPanel() {
   shell("لوحة التحكم")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="لوحة التحكم"; textSize=23f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(8,4,8,12) })
+  page.addView(TextView(this).apply { text="لوحة التحكم"; textSize=20.24f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(8,4,8,12) })
   listOf(
    "الشاشة والاتجاه" to { AlertDialog.Builder(this).setTitle("الشاشة").setMessage("تم تصميم الواجهة للوضع الأفقي. يمكنك تدوير الجهاز من إعدادات Android.").setPositiveButton("حسنًا",null).show() },
    "خلفية سطح المكتب" to { showWallpaperPicker() },
@@ -1529,14 +1529,14 @@ class MainActivity : Activity() {
  private fun showTaskManager() {
   shell("إدارة المهام")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="إدارة المهام"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,8) })
+  page.addView(TextView(this).apply { text="إدارة المهام"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(6,4,6,8) })
   val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   fun refresh() {
    list.removeAllViews()
    if(openWindows.isEmpty()) list.addView(message("لا توجد نوافذ مفتوحة"))
    openWindows.toList().forEach { entry ->
     val row=LinearLayout(this@MainActivity).apply { gravity=Gravity.CENTER_VERTICAL }
-    row.addView(TextView(this@MainActivity).apply { text=windowIcon(entry.title)+"  "+entry.title; setTextColor(navy); textSize=14f },LinearLayout.LayoutParams(0,44,1f))
+    row.addView(TextView(this@MainActivity).apply { text=windowIcon(entry.title)+"  "+entry.title; setTextColor(navy); textSize=12.32f },LinearLayout.LayoutParams(0,44,1f))
     row.addView(task("إنهاء المهمة"){ if(entry.id!=openWindows.firstOrNull{it.title=="إدارة المهام"}?.id) { desktopArea.removeView(entry.frame); taskbar.removeView(entry.taskButton); openWindows.removeAll{it.id==entry.id}; refresh() } })
     list.addView(row)
    }
@@ -1548,7 +1548,7 @@ class MainActivity : Activity() {
  private fun showCommand() {
   shell("Command")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(12,18,24)); setPadding(8,8,8,8) }
-  val output=TextView(this).apply { text="Oriket Command [محاكاة أوامر داخل التطبيق]\nاكتب help لعرض الأوامر.\n\nC:\\Users\\Oriket>"; typeface=Typeface.MONOSPACE; textSize=13f; setTextColor(Color.rgb(160,245,170)); setPadding(4,4,4,4) }
+  val output=TextView(this).apply { text="Oriket Command [محاكاة أوامر داخل التطبيق]\nاكتب help لعرض الأوامر.\n\nC:\\Users\\Oriket>"; typeface=Typeface.MONOSPACE; textSize=11.44f; setTextColor(Color.rgb(160,245,170)); setPadding(4,4,4,4) }
   val scroll=ScrollView(this).apply { addView(output) }
   val input=EditText(this).apply { hint="اكتب أمرًا مثل help أو dir"; setSingleLine(true); typeface=Typeface.MONOSPACE; setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); setBackgroundColor(Color.rgb(30,38,46)) }
   page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); page.addView(input,LinearLayout.LayoutParams(-1,48))
@@ -1580,13 +1580,13 @@ class MainActivity : Activity() {
  private fun showMusicPlayer() {
   shell("مشغل الموسيقى")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(10,8,10,8) }
-  page.addView(TextView(this).apply { text="مشغل الموسيقى"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,4,4,8) })
-  val currentTitle=TextView(this).apply { text="اضغط تحميل الموسيقى لعرض الأغاني الموجودة على الجهاز"; textSize=17f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); gravity=Gravity.CENTER; maxLines=2; setPadding(8,8,8,8) }
-  val currentArtist=TextView(this).apply { text="لم يتم اختيار مقطع"; textSize=14f; setTextColor(Color.DKGRAY); gravity=Gravity.CENTER; maxLines=1 }
+  page.addView(TextView(this).apply { text="مشغل الموسيقى"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,4,4,8) })
+  val currentTitle=TextView(this).apply { text="اضغط تحميل الموسيقى لعرض الأغاني الموجودة على الجهاز"; textSize=14.96f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER; maxLines=2; setPadding(8,8,8,8) }
+  val currentArtist=TextView(this).apply { text="لم يتم اختيار مقطع"; textSize=12.32f; setTextColor(Color.DKGRAY); gravity=Gravity.CENTER; maxLines=1 }
   page.addView(currentTitle,LinearLayout.LayoutParams(-1,-2))
   page.addView(currentArtist,LinearLayout.LayoutParams(-1,-2))
   val seek=SeekBar(this)
-  val times=TextView(this).apply { text="00:00 / 00:00"; textSize=13f; setTextColor(navy); gravity=Gravity.CENTER }
+  val times=TextView(this).apply { text="00:00 / 00:00"; textSize=11.44f; setTextColor(navy); gravity=Gravity.CENTER }
   page.addView(seek,LinearLayout.LayoutParams(-1,42)); page.addView(times,LinearLayout.LayoutParams(-1,-2))
   val songs=mutableListOf<Uri>(); val titles=mutableListOf<String>(); val artists=mutableListOf<String>()
   var index=0; var shuffle=getSharedPreferences("orkeit_music",Context.MODE_PRIVATE).getBoolean("shuffle",false)
@@ -1712,9 +1712,9 @@ class MainActivity : Activity() {
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val toolbar=LinearLayout(this).apply { gravity=Gravity.CENTER }
   val wordPrefs=getSharedPreferences("orkeit_word",Context.MODE_PRIVATE)
-  val editor=EditText(this).apply { hint="مستند جديد — ابدأ الكتابة هنا"; gravity=Gravity.TOP or Gravity.START; textSize=17f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor"; setText(wordPrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){wordPrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
+  val editor=EditText(this).apply { hint="مستند جديد — ابدأ الكتابة هنا"; gravity=Gravity.TOP or Gravity.START; textSize=14.96f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor"; setText(wordPrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){wordPrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
   toolbar.addView(task("فتح TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},64)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}})
-  toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("sans-serif",Typeface.NORMAL) else Typeface.create("sans-serif",Typeface.BOLD)})
+  toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("Arial",Typeface.NORMAL) else Typeface.create("Arial",Typeface.BOLD)})
   toolbar.addView(task("A+"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity + 2f).coerceAtMost(40f)})
   toolbar.addView(task("A−"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity - 2f).coerceAtLeast(10f)})
   toolbar.addView(action("حفظ TXT"){
@@ -1730,17 +1730,17 @@ class MainActivity : Activity() {
  private fun showExcel() {
   shell("Excel")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="Excel — جدول البيانات"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,5) })
+  page.addView(TextView(this).apply { text="Excel — جدول البيانات"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,2,2,5) })
   val prefs=getSharedPreferences("orkeit_excel",Context.MODE_PRIVATE)
   val grid=GridLayout(this).apply { columnCount=5; rowCount=11 }
   val cells=mutableListOf<EditText>()
-  listOf("صف","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; textSize=16f; gravity=Gravity.CENTER; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(205,224,247)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=46; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
+  listOf("صف","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; textSize=14.08f; gravity=Gravity.CENTER; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(205,224,247)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=46; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
   val saved=prefs.getString("data","").orEmpty().split("\u001F")
   fun cellIndex(ref:String):Int { val s=ref.trim().uppercase(Locale.ROOT); if(s.length<2)return -1; val col=s[0]-'A'; val row=s.substring(1).toIntOrNull()?.minus(1) ?: return -1; return if(col in 0..3 && row in 0..9) row*4+col else -1 }
   fun cellValue(i:Int,depth:Int=0):Double { if(i !in cells.indices || depth>8)return Double.NaN; val raw=cells[i].text.toString().trim(); if(!raw.startsWith("="))return raw.replace(",",".").toDoubleOrNull() ?: 0.0; val e=raw.drop(1).trim(); val ref=cellIndex(e); if(ref>=0)return cellValue(ref,depth+1); val sum=Regex("(?i)SUM\\(([A-D]\\d+):([A-D]\\d+)\\)").matchEntire(e); if(sum!=null){val x=cellIndex(sum.groupValues[1]);val y=cellIndex(sum.groupValues[2]);if(x>=0&&y>=0)return (minOf(x,y)..maxOf(x,y)).sumOf{cellValue(it,depth+1)}}; val m=Regex("(-?\\d+(?:[.,]\\d+)?)\\s*([+*/-])\\s*(-?\\d+(?:[.,]\\d+)?)").matchEntire(e); if(m!=null){val x=m.groupValues[1].replace(",",".").toDoubleOrNull()?:return Double.NaN;val y=m.groupValues[3].replace(",",".").toDoubleOrNull()?:return Double.NaN;return when(m.groupValues[2]){"+"->x+y;"-"->x-y;"*"->x*y;"/"->if(y==0.0)Double.NaN else x/y;else->Double.NaN}};return Double.NaN }
   fun persist(){prefs.edit().putString("data",cells.joinToString("\u001F"){it.text.toString()}).apply()}
   repeat(40) { i ->
-   val cell=EditText(this).apply { setSingleLine(true); textSize=16f; gravity=Gravity.CENTER; setPadding(4,4,4,4); setTextColor(Color.rgb(15,25,40)); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
+   val cell=EditText(this).apply { setSingleLine(true); textSize=14.08f; gravity=Gravity.CENTER; setPadding(4,4,4,4); setTextColor(Color.rgb(15,25,40)); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
    cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=50; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
   }
   val buttons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
@@ -1748,17 +1748,17 @@ class MainActivity : Activity() {
   buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,50,1f))
   buttons.addView(action("تصدير CSV"){try{val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->val i=r*4+col;val raw=cells[i].text.toString().trim();val value=if(raw.startsWith("="))cellValue(i).let{if(it.isNaN()||it.isInfinite())"#ERROR" else it.toString()}else raw;"\""+value.replace("\"","\"\"")+"\""}};val values=ContentValues().apply{put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv");put(MediaStore.Downloads.MIME_TYPE,"text/csv")};val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);if(uri!=null)contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)};Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()}catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}},LinearLayout.LayoutParams(0,42,1f))
   page.addView(buttons)
-  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. اكتب رقمًا أو صيغة مثل =A1+B1 أو =SUM(A1:A4)، ثم اضغط حساب الصيغ." ; textSize=14f; setTextColor(navy); setPadding(3,4,3,4) })
+  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. اكتب رقمًا أو صيغة مثل =A1+B1 أو =SUM(A1:A4)، ثم اضغط حساب الصيغ." ; textSize=12.32f; setTextColor(navy); setPadding(3,4,3,4) })
   page.addView(ScrollView(this).apply { addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
   panel(page)
  }
  private fun showGames() {
   shell("ألعاب Windows")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="ألعاب كلاسيكية بسيطة"; textSize=22f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,10) })
+  page.addView(TextView(this).apply { text="ألعاب كلاسيكية بسيطة"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(6,4,6,10) })
   page.addView(action("الثعبان — Snake"){showSnakeGame()})
   page.addView(action("تحدي الأرقام"){showNumberGame()})
-  page.addView(TextView(this).apply { text="ألعاب أصلية مرخصة من Microsoft غير مضمنة. هذه ألعاب بسيطة مدمجة في Oriket Desktop."; textSize=12f; setTextColor(navy); setPadding(8,12,8,8) })
+  page.addView(TextView(this).apply { text="ألعاب أصلية مرخصة من Microsoft غير مضمنة. هذه ألعاب بسيطة مدمجة في Oriket Desktop."; textSize=10.56f; setTextColor(navy); setPadding(8,12,8,8) })
   panel(page)
  }
  private fun showNumberGame() {
@@ -1791,7 +1791,7 @@ class MainActivity : Activity() {
    super.onDraw(canvas); canvas.drawColor(Color.rgb(246,250,246)); val cell=(width.coerceAtMost(height)/14f).coerceAtLeast(8f); val ox=(width-cell*14)/2; val oy=(height-cell*14)/2
    p.color=Color.rgb(40,160,80); snake.forEach{canvas.drawRoundRect(ox+it.first*cell,oy+it.second*cell,ox+(it.first+1)*cell-2,oy+(it.second+1)*cell-2,5f,5f,p)}
    p.color=Color.RED; canvas.drawCircle(ox+(food.first+.5f)*cell,oy+(food.second+.5f)*cell,cell*.35f,p)
-   p.color=navy; p.textSize=18f; canvas.drawText("Score: $score",12f,24f,p)
+   p.color=navy; p.textSize=15.84f; canvas.drawText("Score: $score",12f,24f,p)
   }
   fun move(d:String) {
    when(d){"↑"->{dx=0;dy=-1};"↓"->{dx=0;dy=1};"←"->{dx=-1;dy=0};"→"->{dx=1;dy=0}}
@@ -1835,7 +1835,7 @@ class MainActivity : Activity() {
 
  private fun showQuickSettings() {
   val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(18,16,18,16); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(246,249,255)); cornerRadius=22f; setStroke(1,border) } }
-  box.addView(TextView(this).apply { text="الإعدادات السريعة"; textSize=20f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(2,2,2,12) })
+  box.addView(TextView(this).apply { text="الإعدادات السريعة"; textSize=17.6f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,2,2,12) })
   val grid=GridLayout(this).apply { columnCount=2 }
   val settings=listOf(
    "Wi-Fi / الشبكة" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
@@ -1852,14 +1852,14 @@ class MainActivity : Activity() {
    grid.addView(action(item.first){item.second.invoke()},GridLayout.LayoutParams().apply { width=0;height=54;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
   }
   box.addView(grid)
-  box.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=12f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,12,4,2) })
+  box.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=10.56f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,12,4,2) })
   AlertDialog.Builder(this).setView(box).setPositiveButton("إغلاق",null).show()
  }
 
  private fun showAbout() {
   shell("حول التطبيق")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
-  page.addView(TextView(this).apply { text="Oriket Desktop\nواجهة أفقية مستوحاة من Windows 11. المتصفح والرسام والحاسبة والمفكرة ومعاينة الصور والنصوص وPDF تعمل داخل التطبيق.\n\nهذه واجهة سطح مكتب وليست نظام Windows فعليًا ولا تشغّل ملفات EXE."; textSize=19f; setTextColor(navy) })
+  page.addView(TextView(this).apply { text="Oriket Desktop\nواجهة أفقية مستوحاة من Windows 11. المتصفح والرسام والحاسبة والمفكرة ومعاينة الصور والنصوص وPDF تعمل داخل التطبيق.\n\nهذه واجهة سطح مكتب وليست نظام Windows فعليًا ولا تشغّل ملفات EXE."; textSize=16.72f; setTextColor(navy) })
   panel(page)
  }
  private fun showPaint() {
@@ -1867,7 +1867,7 @@ class MainActivity : Activity() {
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,246,248)) }
   val canvas=PaintCanvas(this)
   val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(12,5,12,5); setBackgroundColor(Color.WHITE) }
-  header.addView(TextView(this).apply { text="الرسام  |  Paint"; textSize=21f; typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
+  header.addView(TextView(this).apply { text="الرسام  |  Paint"; textSize=18.48f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
   header.addView(task("فتح صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الصور",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(94,42))
   header.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(105,42).apply{leftMargin=6})
   page.addView(header,LinearLayout.LayoutParams(-1,54))
@@ -1876,15 +1876,15 @@ class MainActivity : Activity() {
   val toolButtons=mutableMapOf<String,Button>()
   toolNames.forEach { name ->
    val b=task(name){canvas.setTool(name);toolButtons.values.forEach{it.isSelected=false};toolButtons[name]?.isSelected=true}
-   b.textSize=12f
+   b.textSize=10.56f
    toolButtons[name]=b
    toolsRow.addView(b,LinearLayout.LayoutParams(if(name.length>7)94 else 78,43).apply{setMargins(3,0,3,0)})
   }
   toolButtons["قلم"]?.isSelected=true
   page.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(toolsRow)},LinearLayout.LayoutParams(-1,53))
   val options=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,2,10,2);setBackgroundColor(Color.WHITE)}
-  options.addView(TextView(this).apply{text="حجم الأداة";textSize=13f;setTextColor(navy)},LinearLayout.LayoutParams(-2,-2))
-  val sizeLabel=TextView(this).apply{text="5";textSize=13f;setTextColor(navy);gravity=Gravity.CENTER}
+  options.addView(TextView(this).apply{text="حجم الأداة";textSize=11.44f;setTextColor(navy)},LinearLayout.LayoutParams(-2,-2))
+  val sizeLabel=TextView(this).apply{text="5";textSize=11.44f;setTextColor(navy);gravity=Gravity.CENTER}
   val sizeBar=SeekBar(this).apply{max=49;progress=4}
   sizeBar.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
    override fun onProgressChanged(s:SeekBar?,p:Int,user:Boolean){val n=p+1;sizeLabel.text=n.toString();canvas.setBrushSize(n.toFloat())}
@@ -1893,11 +1893,11 @@ class MainActivity : Activity() {
   })
   options.addView(sizeBar,LinearLayout.LayoutParams(150,42))
   options.addView(sizeLabel,LinearLayout.LayoutParams(30,-2))
-  val filled=CheckBox(this).apply{text="تعبئة الأشكال";textSize=12f;setTextColor(navy);isChecked=false;setOnCheckedChangeListener{_,v->canvas.setFilled(v)}}
+  val filled=CheckBox(this).apply{text="تعبئة الأشكال";textSize=10.56f;setTextColor(navy);isChecked=false;setOnCheckedChangeListener{_,v->canvas.setFilled(v)}}
   options.addView(filled,LinearLayout.LayoutParams(-2,-2).apply{leftMargin=8})
   page.addView(options,LinearLayout.LayoutParams(-1,48))
   val paletteWrap=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(8,3,8,4);setBackgroundColor(Color.WHITE)}
-  paletteWrap.addView(TextView(this).apply{text="لوحة الألوان";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(navy)},LinearLayout.LayoutParams(-1,20))
+  paletteWrap.addView(TextView(this).apply{text="لوحة الألوان";textSize=11.44f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(navy)},LinearLayout.LayoutParams(-1,20))
   val palette=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
   val colors=listOf(Color.BLACK,Color.rgb(90,90,90),Color.WHITE,Color.rgb(237,28,36),Color.rgb(255,127,39),Color.rgb(255,242,0),Color.rgb(34,177,76),Color.rgb(0,162,232),Color.rgb(63,72,204),Color.rgb(163,73,164),Color.rgb(185,122,87),Color.rgb(255,174,201))
   colors.forEach{color->
@@ -1919,7 +1919,7 @@ class MainActivity : Activity() {
   canvas.background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);setStroke(1,Color.rgb(195,202,213))}
   canvasFrame.addView(canvas,FrameLayout.LayoutParams(-1,-1))
   page.addView(canvasFrame,LinearLayout.LayoutParams(-1,0,1f))
-  page.addView(TextView(this).apply{text="تلميح: اسحب على مساحة الرسم لرسم الأشكال. استخدم Ctrl+Z للتراجع وCtrl+S للحفظ عند استخدام لوحة مفاتيح.";textSize=11f;setTextColor(Color.rgb(80,90,105));setPadding(10,4,10,4)},LinearLayout.LayoutParams(-1,24))
+  page.addView(TextView(this).apply{text="تلميح: اسحب على مساحة الرسم لرسم الأشكال. استخدم Ctrl+Z للتراجع وCtrl+S للحفظ عند استخدام لوحة مفاتيح.";textSize=9.68f;setTextColor(Color.rgb(80,90,105));setPadding(10,4,10,4)},LinearLayout.LayoutParams(-1,24))
   panel(page)
  }
 
