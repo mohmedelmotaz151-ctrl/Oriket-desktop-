@@ -424,6 +424,48 @@ class MainActivity : Activity() {
   if(desktopInitialized) return
   desktopInitialized=true
   root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); layoutDirection=View.LAYOUT_DIRECTION_LTR }
+  // Custom Windows-style system status area: network and battery on the first row,
+  // live time and date immediately beneath it.
+  val systemStatus=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   setPadding(10,1,10,1)
+   setBackgroundColor(Color.rgb(18,32,54))
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+  }
+  val statusTop=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; layoutDirection=View.LAYOUT_DIRECTION_LTR }
+  val statusNetwork=TextView(this).apply { text="●  الشبكة"; textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL; typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(5,0,9,0) }
+  val statusBattery=TextView(this).apply { text="🔋 --%"; textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL; typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(5,0,4,0) }
+  statusTop.addView(TextView(this).apply { text="Oriket"; textSize=10f; setTextColor(Color.rgb(185,211,244)); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,20,1f))
+  statusTop.addView(statusNetwork,LinearLayout.LayoutParams(-2,20))
+  statusTop.addView(statusBattery,LinearLayout.LayoutParams(-2,20))
+  val statusDateTime=TextView(this).apply {
+   textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL or Gravity.START
+   typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(2,0,2,2)
+  }
+  systemStatus.addView(statusTop,LinearLayout.LayoutParams(-1,20))
+  systemStatus.addView(statusDateTime,LinearLayout.LayoutParams(-1,18))
+  root.addView(systemStatus,LinearLayout.LayoutParams(-1,39))
+  fun refreshSystemStatus() {
+   statusDateTime.text=java.text.SimpleDateFormat("HH:mm   •   EEEE، dd/MM/yyyy",Locale("ar")).format(java.util.Date())
+   try {
+    val batteryIntent=registerReceiver(null,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val level=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1) ?: -1
+    val scale=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,-1) ?: -1
+    val percent=if(level>=0 && scale>0) (level*100/scale) else -1
+    val charging=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,-1) in listOf(android.os.BatteryManager.BATTERY_STATUS_CHARGING,android.os.BatteryManager.BATTERY_STATUS_FULL)
+    statusBattery.text=(if(charging) "⚡ " else "🔋 ")+(if(percent>=0) "$percent%" else "--%")
+   } catch(_:Exception) { statusBattery.text="🔋 --%" }
+   try {
+    val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+    val network=cm.activeNetworkInfo
+    statusNetwork.text=when {
+     network==null || !network.isConnected -> "○  غير متصل"
+     network.type==android.net.ConnectivityManager.TYPE_WIFI -> "◉  Wi-Fi"
+     else -> "▮  بيانات"
+    }
+   } catch(_:Exception) { statusNetwork.text="●  الشبكة" }
+  }
+  refreshSystemStatus()
   desktopArea=FrameLayout(this).apply { layoutDirection=View.LAYOUT_DIRECTION_LTR }
   desktopArea.addView(WindowsWallpaper(this),FrameLayout.LayoutParams(-1,-1))
   desktopArea.isClickable=true
