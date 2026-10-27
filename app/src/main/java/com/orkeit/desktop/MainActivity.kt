@@ -1864,28 +1864,63 @@ class MainActivity : Activity() {
  }
  private fun showPaint() {
   shell("الرسام")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
-  val tools=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf("قلم","ممحاة","نص","خط","مستطيل","دائرة","قص").forEach { name -> tools.addView(task(name){canvas.setTool(name)},LinearLayout.LayoutParams(76,50).apply { setMargins(3,0,3,0) }) }
-  page.addView(TextView(this).apply { text="أدوات الرسم — اختر أداة ثم ارسم في المساحة البيضاء"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,4,6,6) })
-  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(tools) },LinearLayout.LayoutParams(-1,54))
-  val palette=LinearLayout(this).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-  listOf(Color.BLACK,Color.RED,Color.rgb(0,103,192),Color.GREEN,Color.YELLOW,Color.MAGENTA,Color.WHITE).forEach { color -> palette.addView(Button(this).apply { text="●"; textSize=18f; setTextColor(color); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(235,240,247))); setOnClickListener{canvas.setColor(color)} },LinearLayout.LayoutParams(38,36)) }
-  palette.addView(task("لون مخصص"){ val input=EditText(this).apply{hint="#RRGGBB";setSingleLine(true)}; AlertDialog.Builder(this).setTitle("لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"أدخل لونًا مثل #3366FF",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show() },LinearLayout.LayoutParams(90,36))
-  page.addView(TextView(this).apply { text="الألوان"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
-  page.addView(HorizontalScrollView(this).apply{addView(palette)},LinearLayout.LayoutParams(-1,48))
-  val actions=LinearLayout(this).apply { gravity=Gravity.CENTER }
-  actions.addView(task("استيراد صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){}},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(task("−"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(task("تراجع"){canvas.undo()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(task("إعادة"){canvas.redo()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(action("مسح"){canvas.clear()},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  actions.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(94,42).apply { setMargins(3,0,3,0) })
-  page.addView(TextView(this).apply { text="إجراءات الرسم"; textSize=15f; typeface=Typeface.DEFAULT_BOLD; setTextColor(navy); setPadding(6,6,6,2) })
-  page.addView(HorizontalScrollView(this).apply{addView(actions)},LinearLayout.LayoutParams(-1,54))
-  page.addView(canvas,LinearLayout.LayoutParams(-1,0,1f))
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,246,248)) }
+  val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(12,5,12,5); setBackgroundColor(Color.WHITE) }
+  header.addView(TextView(this).apply { text="الرسام  |  Paint"; textSize=21f; typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
+  header.addView(task("فتح صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الصور",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(94,42))
+  header.addView(action("حفظ PNG"){saveDrawing(canvasRef!!)},LinearLayout.LayoutParams(105,42).apply{leftMargin=6})
+  page.addView(header,LinearLayout.LayoutParams(-1,54))
+  val canvas=PaintCanvas(this)
+  var canvasRef:PaintCanvas?=canvas
+  val toolNames=listOf("تحديد","قلم","فرشاة","قلم رصاص","ممحاة","تعبئة","نص","خط","سهم","مستطيل","مستطيل دائري","دائرة","مثلث","قص")
+  val toolsRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(6,5,6,5);setBackgroundColor(Color.rgb(250,250,252))}
+  val toolButtons=mutableMapOf<String,Button>()
+  toolNames.forEach { name ->
+   val b=task(name){canvas.setTool(name);toolButtons.values.forEach{it.isSelected=false};toolButtons[name]?.isSelected=true}
+   b.textSize=12f
+   toolButtons[name]=b
+   toolsRow.addView(b,LinearLayout.LayoutParams(if(name.length>7)94 else 78,43).apply{setMargins(3,0,3,0)})
+  }
+  toolButtons["قلم"]?.isSelected=true
+  page.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(toolsRow)},LinearLayout.LayoutParams(-1,53))
+  val options=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,2,10,2);setBackgroundColor(Color.WHITE)}
+  options.addView(TextView(this).apply{text="حجم الأداة";textSize=13f;setTextColor(navy)},LinearLayout.LayoutParams(-2,-2))
+  val sizeLabel=TextView(this).apply{text="5";textSize=13f;setTextColor(navy);gravity=Gravity.CENTER}
+  val sizeBar=SeekBar(this).apply{max=49;progress=4}
+  sizeBar.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
+   override fun onProgressChanged(s:SeekBar?,p:Int,user:Boolean){val n=p+1;sizeLabel.text=n.toString();canvas.setBrushSize(n.toFloat())}
+   override fun onStartTrackingTouch(s:SeekBar?){}
+   override fun onStopTrackingTouch(s:SeekBar?){}
+  })
+  options.addView(sizeBar,LinearLayout.LayoutParams(150,42))
+  options.addView(sizeLabel,LinearLayout.LayoutParams(30,-2))
+  val filled=CheckBox(this).apply{text="تعبئة الأشكال";textSize=12f;setTextColor(navy);isChecked=false;setOnCheckedChangeListener{_,v->canvas.setFilled(v)}}
+  options.addView(filled,LinearLayout.LayoutParams(-2,-2).apply{leftMargin=8})
+  page.addView(options,LinearLayout.LayoutParams(-1,48))
+  val paletteWrap=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(8,3,8,4);setBackgroundColor(Color.WHITE)}
+  paletteWrap.addView(TextView(this).apply{text="لوحة الألوان";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(navy)},LinearLayout.LayoutParams(-1,20))
+  val palette=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+  val colors=listOf(Color.BLACK,Color.rgb(90,90,90),Color.WHITE,Color.rgb(237,28,36),Color.rgb(255,127,39),Color.rgb(255,242,0),Color.rgb(34,177,76),Color.rgb(0,162,232),Color.rgb(63,72,204),Color.rgb(163,73,164),Color.rgb(185,122,87),Color.rgb(255,174,201))
+  colors.forEach{color->
+   val swatch=Button(this).apply{text="";minWidth=0;minimumWidth=0;setPadding(0,0,0,0);background=android.graphics.drawable.GradientDrawable().apply{setColor(color);cornerRadius=5f;setStroke(if(color==Color.WHITE)2 else 1,if(color==Color.WHITE)border else Color.rgb(210,215,225))};contentDescription="اختيار اللون";setOnClickListener{canvas.setColor(color)}}
+   palette.addView(swatch,LinearLayout.LayoutParams(31,29).apply{setMargins(3,1,3,1)})
+  }
+  palette.addView(task("لون مخصص"){val input=EditText(this).apply{hint="#3366FF";setSingleLine(true)};AlertDialog.Builder(this).setTitle("اختيار لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"اكتب اللون بصيغة #RRGGBB",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(96,32).apply{leftMargin=4})
+  paletteWrap.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(palette)},LinearLayout.LayoutParams(-1,35))
+  page.addView(paletteWrap,LinearLayout.LayoutParams(-1,62))
+  val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(6,3,6,3);setBackgroundColor(Color.rgb(245,246,248))}
+  actions.addView(task("تراجع  ↶"){canvas.undo()},LinearLayout.LayoutParams(86,38).apply{setMargins(3,0,3,0)})
+  actions.addView(task("إعادة  ↷"){canvas.redo()},LinearLayout.LayoutParams(86,38).apply{setMargins(3,0,3,0)})
+  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(82,38).apply{setMargins(3,0,3,0)})
+  actions.addView(task("تصغير −"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(82,38).apply{setMargins(3,0,3,0)})
+  actions.addView(task("مسح اللوحة"){AlertDialog.Builder(this).setMessage("هل تريد مسح اللوحة بالكامل؟").setPositiveButton("مسح"){_,_->canvas.clear()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(94,38).apply{setMargins(3,0,3,0)})
+  actions.addView(task("خلفية بيضاء"){canvas.setWhiteBackground()},LinearLayout.LayoutParams(98,38).apply{setMargins(3,0,3,0)})
+  page.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(actions)},LinearLayout.LayoutParams(-1,44))
+  val canvasFrame=FrameLayout(this).apply{setPadding(10,8,10,10);setBackgroundColor(Color.rgb(225,229,235))}
+  canvas.background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);setStroke(1,Color.rgb(195,202,213))}
+  canvasFrame.addView(canvas,FrameLayout.LayoutParams(-1,-1))
+  page.addView(canvasFrame,LinearLayout.LayoutParams(-1,0,1f))
+  page.addView(TextView(this).apply{text="تلميح: اسحب على مساحة الرسم لرسم الأشكال. استخدم Ctrl+Z للتراجع وCtrl+S للحفظ عند استخدام لوحة مفاتيح.";textSize=11f;setTextColor(Color.rgb(80,90,105));setPadding(10,4,10,4)},LinearLayout.LayoutParams(-1,24))
   panel(page)
  }
 
@@ -1971,35 +2006,83 @@ class MainActivity : Activity() {
   }
  }
  private inner class PaintCanvas(c:Context):View(c) {
-  private val paint=Paint(3).apply { color=blue; style=Paint.Style.STROKE; strokeWidth=7f; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND }
+  private val currentPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.BLACK;style=Paint.Style.STROKE;strokeWidth=5f;strokeCap=Paint.Cap.ROUND;strokeJoin=Paint.Join.ROUND}
   private val paths=mutableListOf<Pair<Path,Paint>>()
   private val undone=mutableListOf<Pair<Path,Paint>>()
-  private var path=Path()
+  private var activePath=Path()
   private var tool="قلم"
   private var startX=0f
   private var startY=0f
   private var zoom=1f
   private var cropRect:RectF?=null
   private var imported:Bitmap?=null
-  init { setBackgroundColor(Color.WHITE) }
-  fun setTool(value:String){tool=value;Toast.makeText(context,"أداة الرسم: $value",Toast.LENGTH_SHORT).show()}
-  fun setColor(value:Int){paint.color=value;paint.xfermode=null;paint.strokeWidth=7f}
-  fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.5f,3f);invalidate()}
+  private var filledShapes=false
+  private var whiteBackground=true
+  init{isFocusable=true;isFocusableInTouchMode=true;setLayerType(View.LAYER_TYPE_SOFTWARE,null);setBackgroundColor(Color.WHITE)}
+  fun setTool(value:String){tool=value;currentPaint.xfermode=null;Toast.makeText(context,"الأداة: $value",Toast.LENGTH_SHORT).show();invalidate()}
+  fun setColor(value:Int){currentPaint.color=value;currentPaint.xfermode=null;invalidate()}
+  fun setBrushSize(value:Float){currentPaint.strokeWidth=value.coerceIn(1f,50f);invalidate()}
+  fun setFilled(value:Boolean){filledShapes=value;invalidate()}
+  fun setWhiteBackground(){whiteBackground=true;invalidate()}
+  fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.25f,5f);invalidate()}
   fun undo(){if(paths.isNotEmpty())undone.add(paths.removeAt(paths.lastIndex));invalidate()}
   fun redo(){if(undone.isNotEmpty())paths.add(undone.removeAt(undone.lastIndex));invalidate()}
   fun importImage(uri:Uri){try{imported=this@MainActivity.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it)};invalidate()}catch(_:Exception){Toast.makeText(context,"تعذر استيراد الصورة",Toast.LENGTH_SHORT).show()}}
-  private fun addText(text:String,x:Float,y:Float){val p=Paint(paint).apply{style=Paint.Style.FILL;textSize=32f};val glyph=Path();p.getTextPath(text,0,text.length,x,y,glyph);paths.add(Pair(glyph,p));undone.clear();invalidate()}
-  override fun onDraw(c:Canvas){super.onDraw(c);c.drawColor(Color.WHITE);c.save();c.scale(zoom,zoom);imported?.let{c.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};paths.forEach{c.drawPath(it.first,it.second)};if(!path.isEmpty)c.drawPath(path,paint);c.restore();cropRect?.let{val p=Paint(3).apply{color=Color.RED;style=Paint.Style.STROKE;pathEffect=DashPathEffect(floatArrayOf(10f,6f),0f)};c.drawRect(it,p)}}
-  override fun onTouchEvent(e:MotionEvent):Boolean {
+  private fun shapePath(x:Float,y:Float):Path {
+   val p=Path()
+   val l=minOf(startX,x);val r=maxOf(startX,x);val t=minOf(startY,y);val b=maxOf(startY,y)
+   when(tool){
+    "خط"->{p.moveTo(startX,startY);p.lineTo(x,y)}
+    "سهم"->{p.moveTo(startX,startY);p.lineTo(x,y);val angle=kotlin.math.atan2((y-startY).toDouble(),(x-startX).toDouble());val head=(currentPaint.strokeWidth*3.2f).coerceAtLeast(12f);p.moveTo(x,y);p.lineTo((x-head*kotlin.math.cos(angle-0.48)).toFloat(),(y-head*kotlin.math.sin(angle-0.48)).toFloat());p.moveTo(x,y);p.lineTo((x-head*kotlin.math.cos(angle+0.48)).toFloat(),(y-head*kotlin.math.sin(angle+0.48)).toFloat())}
+    "مستطيل"->{if(filledShapes)p.addRect(l,t,r,b,Path.Direction.CW)else p.addRect(l,t,r,b,Path.Direction.CW)}
+    "مستطيل دائري"->{val rect=RectF(l,t,r,b);if(filledShapes)p.addRoundRect(rect,18f,18f,Path.Direction.CW)else p.addRoundRect(rect,18f,18f,Path.Direction.CW)}
+    "دائرة"->{p.addOval(RectF(l,t,r,b),Path.Direction.CW)}
+    "مثلث"->{p.moveTo((l+r)/2f,t);p.lineTo(r,b);p.lineTo(l,b);p.close()}
+    else->{p.moveTo(startX,startY);p.lineTo(x,y)}
+   }
+   return p
+  }
+  private fun paintForTool():Paint=Paint(currentPaint).apply{
+   when(tool){
+    "ممحاة"->{color=Color.WHITE;strokeWidth=(currentPaint.strokeWidth*2.5f).coerceAtMost(100f);style=Paint.Style.STROKE}
+    "قلم رصاص"->{strokeWidth=(currentPaint.strokeWidth*0.55f).coerceAtLeast(1f);alpha=190}
+    "تعبئة"->{style=Paint.Style.FILL}
+    "مستطيل","مستطيل دائري","دائرة","مثلث"->{style=if(filledShapes)Paint.Style.FILL else Paint.Style.STROKE}
+    else->{style=Paint.Style.STROKE}
+   }
+  }
+  private fun addText(text:String,x:Float,y:Float){val p=Paint(currentPaint).apply{style=Paint.Style.FILL;textSize=(currentPaint.strokeWidth*5f).coerceIn(18f,96f)};val glyph=Path();p.getTextPath(text,0,text.length,x,y,glyph);paths.add(Pair(glyph,p));undone.clear();invalidate()}
+  override fun onDraw(c:Canvas){
+   super.onDraw(c);c.drawColor(if(whiteBackground)Color.WHITE else Color.TRANSPARENT);c.save();c.scale(zoom,zoom)
+   imported?.let{c.drawBitmap(it,null,RectF(0f,0f,width/zoom,height/zoom),Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))}
+   paths.forEach{c.drawPath(it.first,it.second)}
+   if(!activePath.isEmpty)c.drawPath(activePath,paintForTool())
+   c.restore()
+   cropRect?.let{val p=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(0,120,215);style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(9f,6f),0f)};c.drawRect(it,p)}
+  }
+  override fun onTouchEvent(e:MotionEvent):Boolean{
    val x=e.x/zoom;val y=e.y/zoom
    when(e.action){
-    MotionEvent.ACTION_DOWN->{startX=x;startY=y;path=Path();path.moveTo(x,y);return true}
-    MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="ممحاة")path.lineTo(x,y)else{path=Path();when(tool){"خط"->{path.moveTo(startX,startY);path.lineTo(x,y)};"دائرة"->path.addOval(RectF(startX,startY,x,y),Path.Direction.CW);"مستطيل"->path.addRect(RectF(startX,startY,x,y),Path.Direction.CW);"قص"->path.addRect(RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y)),Path.Direction.CW)}};invalidate();return true}
-    MotionEvent.ACTION_UP->{if(tool=="نص"){val input=EditText(context).apply{hint="اكتب النص"};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show()}else if(tool=="قص")cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y))else{val p=Paint(paint);if(tool=="ممحاة"){p.color=Color.WHITE;p.strokeWidth=26f};paths.add(Pair(Path(path),p));undone.clear()};path=Path();invalidate();return true}
-   }
-   return true
+    MotionEvent.ACTION_DOWN->{requestFocus();startX=x;startY=y;activePath=Path();if(tool=="قلم"||tool=="فرشاة"||tool=="قلم رصاص"||tool=="ممحاة"){activePath.moveTo(x,y)}else if(tool=="تعبئة"){val p=Paint(currentPaint).apply{style=Paint.Style.FILL};val dot=Path().apply{addCircle(x,y,(currentPaint.strokeWidth*2f).coerceAtLeast(8f),Path.Direction.CW)};paths.add(Pair(dot,p));undone.clear();invalidate();return true};invalidate();return true}
+    MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="فرشاة"||tool=="قلم رصاص"||tool=="ممحاة")activePath.lineTo(x,y)else activePath=shapePath(x,y);invalidate();return true}
+    MotionEvent.ACTION_UP->{
+     when(tool){
+      "نص"->{val input=EditText(context).apply{hint="اكتب النص هنا";minLines=2};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show();activePath=Path()}
+      "قص","تحديد"->{cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y));activePath=Path()}
+      else->{if(tool!="تعبئة"){val p=paintForTool();val completed=if(tool=="خط"||tool=="سهم"||tool=="مستطيل"||tool=="مستطيل دائري"||tool=="دائرة"||tool=="مثلث")shapePath(x,y)else Path(activePath);paths.add(Pair(completed,p));undone.clear()};activePath=Path()}
+     };invalidate();return true
+    }
+   };return true
   }
-  fun exportBitmap():Bitmap{val bmp=Bitmap.createBitmap(width.coerceAtLeast(1),height.coerceAtLeast(1),Bitmap.Config.ARGB_8888);val cv=Canvas(bmp);cv.drawColor(Color.WHITE);imported?.let{cv.drawBitmap(it,null,RectF(0f,0f,width.toFloat(),height.toFloat()),Paint(Paint.FILTER_BITMAP_FLAG))};cv.save();cv.scale(zoom,zoom);paths.forEach{cv.drawPath(it.first,it.second)};cv.restore();val r=cropRect;if(r!=null&&r.width()>2&&r.height()>2){val l=r.left.toInt().coerceIn(0,bmp.width-1);val t=r.top.toInt().coerceIn(0,bmp.height-1);val rr=r.right.toInt().coerceIn(l+1,bmp.width);val b=r.bottom.toInt().coerceIn(t+1,bmp.height);return Bitmap.createBitmap(bmp,l,t,rr-l,b-t)};return bmp}
-  fun clear(){paths.clear();undone.clear();path.reset();cropRect=null;imported=null;invalidate()}
+  fun exportBitmap():Bitmap{
+   val bmp=Bitmap.createBitmap((width/zoom).toInt().coerceAtLeast(1),(height/zoom).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)
+   val cv=Canvas(bmp);cv.drawColor(Color.WHITE)
+   imported?.let{cv.drawBitmap(it,null,RectF(0f,0f,bmp.width.toFloat(),bmp.height.toFloat()),Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))}
+   paths.forEach{cv.drawPath(it.first,it.second)}
+   val r=cropRect
+   if(r!=null&&r.width()>2&&r.height()>2){val l=r.left.toInt().coerceIn(0,bmp.width-1);val t=r.top.toInt().coerceIn(0,bmp.height-1);val rr=r.right.toInt().coerceIn(l+1,bmp.width);val b=r.bottom.toInt().coerceIn(t+1,bmp.height);return Bitmap.createBitmap(bmp,l,t,rr-l,b-t)}
+   return bmp
+  }
+  fun clear(){paths.clear();undone.clear();activePath.reset();cropRect=null;imported=null;invalidate()}
  }
 }
