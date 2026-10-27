@@ -501,9 +501,9 @@ class MainActivity : Activity() {
    setBackgroundColor(Color.argb(225,20,25,35))
    elevation=16f
   }
-  val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,68)) }
-  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,72,Gravity.CENTER).apply { leftMargin=4; rightMargin=82 })
-  root.addView(dock,LinearLayout.LayoutParams(-1,86))
+  val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,56)) }
+  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,60,Gravity.CENTER).apply { leftMargin=4; rightMargin=82 })
+  root.addView(dock,LinearLayout.LayoutParams(-1,72))
   setContentView(root)
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
@@ -691,8 +691,8 @@ class MainActivity : Activity() {
   else->"🪟"
  }
  private fun taskButton(title:String)=Button(this).apply {
-  text=windowIcon(title); textSize=20.24f; isAllCaps=false; minWidth=58; minimumWidth=58; minHeight=54; minimumHeight=54
-  gravity=Gravity.CENTER; setPadding(8,5,8,5); setTextColor(navy)
+  text=windowIcon(title); textSize=15.5f; isAllCaps=false; minWidth=44; minimumWidth=44; minHeight=44; minimumHeight=44
+  gravity=Gravity.CENTER; setPadding(3,2,3,2); setTextColor(navy)
   typeface=Typeface.create("Arial",Typeface.BOLD)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,242,252)); cornerRadius=13f; setStroke(1,Color.rgb(216,226,241)) }
   elevation=2f; contentDescription=title
@@ -873,9 +873,9 @@ class MainActivity : Activity() {
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
   openWindows.forEach { it.frame.bringToFront() }
-  val start=taskButton("ابدأ").apply { text="⊞"; textSize=19.36f; setOnClickListener { showStartMenu() } }
+  val start=taskButton("ابدأ").apply { text="⊞"; textSize=15.5f; setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
-  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=19.36f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
+  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=15.5f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
   val browser=taskButton("متصفح الإنترنت").apply { text="🌐"; setOnClickListener { showBrowser() } }
   val files=taskButton("هذا الكمبيوتر").apply { text="📁"; setOnClickListener { showMyComputer() } }
   val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
