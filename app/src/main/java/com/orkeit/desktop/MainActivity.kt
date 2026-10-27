@@ -517,6 +517,7 @@ class MainActivity : Activity() {
   val clock=object:Runnable {
    override fun run() {
     clockLabel?.text=java.text.SimpleDateFormat("HH:mm\n dd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
+    refreshSystemStatus()
     uiHandler.postDelayed(this,30_000)
    }
   }
