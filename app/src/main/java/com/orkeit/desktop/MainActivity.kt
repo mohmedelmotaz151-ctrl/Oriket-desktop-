@@ -1865,13 +1865,12 @@ class MainActivity : Activity() {
  private fun showPaint() {
   shell("الرسام")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,246,248)) }
+  val canvas=PaintCanvas(this)
   val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(12,5,12,5); setBackgroundColor(Color.WHITE) }
   header.addView(TextView(this).apply { text="الرسام  |  Paint"; textSize=21f; typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL); setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
   header.addView(task("فتح صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الصور",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(94,42))
-  header.addView(action("حفظ PNG"){saveDrawing(canvasRef!!)},LinearLayout.LayoutParams(105,42).apply{leftMargin=6})
+  header.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(105,42).apply{leftMargin=6})
   page.addView(header,LinearLayout.LayoutParams(-1,54))
-  val canvas=PaintCanvas(this)
-  var canvasRef:PaintCanvas?=canvas
   val toolNames=listOf("تحديد","قلم","فرشاة","قلم رصاص","ممحاة","تعبئة","نص","خط","سهم","مستطيل","مستطيل دائري","دائرة","مثلث","قص")
   val toolsRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(6,5,6,5);setBackgroundColor(Color.rgb(250,250,252))}
   val toolButtons=mutableMapOf<String,Button>()
