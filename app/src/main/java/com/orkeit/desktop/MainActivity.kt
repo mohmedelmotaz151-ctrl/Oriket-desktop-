@@ -1579,15 +1579,23 @@ class MainActivity : Activity() {
 
  private fun showMusicPlayer() {
   shell("مشغل الموسيقى")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(10,8,10,8) }
-  page.addView(TextView(this).apply { text="مشغل الموسيقى"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,4,4,8) })
-  val currentTitle=TextView(this).apply { text="اضغط تحميل الموسيقى لعرض الأغاني الموجودة على الجهاز"; textSize=14.96f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER; maxLines=2; setPadding(8,8,8,8) }
-  val currentArtist=TextView(this).apply { text="لم يتم اختيار مقطع"; textSize=12.32f; setTextColor(Color.DKGRAY); gravity=Gravity.CENTER; maxLines=1 }
-  page.addView(currentTitle,LinearLayout.LayoutParams(-1,-2))
-  page.addView(currentArtist,LinearLayout.LayoutParams(-1,-2))
-  val seek=SeekBar(this)
-  val times=TextView(this).apply { text="00:00 / 00:00"; textSize=11.44f; setTextColor(navy); gravity=Gravity.CENTER }
-  page.addView(seek,LinearLayout.LayoutParams(-1,42)); page.addView(times,LinearLayout.LayoutParams(-1,-2))
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,6,8,6); setBackgroundColor(Color.rgb(242,246,251)) }
+  val topBar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,4,10,4); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(30,91,160)); cornerRadius=9f } }
+  topBar.addView(TextView(this).apply { text="♫"; textSize=22f; setTextColor(Color.WHITE); gravity=Gravity.CENTER; setPadding(3,0,10,0) },LinearLayout.LayoutParams(34,40))
+  topBar.addView(TextView(this).apply { text="Oriket Media Player"; textSize=14f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
+  topBar.addView(TextView(this).apply { text="⋯"; textSize=18f; setTextColor(Color.WHITE); gravity=Gravity.CENTER },LinearLayout.LayoutParams(30,40))
+  page.addView(topBar,LinearLayout.LayoutParams(-1,46).apply { bottomMargin=7 })
+  val nowPlaying=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,8,10,8); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=10f; setStroke(1,Color.rgb(218,226,236)) } }
+  nowPlaying.addView(TextView(this).apply { text="♫"; textSize=36f; setTextColor(Color.rgb(42,108,181)); gravity=Gravity.CENTER; background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(225,238,252)); cornerRadius=8f } },LinearLayout.LayoutParams(72,72).apply { rightMargin=10 })
+  val trackLabels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+  val currentTitle=TextView(this).apply { text="اختر «تحميل الموسيقى» لعرض الأغاني الموجودة على الجهاز"; textSize=12.5f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(25,43,65)); gravity=Gravity.START; maxLines=2; setPadding(2,2,2,4) }
+  val currentArtist=TextView(this).apply { text="لم يتم اختيار مقطع"; textSize=10.5f; setTextColor(Color.rgb(94,108,126)); gravity=Gravity.START; maxLines=1 }
+  trackLabels.addView(currentTitle); trackLabels.addView(currentArtist)
+  nowPlaying.addView(trackLabels,LinearLayout.LayoutParams(0,-2,1f))
+  page.addView(nowPlaying,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=5 })
+  val seek=SeekBar(this).apply { progressTintList=android.content.res.ColorStateList.valueOf(Color.rgb(35,105,184)); thumbTintList=android.content.res.ColorStateList.valueOf(Color.rgb(35,105,184)) }
+  val times=TextView(this).apply { text="00:00 / 00:00"; textSize=10f; setTextColor(Color.rgb(72,87,105)); gravity=Gravity.CENTER }
+  page.addView(seek,LinearLayout.LayoutParams(-1,28)); page.addView(times,LinearLayout.LayoutParams(-1,18))
   val songs=mutableListOf<Uri>(); val titles=mutableListOf<String>(); val artists=mutableListOf<String>()
   var index=0; var shuffle=getSharedPreferences("orkeit_music",Context.MODE_PRIVATE).getBoolean("shuffle",false)
   var prepared=false; var userSeeking=false
@@ -1649,17 +1657,24 @@ class MainActivity : Activity() {
     }
     if(songs.isEmpty()) list.addView(message("لم يتم العثور على ملفات موسيقى في الجهاز"))
     songs.forEachIndexed { i,_ ->
-     val row=task((i+1).toString()+". "+titles[i]+" — "+artists[i]) { startTrack(i) }
-     row.gravity=Gravity.CENTER_VERTICAL or Gravity.START
-     list.addView(row,LinearLayout.LayoutParams(-1,48).apply { bottomMargin=3 })
+     val row=task((i+1).toString()+".  "+titles[i]+"   •   "+artists[i]) { startTrack(i) }.apply {
+      textSize=11f; typeface=Typeface.create("Arial",Typeface.NORMAL); gravity=Gravity.CENTER_VERTICAL or Gravity.START
+      setPadding(12,2,8,2); setTextColor(Color.rgb(35,51,72))
+      background=android.graphics.drawable.GradientDrawable().apply { setColor(if(i%2==0) Color.WHITE else Color.rgb(247,250,254)); cornerRadius=5f; setStroke(1,Color.rgb(229,235,242)) }
+     }
+     list.addView(row,LinearLayout.LayoutParams(-1,40).apply { bottomMargin=2 })
     }
     Toast.makeText(this,"تم العثور على "+songs.size+" مقطع صوتي",Toast.LENGTH_SHORT).show()
     if(songs.isNotEmpty()) startTrack(0)
    } catch(_:Exception) { Toast.makeText(this,"تعذر قراءة مكتبة الموسيقى. تحقق من إذن الملفات.",Toast.LENGTH_LONG).show() }
   }
   fun row(vararg labels:String, handler:(String)->Unit):LinearLayout {
-   val result=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER }
-   labels.forEach { label -> result.addView(task(label){handler(label)},LinearLayout.LayoutParams(0,48,1f).apply { setMargins(2,2,2,2) }) }
+   val result=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER; setPadding(3,0,3,0) }
+   labels.forEach { label ->
+    val display=when(label) { "السابق"->"|◀"; "تشغيل / إيقاف"->"▶ / Ⅱ"; "التالي"->"▶|"; else->label }
+    val button=task(display){handler(label)}.apply { textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(35,76,125)); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=8f; setStroke(1,Color.rgb(205,218,233)) } }
+    result.addView(button,LinearLayout.LayoutParams(0,42,1f).apply { setMargins(3,2,3,2) })
+   }
    return result
   }
   page.addView(row("السابق","تشغيل / إيقاف","التالي") { label ->
@@ -1676,8 +1691,9 @@ class MainActivity : Activity() {
   modes.addView(task("تأخير 10 ثوانٍ"){musicPlayer?.let{if(prepared)it.seekTo((it.currentPosition-10000).coerceAtLeast(0))}},LinearLayout.LayoutParams(0,48,1f))
   modes.addView(shuffleButton,LinearLayout.LayoutParams(0,48,1f))
   page.addView(modes)
-  page.addView(action("تحميل الموسيقى من الجهاز"){loadSongs()},LinearLayout.LayoutParams(-1,48).apply { topMargin=4; bottomMargin=4 })
-  page.addView(ScrollView(this).apply { isFillViewport=true; addView(list) },LinearLayout.LayoutParams(-1,0,1f))
+  page.addView(action("＋  تحميل الموسيقى من الجهاز"){loadSongs()},LinearLayout.LayoutParams(-1,40).apply { topMargin=4; bottomMargin=5 })
+  page.addView(TextView(this).apply { text="قائمة التشغيل"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(39,64,91)); setPadding(5,5,5,3) },LinearLayout.LayoutParams(-1,25))
+  page.addView(ScrollView(this).apply { isFillViewport=true; background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=8f; setStroke(1,Color.rgb(218,226,236)) }; setPadding(4,4,4,4); addView(list) },LinearLayout.LayoutParams(-1,0,1f))
   seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
    override fun onStartTrackingTouch(bar:SeekBar?) { userSeeking=true }
    override fun onStopTrackingTouch(bar:SeekBar?) { userSeeking=false; if(prepared && bar!=null) musicPlayer?.seekTo(bar.progress) }
