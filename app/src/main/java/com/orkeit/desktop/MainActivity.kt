@@ -270,14 +270,18 @@ class MainActivity : Activity() {
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
   subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
   playDesktopSound("boot")
-  // Keep the first boot screen available briefly for an App Open ad; later restarts use the normal boot delay.
+  // Give the App Open request time to finish before leaving the startup screen.
+  // If the ad loads during this window, its callback displays it immediately.
   if(isFirstBootSequence) {
    uiHandler.postDelayed({
     if(!isFinishing && startupSplashVisible) {
      if(startupAppOpenAd!=null && !startupAdHandled) showStartupAppOpenAd()
-     else finishStartupSplash()
+     else {
+      android.util.Log.w("OriketAdMob","Startup ad was not ready within 12 seconds; continuing without an ad")
+      finishStartupSplash()
+     }
     }
-   },5000L)
+   },12000L)
   } else {
    uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
   }
