@@ -58,7 +58,7 @@ class MainActivity : Activity() {
  private var startupSplashVisible=false
  private var startupAdAttempted=false
  private var bootSequenceShown=false
- private val appOpenAdUnitId="ca-app-pub-6392100417582868/6096867927" // Google official test ID; replace with Oriket's App Open ad unit before release
+ private val appOpenAdUnitId="ca-app-pub-6392100417582868/6096867927" // Oriket App Open ad unit; shown at startup only
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
  private data class WindowEntry(val id:Int,val title:String,val frame:View,val taskButton:Button)
