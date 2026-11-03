@@ -19,6 +19,7 @@ import android.net.Uri
 import android.media.MediaPlayer
 import android.content.pm.PackageManager
 import android.provider.MediaStore
+import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -62,6 +63,7 @@ class MainActivity : Activity() {
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
  private data class WindowEntry(val id:Int,val title:String,val frame:View,val taskButton:Button)
+ private var pendingInstallUri:Uri?=null
  private var activeDownloadId=-1L
  private var updateReceiverRegistered=false
  private val uiHandler=Handler(Looper.getMainLooper())
@@ -1253,6 +1255,22 @@ class MainActivity : Activity() {
 
  private fun installDownloadedApk(uri:Uri) {
   try {
+   // Android 8+ requires explicit approval for installs initiated by this app.
+   if(Build.VERSION.SDK_INT>=26 && !packageManager.canRequestPackageInstalls()) {
+    pendingInstallUri=uri
+    AlertDialog.Builder(this)
+     .setTitle("السماح بتثبيت التحديث")
+     .setMessage("فعّل السماح من هذا المصدر لتثبيت تحديث Oriket Desktop فوق النسخة الحالية مع الاحتفاظ ببيانات التطبيق. لا تحذف النسخة الحالية.")
+     .setPositiveButton("فتح الإعدادات") { _,_->
+      try {
+       startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))
+      } catch(_:Exception) {
+       Toast.makeText(this,"افتح إعدادات Android ثم اسمح بتثبيت التطبيقات من هذا المصدر.",Toast.LENGTH_LONG).show()
+      }
+     }
+     .setNegativeButton("إلغاء",null).show()
+    return
+   }
    val intent=Intent(Intent.ACTION_VIEW).apply {
     setDataAndType(uri,"application/vnd.android.package-archive")
     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1260,6 +1278,17 @@ class MainActivity : Activity() {
    startActivity(intent)
   } catch(_:Exception) {
    Toast.makeText(this,"تعذر فتح مثبت الحزم. افتح ملف التحديث من التنزيلات يدويًا.",Toast.LENGTH_LONG).show()
+  }
+ }
+
+ override fun onResume() {
+  super.onResume()
+  if(Build.VERSION.SDK_INT>=26 && packageManager.canRequestPackageInstalls()) {
+   val uri=pendingInstallUri
+   if(uri!=null) {
+    pendingInstallUri=null
+    uiHandler.post { installDownloadedApk(uri) }
+   }
   }
  }
 
