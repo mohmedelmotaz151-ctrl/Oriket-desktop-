@@ -1700,20 +1700,76 @@ class MainActivity : Activity() {
   render()
  }
  private fun showControlPanel() {
-  shell("لوحة التحكم")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="لوحة التحكم"; textSize=20.24f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(8,4,8,12) })
-  listOf(
-   "الشاشة والاتجاه" to { AlertDialog.Builder(this).setTitle("الشاشة").setMessage("تم تصميم الواجهة للوضع الأفقي. يمكنك تدوير الجهاز من إعدادات Android.").setPositiveButton("حسنًا",null).show() },
-   "خلفية سطح المكتب" to { showWallpaperPicker() },
-   "سياسة الخصوصية" to { showPrivacyPolicy() },
-   "الشبكة والإنترنت" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
-   "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
-   "إعدادات التطبيقات" to { try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+packageName))) } catch(_:Exception){} },
-   "حول Oriket Desktop" to { showAbout() }
-  ).forEach { pair -> page.addView(task("⚙  "+pair.first){pair.second.invoke()},LinearLayout.LayoutParams(-1,48).apply { topMargin=3; bottomMargin=3 }) }
+  shell("الإعدادات")
+  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(6,4,6,4) }
+  page.addView(TextView(this).apply {
+   text="الإعدادات"; textSize=21f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(8,2,8,2)
+  })
+  page.addView(TextView(this).apply {
+   text="اضبط جهازك وتجربة Oriket Desktop"; textSize=11f; setTextColor(Color.rgb(105,118,138)); setPadding(8,0,8,10)
+  })
+  val search=EditText(this).apply {
+   hint="بحث عن إعداد"; textSize=11.5f; setSingleLine(true); setPadding(13,2,13,2); setTextColor(navy)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=18f; setStroke(1,border) }
+  }
+  page.addView(search,LinearLayout.LayoutParams(-1,42).apply { bottomMargin=8 })
+  val groups=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val entries=listOf(
+   Triple("📶","الشبكة والإنترنت","Wi-Fi وبيانات الاتصال",android.provider.Settings.ACTION_WIFI_SETTINGS),
+   Triple("ᛒ","Bluetooth","الأجهزة والاتصال اللاسلكي",android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
+   Triple("🖥️","الشاشة والسطوع","السطوع وحجم العرض",android.provider.Settings.ACTION_DISPLAY_SETTINGS),
+   Triple("🔊","الصوت","مستوى الصوت ونغمات النظام",android.provider.Settings.ACTION_SOUND_SETTINGS),
+   Triple("🔋","البطارية","استهلاك الطاقة ووضع التوفير",android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS),
+   Triple("▣","الإشعارات","إدارة إشعارات Oriket Desktop",android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS),
+   Triple("◷","التاريخ والوقت","الوقت والمنطقة الزمنية",android.provider.Settings.ACTION_DATE_SETTINGS),
+   Triple("📱","التطبيقات","معلومات Oriket Desktop وأذوناته",android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
+   Triple("🎨","الخلفية والتخصيص","تغيير خلفية سطح المكتب", "orkeit-wallpaper"),
+   Triple("🔒","الخصوصية","سياسة الخصوصية", "orkeit-privacy"),
+   Triple("ℹ️","حول التطبيق","الإصدار ومعلومات التطبيق", "orkeit-about")
+  )
+  val rows=mutableListOf<Pair<View,String>>()
+  entries.forEach { item ->
+   val card=LinearLayout(this).apply {
+    orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,5,10,5)
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=12f; setStroke(1,border) }
+    isClickable=true; isFocusable=true
+    setOnClickListener {
+     when(item.fourth) {
+      "orkeit-wallpaper" -> showWallpaperPicker()
+      "orkeit-privacy" -> showPrivacyPolicy()
+      "orkeit-about" -> showAbout()
+      android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS -> try {
+       startActivity(Intent(item.fourth).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName))
+      } catch(_:Exception) { Toast.makeText(this,"تعذر فتح إعدادات الإشعارات",Toast.LENGTH_SHORT).show() }
+      android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS -> try {
+       startActivity(Intent(item.fourth,Uri.parse("package:$packageName")))
+      } catch(_:Exception) { Toast.makeText(this,"تعذر فتح معلومات التطبيق",Toast.LENGTH_SHORT).show() }
+      else -> try { startActivity(Intent(item.fourth)) }
+       catch(_:Exception) { Toast.makeText(this,"هذا الإعداد غير متاح على هذا الجهاز",Toast.LENGTH_SHORT).show() }
+     }
+    }
+   }
+   card.addView(TextView(this).apply { text=item.first; textSize=23f; gravity=Gravity.CENTER; setTextColor(blue) },LinearLayout.LayoutParams(42,48))
+   val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+   labels.addView(TextView(this).apply { text=item.second; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
+   labels.addView(TextView(this).apply { text=item.third; textSize=9.5f; setTextColor(Color.rgb(112,124,142)); setPadding(0,2,0,0) })
+   card.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
+   card.addView(TextView(this).apply { text="‹"; textSize=22f; setTextColor(Color.rgb(125,140,160)); gravity=Gravity.CENTER },LinearLayout.LayoutParams(24,44))
+   rows.add(card to (item.second+" "+item.third))
+  }
+  rows.forEach { groups.addView(it.first,LinearLayout.LayoutParams(-1,58).apply { bottomMargin=6 }) }
+  page.addView(ScrollView(this).apply { isFillViewport=true; addView(groups) },LinearLayout.LayoutParams(-1,0,1f))
+  search.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+    val q=s.toString().trim()
+    rows.forEach { (view,label) -> view.visibility=if(q.isEmpty() || label.contains(q,true)) View.VISIBLE else View.GONE }
+   }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
   panel(page)
  }
+
  private fun showTaskManager() {
   shell("إدارة المهام")
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
