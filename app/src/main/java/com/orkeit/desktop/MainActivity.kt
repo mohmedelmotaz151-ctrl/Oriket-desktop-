@@ -1,3 +1,4 @@
+// Desktop settings and notification center are available from the taskbar.
 package com.orkeit.desktop
 
 import android.app.Activity
