@@ -1290,21 +1290,22 @@ class MainActivity : Activity() {
    }
   }
   menu.addView(search,LinearLayout.LayoutParams(-1,46))
+  val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
+  lateinit var allButton:Button
+  var expandedApps=false
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,5) }
   heading.addView(TextView(this).apply {
    text="التطبيقات المثبّتة"; textSize=14.5f
    typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
   },LinearLayout.LayoutParams(0,36,1f))
-  val allButton=task("كل التطبيقات  ›") { 
-   val expanded=grid.columnCount==2
-   grid.columnCount=if(expanded) 4 else 2
-   allButtonLabel.text=if(expanded) "كل التطبيقات  ›" else "عرض المختصر  ‹"
+  allButton=task("كل التطبيقات  ›") {
+   expandedApps=!expandedApps
+   grid.columnCount=if(expandedApps) 2 else 4
+   allButton.text=if(expandedApps) "عرض المختصر  ‹" else "كل التطبيقات  ›"
   }
-  val allButtonLabel=allButton
   allButton.textSize=10f
   heading.addView(allButton,LinearLayout.LayoutParams(-2,36))
   menu.addView(heading)
-  val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
   val items=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
