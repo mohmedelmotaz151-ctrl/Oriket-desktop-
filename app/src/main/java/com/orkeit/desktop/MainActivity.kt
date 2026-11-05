@@ -1633,8 +1633,8 @@ class MainActivity : Activity() {
       gravity=Gravity.CENTER_VERTICAL
       background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=6f;setStroke(1,Color.rgb(237,240,245))}
       addView(task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;fileSearch.setText("");render()}else showFile(Uri.fromFile(f))},LinearLayout.LayoutParams(0,42,1f))
-      addView(task("⋯"){
-       android.widget.PopupMenu(this@MainActivity,it).apply {
+      val more=task("⋯"){
+       android.widget.PopupMenu(this@MainActivity,more).apply {
         menu.add("فتح").setOnMenuItemClickListener { if(f.isDirectory){current=f;render()}else showFile(Uri.fromFile(f));true }
         menu.add("إعادة تسمية").setOnMenuItemClickListener {
          val edit=EditText(this@MainActivity).apply{setText(f.name);selectAll()}
@@ -1649,7 +1649,8 @@ class MainActivity : Activity() {
          true
         }
        }.show()
-      },LinearLayout.LayoutParams(42,42))
+      }
+      addView(more,LinearLayout.LayoutParams(42,42))
      }
      main.addView(row,LinearLayout.LayoutParams(-1,44).apply{bottomMargin=3})
     }
