@@ -1715,17 +1715,17 @@ class MainActivity : Activity() {
   page.addView(search,LinearLayout.LayoutParams(-1,42).apply { bottomMargin=8 })
   val groups=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   val entries=listOf(
-   Triple("📶","الشبكة والإنترنت","Wi-Fi وبيانات الاتصال",android.provider.Settings.ACTION_WIFI_SETTINGS),
-   Triple("ᛒ","Bluetooth","الأجهزة والاتصال اللاسلكي",android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
-   Triple("🖥️","الشاشة والسطوع","السطوع وحجم العرض",android.provider.Settings.ACTION_DISPLAY_SETTINGS),
-   Triple("🔊","الصوت","مستوى الصوت ونغمات النظام",android.provider.Settings.ACTION_SOUND_SETTINGS),
-   Triple("🔋","البطارية","استهلاك الطاقة ووضع التوفير",android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS),
-   Triple("▣","الإشعارات","إدارة إشعارات Oriket Desktop",android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS),
-   Triple("◷","التاريخ والوقت","الوقت والمنطقة الزمنية",android.provider.Settings.ACTION_DATE_SETTINGS),
-   Triple("📱","التطبيقات","معلومات Oriket Desktop وأذوناته",android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
-   Triple("🎨","الخلفية والتخصيص","تغيير خلفية سطح المكتب", "orkeit-wallpaper"),
-   Triple("🔒","الخصوصية","سياسة الخصوصية", "orkeit-privacy"),
-   Triple("ℹ️","حول التطبيق","الإصدار ومعلومات التطبيق", "orkeit-about")
+   arrayOf("📶","الشبكة والإنترنت","Wi-Fi وبيانات الاتصال",android.provider.Settings.ACTION_WIFI_SETTINGS),
+   arrayOf("ᛒ","Bluetooth","الأجهزة والاتصال اللاسلكي",android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
+   arrayOf("🖥️","الشاشة والسطوع","السطوع وحجم العرض",android.provider.Settings.ACTION_DISPLAY_SETTINGS),
+   arrayOf("🔊","الصوت","مستوى الصوت ونغمات النظام",android.provider.Settings.ACTION_SOUND_SETTINGS),
+   arrayOf("🔋","البطارية","استهلاك الطاقة ووضع التوفير",android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS),
+   arrayOf("▣","الإشعارات","إدارة إشعارات Oriket Desktop",android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS),
+   arrayOf("◷","التاريخ والوقت","الوقت والمنطقة الزمنية",android.provider.Settings.ACTION_DATE_SETTINGS),
+   arrayOf("📱","التطبيقات","معلومات Oriket Desktop وأذوناته",android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
+   arrayOf("🎨","الخلفية والتخصيص","تغيير خلفية سطح المكتب", "orkeit-wallpaper"),
+   arrayOf("🔒","الخصوصية","سياسة الخصوصية", "orkeit-privacy"),
+   arrayOf("ℹ️","حول التطبيق","الإصدار ومعلومات التطبيق", "orkeit-about")
   )
   val rows=mutableListOf<Pair<View,String>>()
   entries.forEach { item ->
@@ -1734,28 +1734,28 @@ class MainActivity : Activity() {
     background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=12f; setStroke(1,border) }
     isClickable=true; isFocusable=true
     setOnClickListener {
-     when(item.fourth) {
+     when(item[3]) {
       "orkeit-wallpaper" -> showWallpaperPicker()
       "orkeit-privacy" -> showPrivacyPolicy()
       "orkeit-about" -> showAbout()
       android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS -> try {
-       startActivity(Intent(item.fourth).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName))
+       startActivity(Intent(item[3]).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName))
       } catch(_:Exception) { Toast.makeText(this,"تعذر فتح إعدادات الإشعارات",Toast.LENGTH_SHORT).show() }
       android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS -> try {
-       startActivity(Intent(item.fourth,Uri.parse("package:$packageName")))
+       startActivity(Intent(item[3],Uri.parse("package:$packageName")))
       } catch(_:Exception) { Toast.makeText(this,"تعذر فتح معلومات التطبيق",Toast.LENGTH_SHORT).show() }
-      else -> try { startActivity(Intent(item.fourth)) }
+      else -> try { startActivity(Intent(item[3])) }
        catch(_:Exception) { Toast.makeText(this,"هذا الإعداد غير متاح على هذا الجهاز",Toast.LENGTH_SHORT).show() }
      }
     }
    }
-   card.addView(TextView(this).apply { text=item.first; textSize=23f; gravity=Gravity.CENTER; setTextColor(blue) },LinearLayout.LayoutParams(42,48))
+   card.addView(TextView(this).apply { text=item[0]; textSize=23f; gravity=Gravity.CENTER; setTextColor(blue) },LinearLayout.LayoutParams(42,48))
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
-   labels.addView(TextView(this).apply { text=item.second; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
-   labels.addView(TextView(this).apply { text=item.third; textSize=9.5f; setTextColor(Color.rgb(112,124,142)); setPadding(0,2,0,0) })
+   labels.addView(TextView(this).apply { text=item[1]; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
+   labels.addView(TextView(this).apply { text=item[2]; textSize=9.5f; setTextColor(Color.rgb(112,124,142)); setPadding(0,2,0,0) })
    card.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
    card.addView(TextView(this).apply { text="‹"; textSize=22f; setTextColor(Color.rgb(125,140,160)); gravity=Gravity.CENTER },LinearLayout.LayoutParams(24,44))
-   rows.add(card to (item.second+" "+item.third))
+   rows.add(card to (item[1]+" "+item[2]))
   }
   rows.forEach { groups.addView(it.first,LinearLayout.LayoutParams(-1,58).apply { bottomMargin=6 }) }
   page.addView(ScrollView(this).apply { isFillViewport=true; addView(groups) },LinearLayout.LayoutParams(-1,0,1f))
