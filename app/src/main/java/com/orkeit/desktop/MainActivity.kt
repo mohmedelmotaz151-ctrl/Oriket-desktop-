@@ -594,6 +594,33 @@ class MainActivity : Activity() {
   val body=FrameLayout(this).apply { setPadding(10,8,10,8); setBackgroundColor(Color.rgb(250,251,254)) }
   outer.addView(body,LinearLayout.LayoutParams(-1,0,1f))
   val lp=FrameLayout.LayoutParams((desktopArea.width*0.86f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280)), (desktopArea.height*0.84f).toInt().coerceIn(220,(desktopArea.height-16).coerceAtLeast(220)),Gravity.CENTER)
+  var maximized=false
+  var oldParams:FrameLayout.LayoutParams?=null
+  val resizeGrip=TextView(this).apply {
+   text="◢"; textSize=13.2f; gravity=Gravity.CENTER; setTextColor(Color.rgb(105,125,155))
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(225,238,243,250)); cornerRadius=7f }
+   contentDescription="تغيير حجم النافذة"
+  }
+  body.addView(resizeGrip,FrameLayout.LayoutParams(26,26,Gravity.BOTTOM or Gravity.RIGHT).apply{rightMargin=2;bottomMargin=2})
+  var resizeX=0f; var resizeY=0f; var resizeW=0; var resizeH=0
+  resizeGrip.setOnTouchListener { _,e ->
+   when(e.action) {
+    MotionEvent.ACTION_DOWN -> {
+     resizeX=e.rawX; resizeY=e.rawY; resizeW=outer.width; resizeH=outer.height
+     outer.bringToFront(); true
+    }
+    MotionEvent.ACTION_MOVE -> {
+     if(!maximized) {
+      val p=outer.layoutParams as FrameLayout.LayoutParams
+      p.width=(resizeW+e.rawX-resizeX).toInt().coerceIn(280,(desktopArea.width-outer.x).toInt().coerceAtLeast(280))
+      p.height=(resizeH+e.rawY-resizeY).toInt().coerceIn(220,(desktopArea.height-outer.y).toInt().coerceAtLeast(220))
+      outer.layoutParams=p
+     }
+     true
+    }
+    else -> true
+   }
+  }
   val entryButton=taskButton(title)
   val entry=WindowEntry(id,title,outer,entryButton)
   openWindows.add(entry)
@@ -615,9 +642,7 @@ class MainActivity : Activity() {
   outer.bringToFront()
   content=body
   var downX=0f; var downY=0f; var startX=0f; var startY=0f
-  var maximized=false
   var lastTap=0L
-  var oldParams:FrameLayout.LayoutParams?=null
   titlebar.setOnTouchListener { _,e ->
    when(e.action) {
     MotionEvent.ACTION_DOWN -> {
