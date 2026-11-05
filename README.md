@@ -32,3 +32,7 @@ The project now targets Android 16 / API 36 and has a separate `play` flavor. To
 The Play flavor removes `REQUEST_INSTALL_PACKAGES` and disables GitHub APK self-updates so Google Play remains the update channel. Publish the privacy policy at a public URL before submitting; see `docs/privacy-policy.html` and enable GitHub Pages with the GitHub Actions source.
 
 The direct-download APK and Google Play build are separate distribution variants. Because their signing certificates can differ, do not assume the Play version can update an already installed debug-signed APK without reinstalling.
+
+## إعدادات سطح المكتب والإشعارات
+- مركز إعدادات قابل للبحث للوصول إلى إعدادات الشبكة والصوت والشاشة والبطارية وإشعارات التطبيق.
+- مركز إشعارات داخلي يعرض إشعارات الجلسة الحالية، مع إمكانية مسحها وفتح إعدادات إشعارات Android.
