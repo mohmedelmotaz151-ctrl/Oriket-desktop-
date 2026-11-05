@@ -1587,7 +1587,7 @@ class MainActivity : Activity() {
   val fileSearch=EditText(this).apply {
    hint="بحث في المجلد"
    textSize=10.56f
-   singleLine=true
+   setSingleLine(true)
    setTextColor(navy)
    setPadding(9,0,9,0)
    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=7f; setStroke(1,Color.rgb(220,226,234)) }
@@ -2029,25 +2029,68 @@ class MainActivity : Activity() {
  }
 
  private fun showQuickSettings() {
-  val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(18,16,18,16); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(246,249,255)); cornerRadius=22f; setStroke(1,border) } }
-  box.addView(TextView(this).apply { text="الإعدادات السريعة"; textSize=17.6f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,2,2,12) })
-  val grid=GridLayout(this).apply { columnCount=2 }
+  fun openSystemSetting(action:String, fallback:String=android.provider.Settings.ACTION_SETTINGS) {
+   try { startActivity(Intent(action)) }
+   catch(_:Exception) { try { startActivity(Intent(fallback)) } catch(_:Exception) { Toast.makeText(this,"تعذر فتح إعدادات الجهاز",Toast.LENGTH_SHORT).show() } }
+  }
+  val box=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; setPadding(18,16,18,14)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(246,249,255)); cornerRadius=24f; setStroke(1,border) }
+  }
+  val titleRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  titleRow.addView(TextView(this).apply {
+   text="مركز التحكم"; textSize=18f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
+  },LinearLayout.LayoutParams(0,42,1f))
+  titleRow.addView(TextView(this).apply {
+   text="Oriket"; textSize=10.5f; setTextColor(Color.rgb(95,112,135))
+  })
+  box.addView(titleRow)
+  box.addView(TextView(this).apply {
+   text="اختصارات سريعة لإعدادات Android"; textSize=10.5f; setTextColor(Color.rgb(105,118,138)); setPadding(2,0,2,12)
+  })
+  val grid=GridLayout(this).apply { columnCount=2; useDefaultMargins=false }
   val settings=listOf(
-   "Wi-Fi / الشبكة" to { try { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } catch(_:Exception){} },
-   "الصوت" to { try { startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)) } catch(_:Exception){} },
-   "Bluetooth" to { try { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) } catch(_:Exception){} },
-   "إعدادات الجهاز" to { try { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) } catch(_:Exception){} },
-   "لوحة التحكم" to { showControlPanel() },
-   "إظهار/إخفاء شريط النظام" to {
-    val hidden=(window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN)!=0
-    window.decorView.systemUiVisibility=if(hidden) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
-   }
+   Triple("◉","Wi-Fi والشبكة",android.provider.Settings.ACTION_WIFI_SETTINGS),
+   Triple("◈","Bluetooth",android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
+   Triple("♫","الصوت",android.provider.Settings.ACTION_SOUND_SETTINGS),
+   Triple("☼","الشاشة والسطوع",android.provider.Settings.ACTION_DISPLAY_SETTINGS),
+   Triple("🔋","البطارية",android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS),
+   Triple("◷","التاريخ والوقت",android.provider.Settings.ACTION_DATE_SETTINGS),
+   Triple("▣","الإشعارات",android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS),
+   Triple("⚙","إعدادات الجهاز",android.provider.Settings.ACTION_SETTINGS)
   )
   settings.forEach { item ->
-   grid.addView(action(item.first){item.second.invoke()},GridLayout.LayoutParams().apply { width=0;height=54;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
+   val tile=LinearLayout(this).apply {
+    orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,7,10,7)
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=13f; setStroke(1,Color.rgb(222,229,239)) }
+    isClickable=true; isFocusable=true
+    setOnClickListener {
+     if(item.third==android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS) {
+      try { startActivity(Intent(item.third).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }
+      catch(_:Exception) { openSystemSetting(android.provider.Settings.ACTION_SETTINGS) }
+     } else openSystemSetting(item.third)
+    }
+   }
+   tile.addView(TextView(this).apply { text=item.first; textSize=21f; gravity=Gravity.CENTER; setTextColor(Color.rgb(42,91,151)) },LinearLayout.LayoutParams(38,42))
+   tile.addView(TextView(this).apply { text=item.second; textSize=11.2f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,42,1f))
+   grid.addView(tile,GridLayout.LayoutParams().apply {
+    width=0; height=58; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4)
+   })
   }
   box.addView(grid)
-  box.addView(TextView(this).apply { text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=10.56f; setTextColor(navy); gravity=Gravity.CENTER; setPadding(4,12,4,2) })
+  val divider=View(this).apply { setBackgroundColor(Color.rgb(224,230,239)) }
+  box.addView(divider,LinearLayout.LayoutParams(-1,1).apply { topMargin=10; bottomMargin=8 })
+  box.addView(TextView(this).apply {
+   text="إظهار أو إخفاء أشرطة Android"; textSize=11.5f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,2,2,6)
+  })
+  box.addView(action("تبديل وضع ملء الشاشة") {
+   val hidden=(window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN)!=0
+   window.decorView.systemUiVisibility=if(hidden) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else
+    (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+  })
+  box.addView(TextView(this).apply {
+   text="Oriket Desktop • ${BuildConfig.VERSION_NAME}"; textSize=9.8f; setTextColor(Color.rgb(110,122,140)); gravity=Gravity.CENTER; setPadding(4,12,4,0)
+  })
   AlertDialog.Builder(this).setView(box).setPositiveButton("إغلاق",null).show()
  }
 
