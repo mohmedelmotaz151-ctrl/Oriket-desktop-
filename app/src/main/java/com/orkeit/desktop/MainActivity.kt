@@ -1261,93 +1261,178 @@ class MainActivity : Activity() {
  private fun showStartMenu() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
   if(existing!=null) { desktopArea.removeView(existing); return }
-  val panelWidth=(desktopArea.width*0.92f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280))
-  val panelHeight=(desktopArea.height*0.90f).toInt().coerceIn(300,(desktopArea.height-16).coerceAtLeast(300))
+  val availableWidth=(desktopArea.width-24).coerceAtLeast(280)
+  val panelWidth=(desktopArea.width*0.88f).toInt().coerceIn(280,minOf(680,availableWidth))
+  val panelHeight=(desktopArea.height*0.92f).toInt().coerceIn(300,(desktopArea.height-12).coerceAtLeast(300))
   val menu=LinearLayout(this).apply {
-   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(18,16,18,12)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(247,245,248,253)); cornerRadius=28f; setStroke(1,Color.rgb(220,228,240)) }
-   elevation=36f
+   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(20,16,20,12)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.argb(249,246,249,254)); cornerRadius=28f
+    setStroke(1,Color.rgb(218,228,242))
+   }
+   elevation=38f
   }
+  val top=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,0,2,10) }
+  top.addView(TextView(this).apply {
+   text="ابدأ"; textSize=20f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(navy)
+  },LinearLayout.LayoutParams(0,42,1f))
+  top.addView(TextView(this).apply {
+   text="Oriket Desktop"; textSize=10.5f; setTextColor(Color.rgb(105,121,145))
+  })
+  menu.addView(top,LinearLayout.LayoutParams(-1,44))
   val search=EditText(this).apply {
-   tag="start-search"; hint="🔎  البحث عن التطبيقات"; textSize=11.44f; setSingleLine(true)
+   tag="start-search"; hint="⌕  البحث عن التطبيقات والإعدادات"
+   textSize=12f; setSingleLine(true)
    setPadding(16,2,16,2); setTextColor(navy); setHintTextColor(Color.rgb(105,120,143))
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=22f; setStroke(1,Color.rgb(220,228,240)) }
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); cornerRadius=18f; setStroke(1,Color.rgb(210,222,239))
+   }
   }
   menu.addView(search,LinearLayout.LayoutParams(-1,46))
-  val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,4) }
-  heading.addView(TextView(this).apply { text="مثبّت"; textSize=15.84f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,36,1f))
-  heading.addView(task("كل التطبيقات  ›"){ search.setText("") })
+  val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,5) }
+  heading.addView(TextView(this).apply {
+   text="التطبيقات المثبّتة"; textSize=14.5f
+   typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
+  },LinearLayout.LayoutParams(0,36,1f))
+  val allButton=task("كل التطبيقات  ›") { 
+   val expanded=grid.columnCount==2
+   grid.columnCount=if(expanded) 4 else 2
+   allButtonLabel.text=if(expanded) "كل التطبيقات  ›" else "عرض المختصر  ‹"
+  }
+  val allButtonLabel=allButton
+  allButton.textSize=10f
+  heading.addView(allButton,LinearLayout.LayoutParams(-2,36))
   menu.addView(heading)
   val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
   val items=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
-   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🖼️","الصور",{showPhotos()}),Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("▶️","YouTube",{showYouTube()}),Triple("🎧","YouTube Music",{showYouTubeMusic()}),Triple("🎨","الرسام",{showPaint()}),
+   Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),Triple("🖼️","الصور",{showPhotos()}),
+   Triple("🎵","مشغل الموسيقى",{showMusicPlayer()}),Triple("▶️","YouTube",{showYouTube()}),
+   Triple("🎧","YouTube Music",{showYouTubeMusic()}),Triple("🎨","الرسام",{showPaint()}),
    Triple("📝","Word",{showWord()}),Triple("📊","Excel",{showExcel()}),
    Triple("⚙️","الإعدادات",{showControlPanel()}),Triple("📋","إدارة المهام",{showTaskManager()}),
    Triple("⌨️","Command",{showCommand()}),Triple("🎮","الألعاب",{showGames()}),
    Triple("🧮","الحاسبة",{showCalculator()}),Triple("🗒️","المفكرة",{showNotepad()}),
    Triple("🔄","تحديث التطبيق",{checkForUpdates(true)}),Triple("ℹ️","حول Oriket",{showAbout()})
   )
+  val empty=TextView(this).apply {
+   text="لا توجد تطبيقات مطابقة لبحثك"; textSize=12f
+   setTextColor(Color.rgb(105,120,143)); gravity=Gravity.CENTER
+   visibility=View.GONE
+  }
   items.forEach { item ->
    val tile=LinearLayout(this).apply {
-    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(2,5,2,5)
-    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=12f }
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(3,6,3,6)
+    background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(Color.TRANSPARENT); cornerRadius=13f
+    }
     isClickable=true; isFocusable=true
     setOnClickListener { desktopArea.removeView(menu); item.third.invoke() }
     setOnTouchListener { v,e ->
-     if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(225,235,249)); cornerRadius=12f }
-     if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL) v.postDelayed({v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=12f }},160)
+     if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply {
+      setColor(Color.rgb(225,235,249)); cornerRadius=13f
+     }
+     if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL)
+      v.postDelayed({v.background=android.graphics.drawable.GradientDrawable().apply {
+       setColor(Color.TRANSPARENT); cornerRadius=13f
+      }},160)
      false
     }
    }
-   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(44,44))
-   tile.addView(TextView(this).apply { text=item.second; textSize=10.56f; gravity=Gravity.CENTER; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.02f) },LinearLayout.LayoutParams(-1,36))
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=0;height=96;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(4,4,4,4) })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(46,46))
+   tile.addView(TextView(this).apply {
+    text=item.second; textSize=10.5f; gravity=Gravity.CENTER
+    setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD)
+    maxLines=2; minLines=2; ellipsize=android.text.TextUtils.TruncateAt.END
+    setLineSpacing(1f,1.02f)
+   },LinearLayout.LayoutParams(-1,38))
+   grid.addView(tile,GridLayout.LayoutParams().apply {
+    width=0; height=98; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)
+    setMargins(4,4,4,4)
+   })
   }
-  menu.addView(ScrollView(this).apply { isFillViewport=true; addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
+  val appsScroll=ScrollView(this).apply {
+   isFillViewport=true
+   addView(LinearLayout(this@MainActivity).apply {
+    orientation=LinearLayout.VERTICAL
+    addView(grid,LinearLayout.LayoutParams(-1,-2))
+    addView(empty,LinearLayout.LayoutParams(-1,80))
+   })
+  }
+  menu.addView(appsScroll,LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
-   text="موصى به"; textSize=13.2f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,9,2,5)
+   text="موصى به"; textSize=13f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(navy); setPadding(2,8,2,5)
   }
   menu.addView(recommendedHeading)
   val rec=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
   listOf(
-   Triple("📄","فتح مستند PDF","عرض ملفات PDF من جهازك"),
+   Triple("📄","فتح مستند PDF","اختر ملف PDF من جهازك"),
    Triple("🎨","الرسام","افتح لوحة الرسم وابدأ مشروعًا جديدًا")
   ).forEachIndexed { index,item ->
    val row=LinearLayout(this).apply {
-    orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(8,4,8,4)
-    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(250,251,254)); cornerRadius=12f }
+    orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+    setPadding(8,3,8,3)
+    background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(Color.rgb(250,252,255)); cornerRadius=12f
+     setStroke(1,Color.rgb(232,237,245))
+    }
     isClickable=true
-    setOnClickListener { desktopArea.removeView(menu); if(index==0) pickFile("application/pdf") else showPaint() }
+    setOnClickListener {
+     desktopArea.removeView(menu)
+     if(index==0) pickFile("application/pdf") else showPaint()
+    }
    }
-   row.addView(TextView(this).apply { text=item.first; textSize=20.24f; gravity=Gravity.CENTER },LinearLayout.LayoutParams(42,42))
+   row.addView(TextView(this).apply {
+    text=item.first; textSize=20f; gravity=Gravity.CENTER
+   },LinearLayout.LayoutParams(42,42))
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-   labels.addView(TextView(this).apply { text=item.second; textSize=10.56f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
-   labels.addView(TextView(this).apply { text=item.third; textSize=8.8f; setTextColor(Color.DKGRAY) })
+   labels.addView(TextView(this).apply {
+    text=item.second; textSize=10.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
+    setTextColor(navy)
+   })
+   labels.addView(TextView(this).apply {
+    text=item.third; textSize=9f; setTextColor(Color.DKGRAY)
+   })
    row.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
    rec.addView(row,LinearLayout.LayoutParams(-1,48).apply { bottomMargin=3 })
   }
   menu.addView(rec,LinearLayout.LayoutParams(-1,-2))
   val footer=LinearLayout(this).apply {
-   gravity=Gravity.CENTER_VERTICAL; setPadding(8,8,8,0)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,240,248)); cornerRadius=16f }
+   gravity=Gravity.CENTER_VERTICAL; setPadding(10,6,8,4)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.rgb(235,241,249)); cornerRadius=16f
+   }
   }
-  footer.addView(TextView(this).apply { text="👤  Oriket Desktop"; textSize=10.56f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,42,1f))
-  footer.addView(task("⚙"){ desktopArea.removeView(menu); showControlPanel() })
-   footer.addView(task("⏻"){ desktopArea.removeView(menu); showPowerMenu() })
+  footer.addView(TextView(this).apply {
+   text="◉  المستخدم  •  Oriket Desktop"; textSize=10.5f
+   typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
+  },LinearLayout.LayoutParams(0,40,1f))
+  footer.addView(task("⚙") { desktopArea.removeView(menu); showControlPanel() })
+  footer.addView(task("⏻") { desktopArea.removeView(menu); showPowerMenu() })
   menu.addView(footer,LinearLayout.LayoutParams(-1,48).apply { topMargin=8 })
-  desktopArea.addView(menu,FrameLayout.LayoutParams(panelWidth,panelHeight,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=12 })
+  desktopArea.addView(menu,FrameLayout.LayoutParams(panelWidth,panelHeight,
+   Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=12 })
   menu.bringToFront()
   search.addTextChangedListener(object:android.text.TextWatcher {
    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
    override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
     val q=s.toString().trim()
+    var visibleCount=0
     for(i in 0 until grid.childCount) {
      val tile=grid.getChildAt(i)
-     val label=(tile as? ViewGroup)?.let { it.getChildAt(1) as? TextView }?.text?.toString().orEmpty()
-     tile.visibility=if(q.isEmpty() || label.contains(q,true)) View.VISIBLE else View.GONE
+     val label=(tile as? ViewGroup)?.let {
+      it.getChildAt(1) as? TextView
+     }?.text?.toString().orEmpty()
+     val match=q.isEmpty() || label.contains(q,true)
+     tile.visibility=if(match) View.VISIBLE else View.GONE
+     if(match) visibleCount++
     }
+    empty.visibility=if(visibleCount==0) View.VISIBLE else View.GONE
+    recommendedHeading.visibility=if(q.isEmpty()) View.VISIBLE else View.GONE
+    rec.visibility=if(q.isEmpty()) View.VISIBLE else View.GONE
    }
    override fun afterTextChanged(s:android.text.Editable?) {}
   })
