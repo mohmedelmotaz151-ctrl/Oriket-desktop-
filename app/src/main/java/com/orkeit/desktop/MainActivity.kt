@@ -923,8 +923,16 @@ class MainActivity : Activity() {
    setPadding(8,10,8,8)
    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
-  val desktopColumns=((desktopArea.width-32)/140).coerceIn(2,7)
-  val grid=GridLayout(this).apply { columnCount=desktopColumns; useDefaultMargins=false }
+  // Grid dimensions are measured in dp, not raw pixels, so density changes cannot squeeze tiles together.
+  val density=resources.displayMetrics.density.coerceAtLeast(1f)
+  val desktopWidthDp=(if(desktopArea.width>0) desktopArea.width else resources.displayMetrics.widthPixels)/density
+  val desktopColumns=((desktopWidthDp-32f)/142f).toInt().coerceIn(2,7)
+  val grid=GridLayout(this).apply {
+   columnCount=desktopColumns
+   useDefaultMargins=false
+   alignmentMode=GridLayout.ALIGN_BOUNDS
+   setPadding(0,0,0,0)
+  }
   val allItems=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}), Triple("🧯","زيارات الدفاع المدني",{showBrowser("https://orkeitstm.vercel.app","زيارات الدفاع المدني")}), Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📄","مشغل PDF",{pickFile("application/pdf")}), Triple("🎬","مشغل الفيديو",{showVideoPlayer()}),
