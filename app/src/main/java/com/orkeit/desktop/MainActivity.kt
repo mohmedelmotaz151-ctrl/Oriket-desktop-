@@ -797,27 +797,27 @@ class MainActivity : Activity() {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
  private inner class Icon3DView(context:Context, private val symbol:String, private val label:String):View(context) {
+  // Fluent-inspired Windows 11 app tiles: clean geometry, recognizable glyphs and app-specific colors.
   private val colors:IntArray = when {
-   label.contains("YouTube Music") -> intArrayOf(Color.rgb(255,145,165),Color.rgb(230,35,65),Color.rgb(120,8,30))
-   label.contains("YouTube") -> intArrayOf(Color.rgb(255,155,155),Color.rgb(235,35,45),Color.rgb(125,8,18))
-   label.contains("مشغل الموسيقى") -> intArrayOf(Color.rgb(230,190,255),Color.rgb(140,65,210),Color.rgb(65,20,115))
-   label.contains("الإنترنت") -> intArrayOf(Color.rgb(96,205,255),Color.rgb(0,100,220),Color.rgb(5,45,130))
-   label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(180,225,255),Color.rgb(50,115,205),Color.rgb(20,48,112))
-   label.contains("PDF") -> intArrayOf(Color.rgb(255,145,145),Color.rgb(220,35,45),Color.rgb(125,12,25))
-   label.contains("الملفات") || label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(255,225,135),Color.rgb(225,155,35),Color.rgb(120,75,12))
-   label.contains("المتصفح") -> intArrayOf(Color.rgb(125,220,255),Color.rgb(25,125,220),Color.rgb(10,45,120))
-   label.contains("الفيديو") -> intArrayOf(Color.rgb(255,185,90),Color.rgb(235,90,25),Color.rgb(135,35,12))
-   label.contains("الرسام") -> intArrayOf(Color.rgb(255,190,220),Color.rgb(205,65,145),Color.rgb(105,25,90))
-   label.contains("Word") -> intArrayOf(Color.rgb(120,190,255),Color.rgb(25,95,205),Color.rgb(15,40,120))
-   label.contains("Excel") -> intArrayOf(Color.rgb(130,240,170),Color.rgb(20,155,85),Color.rgb(8,75,45))
-   label.contains("التحكم") -> intArrayOf(Color.rgb(220,225,240),Color.rgb(105,125,160),Color.rgb(45,55,85))
-   label.contains("المهام") -> intArrayOf(Color.rgb(175,230,255),Color.rgb(30,135,190),Color.rgb(10,60,105))
-   label.contains("Command") -> intArrayOf(Color.rgb(115,145,165),Color.rgb(35,55,75),Color.rgb(8,15,25))
-   label.contains("ألعاب") -> intArrayOf(Color.rgb(210,165,255),Color.rgb(125,60,220),Color.rgb(55,20,120))
-   label.contains("الحاسبة") -> intArrayOf(Color.rgb(180,245,220),Color.rgb(35,155,125),Color.rgb(10,65,65))
-   label.contains("المفكرة") -> intArrayOf(Color.rgb(255,245,160),Color.rgb(225,175,45),Color.rgb(120,75,12))
-   label.contains("تحديث") -> intArrayOf(Color.rgb(145,220,255),Color.rgb(30,130,220),Color.rgb(12,55,130))
-   else -> intArrayOf(Color.rgb(220,230,245),Color.rgb(100,125,165),Color.rgb(35,48,78))
+   label.contains("YouTube Music") -> intArrayOf(Color.rgb(255,65,95),Color.rgb(190,0,45),Color.rgb(255,205,215))
+   label.contains("YouTube") -> intArrayOf(Color.rgb(255,35,45),Color.rgb(190,0,15),Color.WHITE)
+   label.contains("مشغل الموسيقى") -> intArrayOf(Color.rgb(135,75,220),Color.rgb(80,35,155),Color.rgb(230,210,255))
+   label.contains("الإنترنت") || label.contains("متصفح") -> intArrayOf(Color.rgb(0,145,235),Color.rgb(0,85,175),Color.rgb(180,230,255))
+   label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(0,145,210),Color.rgb(0,80,145),Color.rgb(185,230,250))
+   label.contains("PDF") -> intArrayOf(Color.rgb(220,45,55),Color.rgb(145,10,25),Color.WHITE)
+   label.contains("الفيديو") -> intArrayOf(Color.rgb(225,105,35),Color.rgb(155,55,15),Color.rgb(255,220,170))
+   label.contains("الرسام") || label.contains("صور") -> intArrayOf(Color.rgb(205,65,145),Color.rgb(125,25,95),Color.rgb(255,205,230))
+   label.contains("Word") -> intArrayOf(Color.rgb(35,115,205),Color.rgb(15,65,145),Color.WHITE)
+   label.contains("Excel") -> intArrayOf(Color.rgb(20,145,85),Color.rgb(5,90,50),Color.WHITE)
+   label.contains("التحكم") || label.contains("الإعدادات") -> intArrayOf(Color.rgb(105,125,155),Color.rgb(55,70,100),Color.WHITE)
+   label.contains("المهام") -> intArrayOf(Color.rgb(0,135,185),Color.rgb(0,75,115),Color.WHITE)
+   label.contains("Command") -> intArrayOf(Color.rgb(35,48,65),Color.rgb(8,15,25),Color.rgb(160,220,255))
+   label.contains("ألعاب") -> intArrayOf(Color.rgb(125,75,210),Color.rgb(70,30,145),Color.WHITE)
+   label.contains("الحاسبة") -> intArrayOf(Color.rgb(0,145,125),Color.rgb(0,85,75),Color.WHITE)
+   label.contains("المفكرة") -> intArrayOf(Color.rgb(220,165,35),Color.rgb(145,95,10),Color.WHITE)
+   label.contains("تحديث") -> intArrayOf(Color.rgb(0,130,215),Color.rgb(0,75,155),Color.WHITE)
+   label.contains("زيارات") -> intArrayOf(Color.rgb(190,35,45),Color.rgb(115,15,25),Color.WHITE)
+   else -> intArrayOf(Color.rgb(75,115,175),Color.rgb(35,65,120),Color.WHITE)
   }
   private val fill=Paint(Paint.ANTI_ALIAS_FLAG)
   init { setLayerType(View.LAYER_TYPE_SOFTWARE,null); contentDescription=label }
@@ -828,83 +828,96 @@ class MainActivity : Activity() {
    val left=(width-side)/2f+4f; val top=4f
    val right=left+side-8f; val bottom=top+side-8f
    val rect=RectF(left,top,right,bottom)
+   // Flat rounded-square tile, without the old glossy 3D bevel.
    fill.style=Paint.Style.FILL
-   fill.color=colors[2]; fill.setShadowLayer(5f,0f,5f,Color.argb(120,0,0,0))
-   canvas.drawRoundRect(RectF(left+1f,top+2f,right+1f,bottom+2f),side*.2f,side*.2f,fill)
-   fill.clearShadowLayer()
-   fill.shader=LinearGradient(left,top,left,bottom,colors,null,Shader.TileMode.CLAMP)
-   canvas.drawRoundRect(rect,side*.2f,side*.2f,fill)
+   fill.shader=LinearGradient(left,top,right,bottom,intArrayOf(colors[0],colors[1]),null,Shader.TileMode.CLAMP)
+   canvas.drawRoundRect(rect,side*.19f,side*.19f,fill)
    fill.shader=null
-   fill.style=Paint.Style.STROKE; fill.strokeWidth=1.2f; fill.color=Color.argb(190,255,255,255)
-   canvas.drawRoundRect(RectF(left+1f,top+1f,right-1f,bottom-1f),side*.2f,side*.2f,fill)
-   fill.style=Paint.Style.FILL
-   fill.shader=LinearGradient(left,top,left,top+side*.46f,Color.argb(150,255,255,255),Color.argb(0,255,255,255),Shader.TileMode.CLAMP)
-   canvas.drawRoundRect(RectF(left+3f,top+3f,right-3f,top+side*.42f),side*.16f,side*.16f,fill)
-   fill.shader=null
+   fill.color=Color.argb(35,255,255,255)
+   canvas.drawRoundRect(RectF(left+2f,top+2f,right-2f,bottom-2f),side*.17f,side*.17f,fill)
    drawVectorGlyph(canvas,rect,label,side)
   }
   private fun drawVectorGlyph(canvas:Canvas,rect:RectF,label:String,side:Float) {
    val cx=rect.centerX(); val cy=rect.centerY(); val unit=side*.30f
    val p=Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color=Color.WHITE; style=Paint.Style.STROKE; strokeWidth=(side*.055f).coerceAtLeast(2.2f)
+    color=Color.WHITE; style=Paint.Style.STROKE; strokeWidth=(side*.052f).coerceAtLeast(2.1f)
     strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND
    }
    val path=Path()
    when {
     label.contains("متصفح") || label.contains("الإنترنت") -> {
+     p.color=colors[2]
      canvas.drawCircle(cx,cy,unit,p); canvas.drawOval(RectF(cx-unit*.48f,cy-unit,cx+unit*.48f,cy+unit),p)
      canvas.drawLine(cx-unit,cy,cx+unit,cy,p); canvas.drawArc(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),0f,180f,false,p)
     }
-    label.contains("الملفات") || label.contains("الكمبيوتر") -> {
+    label.contains("الكمبيوتر") -> {
+     p.color=colors[2]
+     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.72f,cx+unit,cy+unit*.55f),unit*.12f,unit*.12f,p)
+     canvas.drawLine(cx,cy+unit*.55f,cx,cy+unit*.9f,p)
+     canvas.drawLine(cx-unit*.42f,cy+unit*.9f,cx+unit*.42f,cy+unit*.9f,p)
+    }
+    label.contains("الملفات") -> {
+     p.color=colors[2]
      path.moveTo(cx-unit,cy-unit*.48f);path.lineTo(cx-unit*.25f,cy-unit*.48f);path.lineTo(cx+unit*.02f,cy-unit*.18f);path.lineTo(cx+unit,cy-unit*.18f);path.lineTo(cx+unit*.82f,cy+unit*.65f);path.lineTo(cx-unit*.82f,cy+unit*.65f);path.close();canvas.drawPath(path,p)
     }
     label.contains("PDF") || label.contains("Word") || label.contains("المفكرة") || label.contains("Excel") -> {
+     p.color=colors[2]
      path.moveTo(cx-unit*.65f,cy-unit);path.lineTo(cx+unit*.25f,cy-unit);path.lineTo(cx+unit*.68f,cy-unit*.55f);path.lineTo(cx+unit*.68f,cy+unit);path.lineTo(cx-unit*.65f,cy+unit);path.close();canvas.drawPath(path,p)
      canvas.drawLine(cx+unit*.2f,cy-unit,cx+unit*.2f,cy-unit*.55f,p);canvas.drawLine(cx+unit*.2f,cy-unit*.55f,cx+unit*.68f,cy-unit*.55f,p)
      for(i in -1..1) canvas.drawLine(cx-unit*.35f,cy+i*unit*.28f,cx+unit*.35f,cy+i*unit*.28f,p)
     }
     label.contains("الحاسبة") -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit*.72f,cy-unit,cx+unit*.72f,cy+unit),unit*.12f,unit*.12f,p)
      canvas.drawLine(cx-unit*.48f,cy-unit*.48f,cx+unit*.48f,cy-unit*.48f,p)
      for(y in 0..1) for(x in 0..2) canvas.drawCircle(cx-unit*.42f+x*unit*.42f,cy+unit*.02f+y*unit*.43f,unit*.09f,p)
     }
     label.contains("الرسام") || label.contains("صور") -> {
+     p.color=colors[2]
      canvas.drawCircle(cx,cy,unit*.88f,p);canvas.drawCircle(cx-unit*.25f,cy-unit*.2f,unit*.12f,p)
      canvas.drawCircle(cx+unit*.22f,cy-unit*.28f,unit*.12f,p);canvas.drawCircle(cx+unit*.42f,cy+unit*.12f,unit*.12f,p)
     }
     label.contains("الفيديو") || label.contains("YouTube") -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit,cy-unit*.68f,cx+unit,cy+unit*.68f),unit*.2f,unit*.2f,p)
      path.moveTo(cx-unit*.2f,cy-unit*.35f);path.lineTo(cx+unit*.42f,cy);path.lineTo(cx-unit*.2f,cy+unit*.35f);path.close()
      p.style=Paint.Style.FILL;canvas.drawPath(path,p)
     }
     label.contains("الموسيقى") || label.contains("Music") -> {
+     p.color=colors[2]
      path.moveTo(cx+unit*.3f,cy-unit*.8f);path.lineTo(cx+unit*.3f,cy+unit*.42f);path.quadTo(cx+unit*.2f,cy+unit*.8f,cx-unit*.15f,cy+unit*.65f);path.quadTo(cx-unit*.48f,cy+unit*.45f,cx-unit*.18f,cy+unit*.28f);path.quadTo(cx+unit*.05f,cy+unit*.12f,cx+unit*.3f,cy+unit*.2f);canvas.drawPath(path,p)
      canvas.drawLine(cx+unit*.3f,cy-unit*.8f,cx+unit*.85f,cy-unit*.65f,p)
     }
     label.contains("التحكم") || label.contains("الإعدادات") -> {
+     p.color=colors[2]
      canvas.drawCircle(cx,cy,unit*.78f,p);canvas.drawCircle(cx,cy,unit*.28f,p)
      for(a in 0..7){val angle=Math.toRadians(a*45.0);canvas.drawLine(cx+kotlin.math.cos(angle).toFloat()*unit*.85f,cy+kotlin.math.sin(angle).toFloat()*unit*.85f,cx+kotlin.math.cos(angle).toFloat()*unit*1.08f,cy+kotlin.math.sin(angle).toFloat()*unit*1.08f,p)}
     }
     label.contains("تحديث") -> {
+     p.color=colors[2]
      val r=RectF(cx-unit*.8f,cy-unit*.8f,cx+unit*.8f,cy+unit*.8f);canvas.drawArc(r,205f,260f,false,p)
      path.moveTo(cx+unit*.45f,cy-unit*.9f);path.lineTo(cx+unit*.9f,cy-unit*.72f);path.lineTo(cx+unit*.52f,cy-unit*.48f);canvas.drawPath(path,p)
     }
     label.contains("Command") -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit,cy-unit*.7f,cx+unit,cy+unit*.7f),unit*.12f,unit*.12f,p)
      path.moveTo(cx-unit*.55f,cy-unit*.2f);path.lineTo(cx-unit*.2f,cy);path.lineTo(cx-unit*.55f,cy+unit*.2f);canvas.drawPath(path,p)
      canvas.drawLine(cx,cy+unit*.25f,cx+unit*.5f,cy+unit*.25f,p)
     }
     label.contains("ألعاب") -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),unit*.3f,unit*.3f,p)
      canvas.drawLine(cx-unit*.55f,cy,cx-unit*.12f,cy,p);canvas.drawLine(cx-unit*.34f,cy-unit*.22f,cx-unit*.34f,cy+unit*.22f,p)
      canvas.drawCircle(cx+unit*.38f,cy-unit*.12f,unit*.09f,p);canvas.drawCircle(cx+unit*.62f,cy+unit*.12f,unit*.09f,p)
     }
     label.contains("زيارات") -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit*.62f,cy-unit,cx+unit*.62f,cy+unit),unit*.14f,unit*.14f,p)
      canvas.drawLine(cx-unit*.32f,cy-unit*.42f,cx+unit*.32f,cy-unit*.42f,p);canvas.drawLine(cx-unit*.32f,cy,cx+unit*.32f,cy,p)
      canvas.drawLine(cx-unit*.32f,cy+unit*.42f,cx+unit*.12f,cy+unit*.42f,p)
     }
     else -> {
+     p.color=colors[2]
      canvas.drawRoundRect(RectF(cx-unit*.85f,cy-unit*.85f,cx+unit*.85f,cy+unit*.85f),unit*.18f,unit*.18f,p)
      canvas.drawCircle(cx,cy,unit*.34f,p)
     }
