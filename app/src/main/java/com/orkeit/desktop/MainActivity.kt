@@ -471,7 +471,7 @@ class MainActivity : Activity() {
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding(7,3,7,3)
+   setPadding(9,6,9,6)
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.argb(92,255,255,255))
     cornerRadius=17f
@@ -509,11 +509,11 @@ class MainActivity : Activity() {
   val centerGroup=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER
-   addView(startButton,LinearLayout.LayoutParams(48,48))
-   addView(searchButton,LinearLayout.LayoutParams(44,48))
-   addView(taskbar,LinearLayout.LayoutParams(-2,50))
+   addView(startButton,LinearLayout.LayoutParams(54,58))
+   addView(searchButton,LinearLayout.LayoutParams(50,58))
+   addView(taskbar,LinearLayout.LayoutParams(-2,62))
   }
-  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,54,Gravity.CENTER))
+  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,66,Gravity.CENTER))
   val tray=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER_VERTICAL
@@ -540,17 +540,17 @@ class MainActivity : Activity() {
    setOnClickListener { showQuickSettings() }
    contentDescription="التاريخ والوقت والإعدادات السريعة"
   }
-  tray.addView(networkLabel,LinearLayout.LayoutParams(25,48))
+  tray.addView(networkLabel,LinearLayout.LayoutParams(28,58))
   tray.addView(batteryLabel,LinearLayout.LayoutParams(25,48))
   notificationButton=TextView(this).apply {
    text="♧"; textSize=18f; setTextColor(Color.rgb(235,241,250)); gravity=Gravity.CENTER
    setPadding(5,0,5,0); contentDescription="مركز الإشعارات"
    setOnClickListener { showNotificationCenter() }
   }
-  tray.addView(notificationButton,LinearLayout.LayoutParams(34,48))
-  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,48))
+  tray.addView(notificationButton,LinearLayout.LayoutParams(38,58))
+  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,58))
   dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
-  root.addView(dock,LinearLayout.LayoutParams(-1,58))
+  root.addView(dock,LinearLayout.LayoutParams(-1,74))
   setContentView(root)
 
   fun refreshTray() {
@@ -597,7 +597,7 @@ class MainActivity : Activity() {
    setPadding(12,0,4,0)
    setBackgroundColor(Color.rgb(247,249,253))
   }
-  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=15.84f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
+  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=13.2f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
   val minimize=windowButton("—")
   val maximize=windowButton("□")
   val close=windowButton("×")
@@ -771,7 +771,7 @@ class MainActivity : Activity() {
   else->"🪟"
  }
  private fun taskButton(title:String)=Button(this).apply {
-  text=windowIcon(title); textSize=15.5f; isAllCaps=false; minWidth=44; minimumWidth=44; minHeight=44; minimumHeight=44
+  text=windowIcon(title); textSize=15.5f; isAllCaps=false; minWidth=50; minimumWidth=50; minHeight=54; minimumHeight=54
   gravity=Gravity.CENTER; setPadding(3,2,3,2); setTextColor(navy)
   typeface=Typeface.create("Arial",Typeface.BOLD)
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,242,252)); cornerRadius=13f; setStroke(1,Color.rgb(216,226,241)) }
@@ -1012,8 +1012,8 @@ class MainActivity : Activity() {
     }
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(76,76))
-   tile.addView(TextView(this).apply { text=displayName; textSize=10.56f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=132; height=136; setMargins(5,5,5,5) })
+   tile.addView(TextView(this).apply { text=displayName; textSize=9.2f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=132; height=140; setMargins(5,5,5,5) })
   }
   shortcuts.addView(grid,LinearLayout.LayoutParams(-1,-2))
   val clock=TextView(this).apply {
@@ -1274,7 +1274,7 @@ class MainActivity : Activity() {
   }
   val top=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,0,2,10) }
   top.addView(TextView(this).apply {
-   text="ابدأ"; textSize=20f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   text="ابدأ"; textSize=18f; typeface=Typeface.create("Arial",Typeface.BOLD)
    setTextColor(navy)
   },LinearLayout.LayoutParams(0,42,1f))
   top.addView(TextView(this).apply {
@@ -1295,7 +1295,7 @@ class MainActivity : Activity() {
   var expandedApps=false
   val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,5) }
   heading.addView(TextView(this).apply {
-   text="التطبيقات المثبّتة"; textSize=14.5f
+   text="التطبيقات المثبّتة"; textSize=13f
    typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
   },LinearLayout.LayoutParams(0,36,1f))
   allButton=task("كل التطبيقات  ›") {
@@ -1344,7 +1344,7 @@ class MainActivity : Activity() {
    }
    tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(46,46))
    tile.addView(TextView(this).apply {
-    text=item.second; textSize=10.5f; gravity=Gravity.CENTER
+    text=item.second; textSize=9.4f; gravity=Gravity.CENTER
     setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD)
     maxLines=2; minLines=2; ellipsize=android.text.TextUtils.TruncateAt.END
     setLineSpacing(1f,1.02f)
@@ -1364,7 +1364,7 @@ class MainActivity : Activity() {
   }
   menu.addView(appsScroll,LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
-   text="موصى به"; textSize=13f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   text="موصى به"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD)
    setTextColor(navy); setPadding(2,8,2,5)
   }
   menu.addView(recommendedHeading)
