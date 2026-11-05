@@ -78,6 +78,9 @@ class MainActivity : Activity() {
  private var galleryGrid:GridLayout?=null
  private var galleryStatus:TextView?=null
  private var galleryPermissionRequested=false
+ private data class DesktopNotice(val title:String,val message:String,val time:Long=System.currentTimeMillis())
+ private val desktopNotices=mutableListOf<DesktopNotice>()
+ private var notificationButton:TextView?=null
  private val updateReceiver=object:BroadcastReceiver() {
   override fun onReceive(context:Context?,intent:Intent?) {
    if(intent?.action!=DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
@@ -534,6 +537,12 @@ class MainActivity : Activity() {
   }
   tray.addView(networkLabel,LinearLayout.LayoutParams(25,48))
   tray.addView(batteryLabel,LinearLayout.LayoutParams(25,48))
+  notificationButton=TextView(this).apply {
+   text="♧"; textSize=19f; setTextColor(Color.rgb(225,232,242)); gravity=Gravity.CENTER
+   setPadding(5,0,5,0); contentDescription="مركز الإشعارات"
+   setOnClickListener { showNotificationCenter() }
+  }
+  tray.addView(notificationButton,LinearLayout.LayoutParams(34,48))
   tray.addView(clockLabel,LinearLayout.LayoutParams(-2,48))
   dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
   root.addView(dock,LinearLayout.LayoutParams(-1,58))
@@ -2028,6 +2037,59 @@ class MainActivity : Activity() {
    .show()
  }
 
+ private fun addDesktopNotice(title:String,message:String) {
+  desktopNotices.add(0,DesktopNotice(title,message))
+  while(desktopNotices.size>30) desktopNotices.removeAt(desktopNotices.lastIndex)
+  notificationButton?.text=if(desktopNotices.isEmpty()) "♧" else "♧ •"
+ }
+ private fun showNotificationCenter() {
+  val panel=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; setPadding(16,14,16,12)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(247,249,253)); cornerRadius=22f; setStroke(1,border) }
+  }
+  val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  header.addView(TextView(this).apply {
+   text="مركز الإشعارات"; textSize=18f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
+  },LinearLayout.LayoutParams(0,44,1f))
+  header.addView(task("مسح الكل") {
+   desktopNotices.clear()
+   notificationButton?.text="♧"
+   Toast.makeText(this,"تم مسح الإشعارات",Toast.LENGTH_SHORT).show()
+   showNotificationCenter()
+  })
+  panel.addView(header)
+  val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  if(desktopNotices.isEmpty()) {
+   list.addView(TextView(this).apply {
+    text="لا توجد إشعارات جديدة\nستظهر هنا تنبيهات التطبيق والتنزيلات والتحديثات."
+    textSize=13f; gravity=Gravity.CENTER; setTextColor(Color.rgb(105,118,138)); setPadding(12,36,12,36)
+   },LinearLayout.LayoutParams(-1,-2))
+  } else {
+   desktopNotices.forEach { notice ->
+    val card=LinearLayout(this).apply {
+     orientation=LinearLayout.VERTICAL; setPadding(12,9,12,9)
+     background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=13f; setStroke(1,border) }
+    }
+    card.addView(TextView(this).apply {
+     text=notice.title; textSize=13f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
+    })
+    card.addView(TextView(this).apply {
+     text=notice.message; textSize=11.5f; setTextColor(Color.rgb(65,78,98)); setPadding(0,4,0,3)
+    })
+    card.addView(TextView(this).apply {
+     text=java.text.SimpleDateFormat("HH:mm  dd/MM/yyyy",Locale.getDefault()).format(java.util.Date(notice.time))
+     textSize=9.5f; setTextColor(Color.rgb(125,137,154))
+    })
+    list.addView(card,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=7 })
+   }
+  }
+  panel.addView(ScrollView(this).apply { isFillViewport=true; addView(list) },LinearLayout.LayoutParams(-1,0,1f))
+  panel.addView(action("إعدادات إشعارات التطبيق") {
+   try { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }
+   catch(_:Exception) { try { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) } catch(_:Exception) {} }
+  })
+  AlertDialog.Builder(this).setView(panel).setPositiveButton("إغلاق",null).show()
+ }
  private fun showQuickSettings() {
   fun openSystemSetting(action:String, fallback:String=android.provider.Settings.ACTION_SETTINGS) {
    try { startActivity(Intent(action)) }
