@@ -1559,6 +1559,15 @@ class MainActivity : Activity() {
   toolbar.addView(task("→"){Toast.makeText(this,"لا يوجد مسار تالٍ",Toast.LENGTH_SHORT).show()},LinearLayout.LayoutParams(44,40))
   val address=TextView(this).apply { text="⌂  هذا الكمبيوتر";textSize=12.32f;setTextColor(navy);setPadding(12,8,12,8);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(210,216,224))} }
   toolbar.addView(address,LinearLayout.LayoutParams(0,40,1f))
+  val fileSearch=EditText(this).apply {
+   hint="بحث في المجلد"
+   textSize=10.56f
+   singleLine=true
+   setTextColor(navy)
+   setPadding(9,0,9,0)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=7f; setStroke(1,Color.rgb(220,226,234)) }
+  }
+  toolbar.addView(fileSearch,LinearLayout.LayoutParams(150,40).apply{leftMargin=5})
   toolbar.addView(task("⟳"){render()},LinearLayout.LayoutParams(44,40))
   page.addView(toolbar)
   val content=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
@@ -1614,9 +1623,36 @@ class MainActivity : Activity() {
      addView(task("＋ مجلد جديد"){val input=EditText(this@MainActivity).apply{hint="اسم المجلد"};AlertDialog.Builder(this@MainActivity).setTitle("مجلد جديد").setView(input).setPositiveButton("إنشاء"){_,_->val n=input.text.toString().trim();if(n.isNotEmpty()&&!n.contains("/")&&java.io.File(current,n).mkdir())render()else Toast.makeText(this@MainActivity,"اسم غير صالح أو موجود",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,40,1f))
      addView(task("استيراد ملف"){fileManagerDir=current;try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}},LinearLayout.LayoutParams(0,40,1f))
     })
-    val entries=current!!.listFiles()?.sortedWith(compareBy<java.io.File>({!it.isDirectory},{it.name.lowercase(Locale.ROOT)})).orEmpty()
-    if(entries.isEmpty())main.addView(message("هذا المجلد فارغ"))
-    entries.forEach{f->main.addView(task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;render()}else showFile(Uri.fromFile(f))},LinearLayout.LayoutParams(-1,42).apply{bottomMargin=2})}
+    val allEntries=current!!.listFiles()?.sortedWith(compareBy<java.io.File>({!it.isDirectory},{it.name.lowercase(Locale.ROOT)})).orEmpty()
+    val query=fileSearch.text.toString().trim()
+    val entries=allEntries.filter { query.isEmpty() || it.name.contains(query,true) }
+    if(entries.isEmpty())main.addView(message(if(query.isEmpty())"هذا المجلد فارغ" else "لا توجد نتائج مطابقة"))
+    entries.forEach{f->
+     val row=LinearLayout(this).apply {
+      orientation=LinearLayout.HORIZONTAL
+      gravity=Gravity.CENTER_VERTICAL
+      background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=6f;setStroke(1,Color.rgb(237,240,245))}
+      addView(task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;fileSearch.setText("");render()}else showFile(Uri.fromFile(f))},LinearLayout.LayoutParams(0,42,1f))
+      addView(task("⋯"){
+       android.widget.PopupMenu(this@MainActivity,it).apply {
+        menu.add("فتح").setOnMenuItemClickListener { if(f.isDirectory){current=f;render()}else showFile(Uri.fromFile(f));true }
+        menu.add("إعادة تسمية").setOnMenuItemClickListener {
+         val edit=EditText(this@MainActivity).apply{setText(f.name);selectAll()}
+         AlertDialog.Builder(this@MainActivity).setTitle("إعادة تسمية").setView(edit).setPositiveButton("حفظ"){_,_->
+          val name=edit.text.toString().trim()
+          if(name.isNotEmpty()&&!name.contains("/")&&java.io.File(f.parentFile,name).exists().not()) { if(f.renameTo(java.io.File(f.parentFile,name)))render() else Toast.makeText(this@MainActivity,"تعذرت إعادة التسمية",Toast.LENGTH_SHORT).show() }
+         }.setNegativeButton("إلغاء",null).show()
+         true
+        }
+        menu.add("حذف").setOnMenuItemClickListener {
+         AlertDialog.Builder(this@MainActivity).setMessage("هل تريد حذف undefined؟").setPositiveButton("حذف"){_,_->if(f.delete())render()else Toast.makeText(this@MainActivity,"تعذر الحذف",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()
+         true
+        }
+       }.show()
+      },LinearLayout.LayoutParams(42,42))
+     }
+     main.addView(row,LinearLayout.LayoutParams(-1,44).apply{bottomMargin=3})
+    }
    }
   }
   panel(page)
