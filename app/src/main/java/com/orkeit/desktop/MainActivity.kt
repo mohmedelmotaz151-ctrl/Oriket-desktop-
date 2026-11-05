@@ -1633,7 +1633,8 @@ class MainActivity : Activity() {
       gravity=Gravity.CENTER_VERTICAL
       background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=6f;setStroke(1,Color.rgb(237,240,245))}
       addView(task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;fileSearch.setText("");render()}else showFile(Uri.fromFile(f))},LinearLayout.LayoutParams(0,42,1f))
-      val more=task("⋯"){
+      lateinit var more:Button
+      more=task("⋯"){
        android.widget.PopupMenu(this@MainActivity,more).apply {
         menu.add("فتح").setOnMenuItemClickListener { if(f.isDirectory){current=f;render()}else showFile(Uri.fromFile(f));true }
         menu.add("إعادة تسمية").setOnMenuItemClickListener {
@@ -1645,7 +1646,7 @@ class MainActivity : Activity() {
          true
         }
         menu.add("حذف").setOnMenuItemClickListener {
-         AlertDialog.Builder(this@MainActivity).setMessage("هل تريد حذف undefined؟").setPositiveButton("حذف"){_,_->if(f.delete())render()else Toast.makeText(this@MainActivity,"تعذر الحذف",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()
+         AlertDialog.Builder(this@MainActivity).setMessage("هل تريد حذف ${f.name}؟").setPositiveButton("حذف"){_,_->if(f.delete())render()else Toast.makeText(this@MainActivity,"تعذر الحذف",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()
          true
         }
        }.show()
@@ -1656,6 +1657,11 @@ class MainActivity : Activity() {
     }
    }
   }
+  fileSearch.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { render() }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
   panel(page)
   render()
  }
