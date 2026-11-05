@@ -461,22 +461,26 @@ class MainActivity : Activity() {
 
   // Windows 11-inspired translucent taskbar with centered app controls and a right system tray.
   val dock=FrameLayout(this).apply {
-   setBackgroundColor(Color.argb(238,24,27,34))
-   elevation=18f
+   background=android.graphics.drawable.GradientDrawable(
+    android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+    intArrayOf(Color.argb(246,31,39,52),Color.argb(238,17,23,34))
+   ).apply { cornerRadii=floatArrayOf(18f,18f,18f,18f,0f,0f,0f,0f); setStroke(1,Color.argb(55,210,226,248)) }
+   elevation=22f
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding(5,3,5,3)
+   setPadding(7,3,7,3)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT)
-    cornerRadius=18f
+    setColor(Color.argb(92,255,255,255))
+    cornerRadius=17f
+    setStroke(1,Color.argb(38,255,255,255))
    }
   }
   val startButton=Button(this).apply {
    text="⊞"
-   textSize=25f
+   textSize=24f
    isAllCaps=false
    minWidth=48; minimumWidth=48; minHeight=48; minimumHeight=48
    gravity=Gravity.CENTER
@@ -490,7 +494,7 @@ class MainActivity : Activity() {
   }
   val searchButton=Button(this).apply {
    text="⌕"
-   textSize=25f
+   textSize=23f
    isAllCaps=false
    minWidth=44; minimumWidth=44; minHeight=46; minimumHeight=46
    gravity=Gravity.CENTER
@@ -521,11 +525,11 @@ class MainActivity : Activity() {
    contentDescription="منطقة النظام والإعدادات السريعة"
   }
   val networkLabel=TextView(this).apply {
-   text="◉"; textSize=15f; setTextColor(Color.rgb(225,232,242))
+   text="◉"; textSize=14f; setTextColor(Color.rgb(235,241,250))
    gravity=Gravity.CENTER; setPadding(4,0,4,0)
   }
   val batteryLabel=TextView(this).apply {
-   text="▰"; textSize=14f; setTextColor(Color.rgb(225,232,242))
+   text="▰"; textSize=13f; setTextColor(Color.rgb(235,241,250))
    gravity=Gravity.CENTER; setPadding(3,0,5,0)
   }
   clockLabel=TextView(this).apply {
@@ -539,7 +543,7 @@ class MainActivity : Activity() {
   tray.addView(networkLabel,LinearLayout.LayoutParams(25,48))
   tray.addView(batteryLabel,LinearLayout.LayoutParams(25,48))
   notificationButton=TextView(this).apply {
-   text="♧"; textSize=19f; setTextColor(Color.rgb(225,232,242)); gravity=Gravity.CENTER
+   text="♧"; textSize=18f; setTextColor(Color.rgb(235,241,250)); gravity=Gravity.CENTER
    setPadding(5,0,5,0); contentDescription="مركز الإشعارات"
    setOnClickListener { showNotificationCenter() }
   }
@@ -1013,15 +1017,22 @@ class MainActivity : Activity() {
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
   openWindows.forEach { it.frame.bringToFront() }
-  val start=taskButton("ابدأ").apply { text="⊞"; textSize=15.5f; setOnClickListener { showStartMenu() } }
+  val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
-  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=15.5f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
-  val browser=taskButton("متصفح الإنترنت").apply { text="🌐"; setOnClickListener { showBrowser() } }
-  val files=taskButton("هذا الكمبيوتر").apply { text="📁"; setOnClickListener { showMyComputer() } }
-  val paint=taskButton("الرسام").apply { text="🎨"; setOnClickListener { showPaint() } }
-  val settings=taskButton("الإعدادات").apply { text="⚙"; setOnClickListener { showControlPanel() } }
+  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=22f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
+  val browser=taskButton("متصفح الإنترنت").apply { text="◎"; textSize=21f; setOnClickListener { showBrowser() } }
+  val files=taskButton("هذا الكمبيوتر").apply { text="▤"; textSize=20f; setOnClickListener { showMyComputer() } }
+  val paint=taskButton("الرسام").apply { text="▧"; textSize=20f; setOnClickListener { showPaint() } }
+  val settings=taskButton("الإعدادات").apply { text="⚙"; textSize=19f; setOnClickListener { showControlPanel() } }
   val staticButtons=listOf(searchButton,browser,files,paint,settings)
-  staticButtons.forEach { b -> if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b) }
+  staticButtons.forEach { b ->
+   b.setTextColor(Color.rgb(239,245,255))
+   b.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(0,255,255,255)); cornerRadius=12f }
+   b.elevation=0f
+   b.minWidth=42; b.minimumWidth=42; b.minHeight=44; b.minimumHeight=44
+   b.setPadding(2,0,2,0)
+   if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b)
+  }
  }
 
 
