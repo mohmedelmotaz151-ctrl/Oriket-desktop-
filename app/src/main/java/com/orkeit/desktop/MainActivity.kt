@@ -1740,12 +1740,12 @@ class MainActivity : Activity() {
       "orkeit-about" -> showAbout()
       android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS -> try {
        startActivity(Intent(item[3]).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName))
-      } catch(_:Exception) { Toast.makeText(this,"تعذر فتح إعدادات الإشعارات",Toast.LENGTH_SHORT).show() }
+      } catch(_:Exception) { Toast.makeText(this@MainActivity,"تعذر فتح إعدادات الإشعارات",Toast.LENGTH_SHORT).show() }
       android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS -> try {
        startActivity(Intent(item[3],Uri.parse("package:$packageName")))
-      } catch(_:Exception) { Toast.makeText(this,"تعذر فتح معلومات التطبيق",Toast.LENGTH_SHORT).show() }
+      } catch(_:Exception) { Toast.makeText(this@MainActivity,"تعذر فتح معلومات التطبيق",Toast.LENGTH_SHORT).show() }
       else -> try { startActivity(Intent(item[3])) }
-       catch(_:Exception) { Toast.makeText(this,"هذا الإعداد غير متاح على هذا الجهاز",Toast.LENGTH_SHORT).show() }
+       catch(_:Exception) { Toast.makeText(this@MainActivity,"هذا الإعداد غير متاح على هذا الجهاز",Toast.LENGTH_SHORT).show() }
      }
     }
    }
