@@ -837,10 +837,74 @@ class MainActivity : Activity() {
    fill.shader=LinearGradient(left,top,left,top+side*.46f,Color.argb(150,255,255,255),Color.argb(0,255,255,255),Shader.TileMode.CLAMP)
    canvas.drawRoundRect(RectF(left+3f,top+3f,right-3f,top+side*.42f),side*.16f,side*.16f,fill)
    fill.shader=null
-   fill.color=Color.WHITE; fill.textAlign=Paint.Align.CENTER; fill.typeface=Typeface.create("Arial",Typeface.BOLD)
-   fill.textSize=side*.46f
-   val fm=fill.fontMetrics
-   canvas.drawText(symbol,width/2f,(top+bottom)/2f-(fm.ascent+fm.descent)/2f,fill)
+   drawVectorGlyph(canvas,rect,label,side)
+  }
+  private fun drawVectorGlyph(canvas:Canvas,rect:RectF,label:String,side:Float) {
+   val cx=rect.centerX(); val cy=rect.centerY(); val unit=side*.30f
+   val p=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color=Color.WHITE; style=Paint.Style.STROKE; strokeWidth=(side*.055f).coerceAtLeast(2.2f)
+    strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND
+   }
+   val path=Path()
+   when {
+    label.contains("متصفح") || label.contains("الإنترنت") -> {
+     canvas.drawCircle(cx,cy,unit,p); canvas.drawOval(RectF(cx-unit*.48f,cy-unit,cx+unit*.48f,cy+unit),p)
+     canvas.drawLine(cx-unit,cy,cx+unit,cy,p); canvas.drawArc(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),0f,180f,false,p)
+    }
+    label.contains("الملفات") || label.contains("الكمبيوتر") -> {
+     path.moveTo(cx-unit,cy-unit*.48f);path.lineTo(cx-unit*.25f,cy-unit*.48f);path.lineTo(cx+unit*.02f,cy-unit*.18f);path.lineTo(cx+unit,cy-unit*.18f);path.lineTo(cx+unit*.82f,cy+unit*.65f);path.lineTo(cx-unit*.82f,cy+unit*.65f);path.close();canvas.drawPath(path,p)
+    }
+    label.contains("PDF") || label.contains("Word") || label.contains("المفكرة") || label.contains("Excel") -> {
+     path.moveTo(cx-unit*.65f,cy-unit);path.lineTo(cx+unit*.25f,cy-unit);path.lineTo(cx+unit*.68f,cy-unit*.55f);path.lineTo(cx+unit*.68f,cy+unit);path.lineTo(cx-unit*.65f,cy+unit);path.close();canvas.drawPath(path,p)
+     canvas.drawLine(cx+unit*.2f,cy-unit,cx+unit*.2f,cy-unit*.55f,p);canvas.drawLine(cx+unit*.2f,cy-unit*.55f,cx+unit*.68f,cy-unit*.55f,p)
+     for(i in -1..1) canvas.drawLine(cx-unit*.35f,cy+i*unit*.28f,cx+unit*.35f,cy+i*unit*.28f,p)
+    }
+    label.contains("الحاسبة") -> {
+     canvas.drawRoundRect(RectF(cx-unit*.72f,cy-unit,cx+unit*.72f,cy+unit),unit*.12f,unit*.12f,p)
+     canvas.drawLine(cx-unit*.48f,cy-unit*.48f,cx+unit*.48f,cy-unit*.48f,p)
+     for(y in 0..1) for(x in 0..2) canvas.drawCircle(cx-unit*.42f+x*unit*.42f,cy+unit*.02f+y*unit*.43f,unit*.09f,p)
+    }
+    label.contains("الرسام") || label.contains("صور") -> {
+     canvas.drawCircle(cx,cy,unit*.88f,p);canvas.drawCircle(cx-unit*.25f,cy-unit*.2f,unit*.12f,p)
+     canvas.drawCircle(cx+unit*.22f,cy-unit*.28f,unit*.12f,p);canvas.drawCircle(cx+unit*.42f,cy+unit*.12f,unit*.12f,p)
+    }
+    label.contains("الفيديو") || label.contains("YouTube") -> {
+     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.68f,cx+unit,cy+unit*.68f),unit*.2f,unit*.2f,p)
+     path.moveTo(cx-unit*.2f,cy-unit*.35f);path.lineTo(cx+unit*.42f,cy);path.lineTo(cx-unit*.2f,cy+unit*.35f);path.close()
+     p.style=Paint.Style.FILL;canvas.drawPath(path,p)
+    }
+    label.contains("الموسيقى") || label.contains("Music") -> {
+     path.moveTo(cx+unit*.3f,cy-unit*.8f);path.lineTo(cx+unit*.3f,cy+unit*.42f);path.quadTo(cx+unit*.2f,cy+unit*.8f,cx-unit*.15f,cy+unit*.65f);path.quadTo(cx-unit*.48f,cy+unit*.45f,cx-unit*.18f,cy+unit*.28f);path.quadTo(cx+unit*.05f,cy+unit*.12f,cx+unit*.3f,cy+unit*.2f);canvas.drawPath(path,p)
+     canvas.drawLine(cx+unit*.3f,cy-unit*.8f,cx+unit*.85f,cy-unit*.65f,p)
+    }
+    label.contains("التحكم") || label.contains("الإعدادات") -> {
+     canvas.drawCircle(cx,cy,unit*.78f,p);canvas.drawCircle(cx,cy,unit*.28f,p)
+     for(a in 0..7){val angle=Math.toRadians(a*45.0);canvas.drawLine(cx+kotlin.math.cos(angle).toFloat()*unit*.85f,cy+kotlin.math.sin(angle).toFloat()*unit*.85f,cx+kotlin.math.cos(angle).toFloat()*unit*1.08f,cy+kotlin.math.sin(angle).toFloat()*unit*1.08f,p)}
+    }
+    label.contains("تحديث") -> {
+     val r=RectF(cx-unit*.8f,cy-unit*.8f,cx+unit*.8f,cy+unit*.8f);canvas.drawArc(r,205f,260f,false,p)
+     path.moveTo(cx+unit*.45f,cy-unit*.9f);path.lineTo(cx+unit*.9f,cy-unit*.72f);path.lineTo(cx+unit*.52f,cy-unit*.48f);canvas.drawPath(path,p)
+    }
+    label.contains("Command") -> {
+     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.7f,cx+unit,cy+unit*.7f),unit*.12f,unit*.12f,p)
+     path.moveTo(cx-unit*.55f,cy-unit*.2f);path.lineTo(cx-unit*.2f,cy);path.lineTo(cx-unit*.55f,cy+unit*.2f);canvas.drawPath(path,p)
+     canvas.drawLine(cx,cy+unit*.25f,cx+unit*.5f,cy+unit*.25f,p)
+    }
+    label.contains("ألعاب") -> {
+     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),unit*.3f,unit*.3f,p)
+     canvas.drawLine(cx-unit*.55f,cy,cx-unit*.12f,cy,p);canvas.drawLine(cx-unit*.34f,cy-unit*.22f,cx-unit*.34f,cy+unit*.22f,p)
+     canvas.drawCircle(cx+unit*.38f,cy-unit*.12f,unit*.09f,p);canvas.drawCircle(cx+unit*.62f,cy+unit*.12f,unit*.09f,p)
+    }
+    label.contains("زيارات") -> {
+     canvas.drawRoundRect(RectF(cx-unit*.62f,cy-unit,cx+unit*.62f,cy+unit),unit*.14f,unit*.14f,p)
+     canvas.drawLine(cx-unit*.32f,cy-unit*.42f,cx+unit*.32f,cy-unit*.42f,p);canvas.drawLine(cx-unit*.32f,cy,cx+unit*.32f,cy,p)
+     canvas.drawLine(cx-unit*.32f,cy+unit*.42f,cx+unit*.12f,cy+unit*.42f,p)
+    }
+    else -> {
+     canvas.drawRoundRect(RectF(cx-unit*.85f,cy-unit*.85f,cx+unit*.85f,cy+unit*.85f),unit*.18f,unit*.18f,p)
+     canvas.drawCircle(cx,cy,unit*.34f,p)
+    }
+   }
   }
  }
  private fun showDesktop() {
