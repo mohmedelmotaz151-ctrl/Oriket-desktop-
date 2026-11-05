@@ -425,49 +425,11 @@ class MainActivity : Activity() {
  private fun initDesktop() {
   if(desktopInitialized) return
   desktopInitialized=true
-  root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); layoutDirection=View.LAYOUT_DIRECTION_LTR }
-  // Custom Windows-style system status area: network and battery on the first row,
-  // live time and date immediately beneath it.
-  val systemStatus=LinearLayout(this).apply {
+  root=LinearLayout(this).apply {
    orientation=LinearLayout.VERTICAL
-   setPadding(10,1,10,1)
-   setBackgroundColor(Color.rgb(18,32,54))
+   setBackgroundColor(Color.BLACK)
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
-  val statusTop=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; layoutDirection=View.LAYOUT_DIRECTION_LTR }
-  val statusNetwork=TextView(this).apply { text="●  الشبكة"; textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL; typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(5,0,9,0) }
-  val statusBattery=TextView(this).apply { text="🔋 --%"; textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL; typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(5,0,4,0) }
-  statusTop.addView(TextView(this).apply { text="Oriket"; textSize=10f; setTextColor(Color.rgb(185,211,244)); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,20,1f))
-  statusTop.addView(statusNetwork,LinearLayout.LayoutParams(-2,20))
-  statusTop.addView(statusBattery,LinearLayout.LayoutParams(-2,20))
-  val statusDateTime=TextView(this).apply {
-   textSize=10f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL or Gravity.START
-   typeface=Typeface.create("Arial",Typeface.NORMAL); setPadding(2,0,2,2)
-  }
-  systemStatus.addView(statusTop,LinearLayout.LayoutParams(-1,20))
-  systemStatus.addView(statusDateTime,LinearLayout.LayoutParams(-1,18))
-  root.addView(systemStatus,LinearLayout.LayoutParams(-1,39))
-  fun refreshSystemStatus() {
-   statusDateTime.text=java.text.SimpleDateFormat("HH:mm   •   EEEE، dd/MM/yyyy",Locale("ar")).format(java.util.Date())
-   try {
-    val batteryIntent=registerReceiver(null,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-    val level=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1) ?: -1
-    val scale=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,-1) ?: -1
-    val percent=if(level>=0 && scale>0) (level*100/scale) else -1
-    val charging=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,-1) in listOf(android.os.BatteryManager.BATTERY_STATUS_CHARGING,android.os.BatteryManager.BATTERY_STATUS_FULL)
-    statusBattery.text=(if(charging) "⚡ " else "🔋 ")+(if(percent>=0) "$percent%" else "--%")
-   } catch(_:Exception) { statusBattery.text="🔋 --%" }
-   try {
-    val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-    val network=cm.activeNetworkInfo
-    statusNetwork.text=when {
-     network==null || !network.isConnected -> "○  غير متصل"
-     network.type==android.net.ConnectivityManager.TYPE_WIFI -> "◉  Wi-Fi"
-     else -> "▮  بيانات"
-    }
-   } catch(_:Exception) { statusNetwork.text="●  الشبكة" }
-  }
-  refreshSystemStatus()
   desktopArea=FrameLayout(this).apply { layoutDirection=View.LAYOUT_DIRECTION_LTR }
   desktopArea.addView(WindowsWallpaper(this),FrameLayout.LayoutParams(-1,-1))
   desktopArea.isClickable=true
@@ -477,7 +439,7 @@ class MainActivity : Activity() {
     menu.add("تغيير الخلفية").setOnMenuItemClickListener { showWallpaperPicker(); true }
     menu.add("تحديث سطح المكتب").setOnMenuItemClickListener { showDesktop(); true }
     menu.add("فتح المتصفح").setOnMenuItemClickListener { showBrowser(); true }
-    menu.add("فتح مستكشف الملفات").setOnMenuItemClickListener { pickFile("*/*"); true }
+    menu.add("فتح مستكشف الملفات").setOnMenuItemClickListener { showMyComputer(); true }
    }.show()
    true
   }
@@ -492,34 +454,111 @@ class MainActivity : Activity() {
    } else false
   }
   root.addView(desktopArea,LinearLayout.LayoutParams(-1,0,1f))
+
+  // Windows 11-inspired translucent taskbar with centered app controls and a right system tray.
+  val dock=FrameLayout(this).apply {
+   setBackgroundColor(Color.argb(238,24,27,34))
+   elevation=18f
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+  }
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding(12,5,12,5)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(0,248,250,255)); cornerRadius=26f }
-   elevation=14f
+   setPadding(5,3,5,3)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.TRANSPARENT)
+    cornerRadius=18f
+   }
   }
-  val dock=FrameLayout(this).apply {
-   setBackgroundColor(Color.argb(225,20,25,35))
-   elevation=16f
+  val startButton=Button(this).apply {
+   text="⊞"
+   textSize=25f
+   isAllCaps=false
+   minWidth=48; minimumWidth=48; minHeight=48; minimumHeight=48
+   gravity=Gravity.CENTER
+   setPadding(0,0,0,2)
+   setTextColor(Color.rgb(220,238,255))
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.TRANSPARENT); cornerRadius=12f
+   }
+   contentDescription="ابدأ"
+   setOnClickListener { showStartMenu() }
   }
-  val taskScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_NEVER; clipToPadding=false; addView(taskbar,FrameLayout.LayoutParams(-2,56)) }
-  dock.addView(taskScroll,FrameLayout.LayoutParams(-1,60,Gravity.CENTER).apply { leftMargin=4; rightMargin=82 })
-  root.addView(dock,LinearLayout.LayoutParams(-1,72))
-  setContentView(root)
+  val searchButton=Button(this).apply {
+   text="⌕"
+   textSize=25f
+   isAllCaps=false
+   minWidth=44; minimumWidth=44; minHeight=46; minimumHeight=46
+   gravity=Gravity.CENTER
+   setPadding(0,0,0,3)
+   setTextColor(Color.rgb(220,228,240))
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.TRANSPARENT); cornerRadius=12f
+   }
+   contentDescription="بحث"
+   setOnClickListener { showStartMenu() }
+  }
+  val centerGroup=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER
+   addView(startButton,LinearLayout.LayoutParams(48,48))
+   addView(searchButton,LinearLayout.LayoutParams(44,48))
+   addView(taskbar,LinearLayout.LayoutParams(-2,50))
+  }
+  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,54,Gravity.CENTER))
+  val tray=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER_VERTICAL
+   setPadding(5,0,10,0)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.TRANSPARENT); cornerRadius=10f
+   }
+   setOnClickListener { showQuickSettings() }
+   contentDescription="منطقة النظام والإعدادات السريعة"
+  }
+  val networkLabel=TextView(this).apply {
+   text="◉"; textSize=15f; setTextColor(Color.rgb(225,232,242))
+   gravity=Gravity.CENTER; setPadding(4,0,4,0)
+  }
+  val batteryLabel=TextView(this).apply {
+   text="▰"; textSize=14f; setTextColor(Color.rgb(225,232,242))
+   gravity=Gravity.CENTER; setPadding(3,0,5,0)
+  }
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
-   textSize=9.68f
-   setTextColor(navy)
-   setPadding(8,2,10,2)
+   textSize=10.5f
+   setTextColor(Color.WHITE)
+   setPadding(5,2,3,2)
    setOnClickListener { showQuickSettings() }
    contentDescription="التاريخ والوقت والإعدادات السريعة"
   }
-  dock.addView(clockLabel,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
+  tray.addView(networkLabel,LinearLayout.LayoutParams(25,48))
+  tray.addView(batteryLabel,LinearLayout.LayoutParams(25,48))
+  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,48))
+  dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
+  root.addView(dock,LinearLayout.LayoutParams(-1,58))
+  setContentView(root)
+
+  fun refreshTray() {
+   try {
+    val batteryIntent=registerReceiver(null,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val level=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1) ?: -1
+    val scale=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,-1) ?: -1
+    val percent=if(level>=0 && scale>0) level*100/scale else -1
+    val charging=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,-1) in listOf(android.os.BatteryManager.BATTERY_STATUS_CHARGING,android.os.BatteryManager.BATTERY_STATUS_FULL)
+    batteryLabel.text=(if(charging) "⚡" else "▰")+(if(percent>=0) "$percent%" else "")
+   } catch(_:Exception) { batteryLabel.text="▰" }
+   try {
+    val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+    val network=cm.activeNetworkInfo
+    networkLabel.text=if(network==null || !network.isConnected) "○" else if(network.type==android.net.ConnectivityManager.TYPE_WIFI) "◉" else "▮"
+   } catch(_:Exception) { networkLabel.text="◉" }
+   clockLabel?.text=java.text.SimpleDateFormat("HH:mm\n dd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
+  }
+  refreshTray()
   val clock=object:Runnable {
    override fun run() {
-    clockLabel?.text=java.text.SimpleDateFormat("HH:mm\n dd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
-    refreshSystemStatus()
+    refreshTray()
     uiHandler.postDelayed(this,30_000)
    }
   }
