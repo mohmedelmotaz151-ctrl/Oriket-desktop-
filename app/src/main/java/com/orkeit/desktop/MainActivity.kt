@@ -478,14 +478,15 @@ class MainActivity : Activity() {
     setStroke(1,Color.argb(38,255,255,255))
    }
   }
+  val d=resources.displayMetrics.density
   val startButton=Button(this).apply {
-   text="⊞"
-   textSize=24f
+   text=""
+   val startD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(28*d).toInt())
+   setCompoundDrawablesWithIntrinsicBounds(null,startD,null,null)
    isAllCaps=false
-   minWidth=48; minimumWidth=48; minHeight=48; minimumHeight=48
+   minWidth=(48*d).toInt(); minimumWidth=(48*d).toInt(); minHeight=(48*d).toInt(); minimumHeight=(48*d).toInt()
    gravity=Gravity.CENTER
-   setPadding(0,0,0,2)
-   setTextColor(Color.rgb(220,238,255))
+   setPadding(0,0,0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.TRANSPARENT); cornerRadius=12f
    }
@@ -493,13 +494,13 @@ class MainActivity : Activity() {
    setOnClickListener { showStartMenu() }
   }
   val searchButton=Button(this).apply {
-   text="⌕"
-   textSize=23f
+   text=""
+   val searchD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.SEARCH,(22*d).toInt())
+   setCompoundDrawablesWithIntrinsicBounds(null,searchD,null,null)
    isAllCaps=false
-   minWidth=44; minimumWidth=44; minHeight=46; minimumHeight=46
+   minWidth=(44*d).toInt(); minimumWidth=(44*d).toInt(); minHeight=(46*d).toInt(); minimumHeight=(46*d).toInt()
    gravity=Gravity.CENTER
-   setPadding(0,0,0,3)
-   setTextColor(Color.rgb(220,228,240))
+   setPadding(0,0,0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.TRANSPARENT); cornerRadius=12f
    }
@@ -525,32 +526,38 @@ class MainActivity : Activity() {
    contentDescription="منطقة النظام والإعدادات السريعة"
   }
   val networkLabel=TextView(this).apply {
-   text="◉"; textSize=14f; setTextColor(Color.rgb(235,241,250))
-   gravity=Gravity.CENTER; setPadding(4,0,4,0)
+   val netD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WIFI,(18*d).toInt())
+   setCompoundDrawablesWithIntrinsicBounds(netD,null,null,null)
+   gravity=Gravity.CENTER; setPadding((4*d).toInt(),0,(4*d).toInt(),0)
   }
   val batteryLabel=TextView(this).apply {
-   text="▰"; textSize=13f; setTextColor(Color.rgb(235,241,250))
-   gravity=Gravity.CENTER; setPadding(3,0,5,0)
+   text="100%"; textSize=11f; setTextColor(Color.rgb(235,241,250))
+   val batD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.BATTERY,(20*d).toInt())
+   setCompoundDrawablesWithIntrinsicBounds(batD,null,null,null)
+   compoundDrawablePadding=(4*d).toInt()
+   gravity=Gravity.CENTER; setPadding((3*d).toInt(),0,(5*d).toInt(),0)
   }
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
    textSize=10.5f
    setTextColor(Color.WHITE)
-   setPadding(5,2,3,2)
+   setPadding((5*d).toInt(),2,(3*d).toInt(),2)
    setOnClickListener { showQuickSettings() }
    contentDescription="التاريخ والوقت والإعدادات السريعة"
   }
-  tray.addView(networkLabel,LinearLayout.LayoutParams(28,58))
-  tray.addView(batteryLabel,LinearLayout.LayoutParams(25,48))
+  tray.addView(networkLabel,LinearLayout.LayoutParams((28*d).toInt(),58))
+  tray.addView(batteryLabel,LinearLayout.LayoutParams(-2,48))
   notificationButton=TextView(this).apply {
-   text="♧"; textSize=18f; setTextColor(Color.rgb(235,241,250)); gravity=Gravity.CENTER
-   setPadding(5,0,5,0); contentDescription="مركز الإشعارات"
+   val notifD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.NOTIFICATIONS,(19*d).toInt())
+   setCompoundDrawablesWithIntrinsicBounds(notifD,null,null,null)
+   gravity=Gravity.CENTER
+   setPadding((5*d).toInt(),0,(5*d).toInt(),0); contentDescription="مركز الإشعارات"
    setOnClickListener { showNotificationCenter() }
   }
-  tray.addView(notificationButton,LinearLayout.LayoutParams(38,58))
+  tray.addView(notificationButton,LinearLayout.LayoutParams((38*d).toInt(),58))
   tray.addView(clockLabel,LinearLayout.LayoutParams(-2,58))
   dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
-  root.addView(dock,LinearLayout.LayoutParams(-1,74))
+  root.addView(dock,LinearLayout.LayoutParams(-1,(74*d).toInt()))
   setContentView(root)
 
   fun refreshTray() {
@@ -597,10 +604,16 @@ class MainActivity : Activity() {
    setPadding(12,0,4,0)
    setBackgroundColor(Color.rgb(247,249,253))
   }
-  titlebar.addView(TextView(this).apply { text=windowIcon(title)+"  "+title; textSize=13.2f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
+  val td=resources.displayMetrics.density
+  val titleIcon=ImageView(this).apply {
+   val dIcon=FluentIcons.createDrawable(this@MainActivity,FluentIcons.getIconForTitle(title),(22*td).toInt())
+   setImageDrawable(dIcon)
+  }
+  titlebar.addView(titleIcon,LinearLayout.LayoutParams((22*td).toInt(),(22*td).toInt()).apply{rightMargin=(6*td).toInt()})
+  titlebar.addView(TextView(this).apply { text=title; textSize=13.2f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
   val minimize=windowButton("—")
-  val maximize=windowButton("□")
-  val close=windowButton("×")
+  val maximize=windowButton("▢")
+  val close=windowButton("✕")
   titlebar.addView(minimize,LinearLayout.LayoutParams(46,46))
   titlebar.addView(maximize,LinearLayout.LayoutParams(46,46))
   titlebar.addView(close,LinearLayout.LayoutParams(48,46))
@@ -643,12 +656,17 @@ class MainActivity : Activity() {
     outer.visibility=View.GONE
     outer.isSelected=false
     entryButton.isSelected=false
+    entryButton.background=createTaskbarBackground(false)
    } else {
     outer.visibility=View.VISIBLE
     outer.bringToFront()
     outer.isSelected=true
-    openWindows.forEach { it.taskButton.isSelected=it.id==id }
+    openWindows.forEach {
+     it.taskButton.isSelected=it.id==id
+     it.taskButton.background=createTaskbarBackground(it.id==id)
+    }
     entryButton.isSelected=true
+    entryButton.background=createTaskbarBackground(true)
    }
   }
   taskbar.addView(entryButton)
@@ -662,7 +680,10 @@ class MainActivity : Activity() {
     MotionEvent.ACTION_DOWN -> {
      downX=e.rawX; downY=e.rawY; startX=outer.x; startY=outer.y
      outer.bringToFront()
-     openWindows.forEach { it.taskButton.isSelected=it.id==id }
+     openWindows.forEach {
+      it.taskButton.isSelected=it.id==id
+      it.taskButton.background=createTaskbarBackground(it.id==id)
+     }
      outer.isSelected=true
      true
     }
@@ -732,7 +753,7 @@ class MainActivity : Activity() {
    if(web!=null) web?.stopLoading()
    if(openWindows.isNotEmpty()) { openWindows.last().frame.visibility=View.VISIBLE; openWindows.last().frame.bringToFront() }
   }
-  outer.setOnTouchListener { v,e -> if(e.action==MotionEvent.ACTION_DOWN) { v.bringToFront(); openWindows.forEach { it.taskButton.isSelected=it.id==id } }; false }
+  outer.setOnTouchListener { v,e -> if(e.action==MotionEvent.ACTION_DOWN) { v.bringToFront(); openWindows.forEach { it.taskButton.isSelected=it.id==id; it.taskButton.background=createTaskbarBackground(it.id==id) } }; false }
   outer.setOnGenericMotionListener { v,e ->
    if(e.action==MotionEvent.ACTION_BUTTON_PRESS && (e.buttonState and MotionEvent.BUTTON_SECONDARY)!=0) {
     android.widget.PopupMenu(this,v).apply {
@@ -748,34 +769,65 @@ class MainActivity : Activity() {
    } else false
   }
  }
+ private fun createTaskbarBackground(selected:Boolean):android.graphics.drawable.Drawable {
+  val d=resources.displayMetrics.density
+  val corner=11f*d
+  val strokeColor=if(selected) Color.argb(60,255,255,255) else Color.TRANSPARENT
+  val bgColor=if(selected) Color.argb(90,255,255,255) else Color.argb(25,255,255,255)
+  val base=android.graphics.drawable.GradientDrawable().apply {
+   setColor(bgColor)
+   cornerRadius=corner
+   setStroke(1,strokeColor)
+  }
+  if(!selected) return base
+  val pill=android.graphics.drawable.GradientDrawable().apply {
+   setColor(Color.rgb(0,120,215))
+   cornerRadius=2f*d
+  }
+  val layer=android.graphics.drawable.LayerDrawable(arrayOf(base,pill))
+  val pillW=(18*d).toInt()
+  val pillH=(3*d).toInt()
+  val padB=(2*d).toInt()
+  val insetX=((50*d-pillW)/2).toInt().coerceAtLeast(0)
+  layer.setLayerInset(1,insetX,(52*d-pillH-padB).toInt(),insetX,padB)
+  return layer
+ }
  private fun windowButton(label:String)=Button(this).apply {
   text=label; textSize=15.84f; isAllCaps=false; minWidth=38; minimumWidth=38; minHeight=38; minimumHeight=38
   gravity=Gravity.CENTER; setPadding(0,0,0,0); setTextColor(navy)
-  typeface=Typeface.create("Arial",Typeface.BOLD)
+  typeface=Typeface.create("Arial",Typeface.NORMAL)
+  val isClose = label=="×" || label=="✕"
   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
   setOnTouchListener { v,e ->
-   if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(230,237,247)); cornerRadius=9f }
-   if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL) v.postDelayed({v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }},140)
+   if(e.action==MotionEvent.ACTION_DOWN) {
+    if(isClose) {
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(232,17,35)); cornerRadius=9f }
+     setTextColor(Color.WHITE)
+    } else {
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(230,237,247)); cornerRadius=9f }
+    }
+   }
+   if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL) {
+    v.postDelayed({
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
+     if(isClose) setTextColor(navy)
+    },140)
+   }
    false
   }
  }
- private fun windowIcon(title:String):String = when {
-  title.contains("YouTube Music")->"🎵"
-  title.contains("YouTube")->"▶️"
-  title.contains("المتصفح")->"🌐"
-  title.contains("الملفات")->"📁"
-  title.contains("الحاسبة")->"🧮"
-  title.contains("الرسام")->"🎨"
-  title.contains("المفكرة")->"📝"
-  title.contains("تحديث")->"🔄"
-  else->"🪟"
- }
+ private fun windowIcon(title:String):String = ""
  private fun taskButton(title:String)=Button(this).apply {
-  text=windowIcon(title); textSize=15.5f; isAllCaps=false; minWidth=50; minimumWidth=50; minHeight=54; minimumHeight=54
-  gravity=Gravity.CENTER; setPadding(3,2,3,2); setTextColor(navy)
-  typeface=Typeface.create("Arial",Typeface.BOLD)
-  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(235,242,252)); cornerRadius=13f; setStroke(1,Color.rgb(216,226,241)) }
-  elevation=2f; contentDescription=title
+  text=""
+  val d=resources.displayMetrics.density
+  val iconSizePx=(26*d).toInt()
+  val icon=FluentIcons.getIconForTitle(title)
+  val dIcon=FluentIcons.createDrawable(this@MainActivity,icon,iconSizePx)
+  setCompoundDrawablesWithIntrinsicBounds(null,dIcon,null,null)
+  isAllCaps=false; minWidth=(50*d).toInt(); minimumWidth=(50*d).toInt(); minHeight=(52*d).toInt(); minimumHeight=(52*d).toInt()
+  gravity=Gravity.CENTER; setPadding((4*d).toInt(),(4*d).toInt(),(4*d).toInt(),(4*d).toInt())
+  background=createTaskbarBackground(false)
+  elevation=0f; contentDescription=title
  }
  private fun task(s:String,a:()->Unit)=Button(this).apply {
   text=s; textSize=11.44f; minHeight=48; minimumHeight=48; minWidth=0; isAllCaps=false; gravity=Gravity.CENTER
@@ -797,131 +849,11 @@ class MainActivity : Activity() {
   content.addView(v,FrameLayout.LayoutParams(-1,-1))
  }
  private inner class Icon3DView(context:Context, private val symbol:String, private val label:String):View(context) {
-  // Fluent-inspired Windows 11 app tiles: clean geometry, recognizable glyphs and app-specific colors.
-  private val colors:IntArray = when {
-   label.contains("YouTube Music") -> intArrayOf(Color.rgb(255,65,95),Color.rgb(190,0,45),Color.rgb(255,205,215))
-   label.contains("YouTube") -> intArrayOf(Color.rgb(255,35,45),Color.rgb(190,0,15),Color.WHITE)
-   label.contains("مشغل الموسيقى") -> intArrayOf(Color.rgb(135,75,220),Color.rgb(80,35,155),Color.rgb(230,210,255))
-   label.contains("الإنترنت") || label.contains("متصفح") -> intArrayOf(Color.rgb(0,145,235),Color.rgb(0,85,175),Color.rgb(180,230,255))
-   label.contains("الكمبيوتر") -> intArrayOf(Color.rgb(0,145,210),Color.rgb(0,80,145),Color.rgb(185,230,250))
-   label.contains("PDF") -> intArrayOf(Color.rgb(220,45,55),Color.rgb(145,10,25),Color.WHITE)
-   label.contains("الفيديو") -> intArrayOf(Color.rgb(225,105,35),Color.rgb(155,55,15),Color.rgb(255,220,170))
-   label.contains("الرسام") || label.contains("صور") -> intArrayOf(Color.rgb(205,65,145),Color.rgb(125,25,95),Color.rgb(255,205,230))
-   label.contains("Word") -> intArrayOf(Color.rgb(35,115,205),Color.rgb(15,65,145),Color.WHITE)
-   label.contains("Excel") -> intArrayOf(Color.rgb(20,145,85),Color.rgb(5,90,50),Color.WHITE)
-   label.contains("التحكم") || label.contains("الإعدادات") -> intArrayOf(Color.rgb(105,125,155),Color.rgb(55,70,100),Color.WHITE)
-   label.contains("المهام") -> intArrayOf(Color.rgb(0,135,185),Color.rgb(0,75,115),Color.WHITE)
-   label.contains("Command") -> intArrayOf(Color.rgb(35,48,65),Color.rgb(8,15,25),Color.rgb(160,220,255))
-   label.contains("ألعاب") -> intArrayOf(Color.rgb(125,75,210),Color.rgb(70,30,145),Color.WHITE)
-   label.contains("الحاسبة") -> intArrayOf(Color.rgb(0,145,125),Color.rgb(0,85,75),Color.WHITE)
-   label.contains("المفكرة") -> intArrayOf(Color.rgb(220,165,35),Color.rgb(145,95,10),Color.WHITE)
-   label.contains("تحديث") -> intArrayOf(Color.rgb(0,130,215),Color.rgb(0,75,155),Color.WHITE)
-   label.contains("زيارات") -> intArrayOf(Color.rgb(190,35,45),Color.rgb(115,15,25),Color.WHITE)
-   else -> intArrayOf(Color.rgb(75,115,175),Color.rgb(35,65,120),Color.WHITE)
-  }
-  private val fill=Paint(Paint.ANTI_ALIAS_FLAG)
   init { setLayerType(View.LAYER_TYPE_SOFTWARE,null); contentDescription=label }
   override fun onDraw(canvas:Canvas) {
    super.onDraw(canvas)
-   val side=minOf(width,height).toFloat()
-   if(side<=0f) return
-   val left=(width-side)/2f+4f; val top=4f
-   val right=left+side-8f; val bottom=top+side-8f
-   val rect=RectF(left,top,right,bottom)
-   // Flat rounded-square tile, without the old glossy 3D bevel.
-   fill.style=Paint.Style.FILL
-   fill.shader=LinearGradient(left,top,right,bottom,intArrayOf(colors[0],colors[1]),null,Shader.TileMode.CLAMP)
-   canvas.drawRoundRect(rect,side*.19f,side*.19f,fill)
-   fill.shader=null
-   fill.color=Color.argb(35,255,255,255)
-   canvas.drawRoundRect(RectF(left+2f,top+2f,right-2f,bottom-2f),side*.17f,side*.17f,fill)
-   drawVectorGlyph(canvas,rect,label,side)
-  }
-  private fun drawVectorGlyph(canvas:Canvas,rect:RectF,label:String,side:Float) {
-   val cx=rect.centerX(); val cy=rect.centerY(); val unit=side*.30f
-   val p=Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color=Color.WHITE; style=Paint.Style.STROKE; strokeWidth=(side*.052f).coerceAtLeast(2.1f)
-    strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND
-   }
-   val path=Path()
-   when {
-    label.contains("متصفح") || label.contains("الإنترنت") -> {
-     p.color=colors[2]
-     canvas.drawCircle(cx,cy,unit,p); canvas.drawOval(RectF(cx-unit*.48f,cy-unit,cx+unit*.48f,cy+unit),p)
-     canvas.drawLine(cx-unit,cy,cx+unit,cy,p); canvas.drawArc(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),0f,180f,false,p)
-    }
-    label.contains("الكمبيوتر") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.72f,cx+unit,cy+unit*.55f),unit*.12f,unit*.12f,p)
-     canvas.drawLine(cx,cy+unit*.55f,cx,cy+unit*.9f,p)
-     canvas.drawLine(cx-unit*.42f,cy+unit*.9f,cx+unit*.42f,cy+unit*.9f,p)
-    }
-    label.contains("الملفات") -> {
-     p.color=colors[2]
-     path.moveTo(cx-unit,cy-unit*.48f);path.lineTo(cx-unit*.25f,cy-unit*.48f);path.lineTo(cx+unit*.02f,cy-unit*.18f);path.lineTo(cx+unit,cy-unit*.18f);path.lineTo(cx+unit*.82f,cy+unit*.65f);path.lineTo(cx-unit*.82f,cy+unit*.65f);path.close();canvas.drawPath(path,p)
-    }
-    label.contains("PDF") || label.contains("Word") || label.contains("المفكرة") || label.contains("Excel") -> {
-     p.color=colors[2]
-     path.moveTo(cx-unit*.65f,cy-unit);path.lineTo(cx+unit*.25f,cy-unit);path.lineTo(cx+unit*.68f,cy-unit*.55f);path.lineTo(cx+unit*.68f,cy+unit);path.lineTo(cx-unit*.65f,cy+unit);path.close();canvas.drawPath(path,p)
-     canvas.drawLine(cx+unit*.2f,cy-unit,cx+unit*.2f,cy-unit*.55f,p);canvas.drawLine(cx+unit*.2f,cy-unit*.55f,cx+unit*.68f,cy-unit*.55f,p)
-     for(i in -1..1) canvas.drawLine(cx-unit*.35f,cy+i*unit*.28f,cx+unit*.35f,cy+i*unit*.28f,p)
-    }
-    label.contains("الحاسبة") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit*.72f,cy-unit,cx+unit*.72f,cy+unit),unit*.12f,unit*.12f,p)
-     canvas.drawLine(cx-unit*.48f,cy-unit*.48f,cx+unit*.48f,cy-unit*.48f,p)
-     for(y in 0..1) for(x in 0..2) canvas.drawCircle(cx-unit*.42f+x*unit*.42f,cy+unit*.02f+y*unit*.43f,unit*.09f,p)
-    }
-    label.contains("الرسام") || label.contains("صور") -> {
-     p.color=colors[2]
-     canvas.drawCircle(cx,cy,unit*.88f,p);canvas.drawCircle(cx-unit*.25f,cy-unit*.2f,unit*.12f,p)
-     canvas.drawCircle(cx+unit*.22f,cy-unit*.28f,unit*.12f,p);canvas.drawCircle(cx+unit*.42f,cy+unit*.12f,unit*.12f,p)
-    }
-    label.contains("الفيديو") || label.contains("YouTube") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.68f,cx+unit,cy+unit*.68f),unit*.2f,unit*.2f,p)
-     path.moveTo(cx-unit*.2f,cy-unit*.35f);path.lineTo(cx+unit*.42f,cy);path.lineTo(cx-unit*.2f,cy+unit*.35f);path.close()
-     p.style=Paint.Style.FILL;canvas.drawPath(path,p)
-    }
-    label.contains("الموسيقى") || label.contains("Music") -> {
-     p.color=colors[2]
-     path.moveTo(cx+unit*.3f,cy-unit*.8f);path.lineTo(cx+unit*.3f,cy+unit*.42f);path.quadTo(cx+unit*.2f,cy+unit*.8f,cx-unit*.15f,cy+unit*.65f);path.quadTo(cx-unit*.48f,cy+unit*.45f,cx-unit*.18f,cy+unit*.28f);path.quadTo(cx+unit*.05f,cy+unit*.12f,cx+unit*.3f,cy+unit*.2f);canvas.drawPath(path,p)
-     canvas.drawLine(cx+unit*.3f,cy-unit*.8f,cx+unit*.85f,cy-unit*.65f,p)
-    }
-    label.contains("التحكم") || label.contains("الإعدادات") -> {
-     p.color=colors[2]
-     canvas.drawCircle(cx,cy,unit*.78f,p);canvas.drawCircle(cx,cy,unit*.28f,p)
-     for(a in 0..7){val angle=Math.toRadians(a*45.0);canvas.drawLine(cx+kotlin.math.cos(angle).toFloat()*unit*.85f,cy+kotlin.math.sin(angle).toFloat()*unit*.85f,cx+kotlin.math.cos(angle).toFloat()*unit*1.08f,cy+kotlin.math.sin(angle).toFloat()*unit*1.08f,p)}
-    }
-    label.contains("تحديث") -> {
-     p.color=colors[2]
-     val r=RectF(cx-unit*.8f,cy-unit*.8f,cx+unit*.8f,cy+unit*.8f);canvas.drawArc(r,205f,260f,false,p)
-     path.moveTo(cx+unit*.45f,cy-unit*.9f);path.lineTo(cx+unit*.9f,cy-unit*.72f);path.lineTo(cx+unit*.52f,cy-unit*.48f);canvas.drawPath(path,p)
-    }
-    label.contains("Command") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.7f,cx+unit,cy+unit*.7f),unit*.12f,unit*.12f,p)
-     path.moveTo(cx-unit*.55f,cy-unit*.2f);path.lineTo(cx-unit*.2f,cy);path.lineTo(cx-unit*.55f,cy+unit*.2f);canvas.drawPath(path,p)
-     canvas.drawLine(cx,cy+unit*.25f,cx+unit*.5f,cy+unit*.25f,p)
-    }
-    label.contains("ألعاب") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit,cy-unit*.48f,cx+unit,cy+unit*.48f),unit*.3f,unit*.3f,p)
-     canvas.drawLine(cx-unit*.55f,cy,cx-unit*.12f,cy,p);canvas.drawLine(cx-unit*.34f,cy-unit*.22f,cx-unit*.34f,cy+unit*.22f,p)
-     canvas.drawCircle(cx+unit*.38f,cy-unit*.12f,unit*.09f,p);canvas.drawCircle(cx+unit*.62f,cy+unit*.12f,unit*.09f,p)
-    }
-    label.contains("زيارات") -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit*.62f,cy-unit,cx+unit*.62f,cy+unit),unit*.14f,unit*.14f,p)
-     canvas.drawLine(cx-unit*.32f,cy-unit*.42f,cx+unit*.32f,cy-unit*.42f,p);canvas.drawLine(cx-unit*.32f,cy,cx+unit*.32f,cy,p)
-     canvas.drawLine(cx-unit*.32f,cy+unit*.42f,cx+unit*.12f,cy+unit*.42f,p)
-    }
-    else -> {
-     p.color=colors[2]
-     canvas.drawRoundRect(RectF(cx-unit*.85f,cy-unit*.85f,cx+unit*.85f,cy+unit*.85f),unit*.18f,unit*.18f,p)
-     canvas.drawCircle(cx,cy,unit*.34f,p)
-    }
-   }
+   val bounds=RectF(0f,0f,width.toFloat(),height.toFloat())
+   FluentIcons.drawIcon(canvas,FluentIcons.getIconForTitle(label),bounds)
   }
  }
  private fun showDesktop() {
@@ -1038,13 +970,13 @@ class MainActivity : Activity() {
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
   shortcuts.bringToFront()
   openWindows.forEach { it.frame.bringToFront() }
-  val start=taskButton("ابدأ").apply { text="⊞"; textSize=22f; setOnClickListener { showStartMenu() } }
+  val start=taskButton("ابدأ").apply { setOnClickListener { showStartMenu() } }
   if(taskbar.childCount==0) taskbar.addView(start)
-  val searchButton=taskButton("بحث").apply { text="⌕"; textSize=22f; setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
-  val browser=taskButton("متصفح الإنترنت").apply { text="◎"; textSize=21f; setOnClickListener { showBrowser() } }
-  val files=taskButton("هذا الكمبيوتر").apply { text="▤"; textSize=20f; setOnClickListener { showMyComputer() } }
-  val paint=taskButton("الرسام").apply { text="▧"; textSize=20f; setOnClickListener { showPaint() } }
-  val settings=taskButton("الإعدادات").apply { text="⚙"; textSize=19f; setOnClickListener { showControlPanel() } }
+  val searchButton=taskButton("بحث").apply { setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
+  val browser=taskButton("متصفح الإنترنت").apply { setOnClickListener { showBrowser() } }
+  val files=taskButton("هذا الكمبيوتر").apply { setOnClickListener { showMyComputer() } }
+  val paint=taskButton("الرسام").apply { setOnClickListener { showPaint() } }
+  val settings=taskButton("الإعدادات").apply { setOnClickListener { showControlPanel() } }
   val staticButtons=listOf(searchButton,browser,files,paint,settings)
   staticButtons.forEach { b ->
    b.setTextColor(Color.rgb(239,245,255))
@@ -1399,9 +1331,13 @@ class MainActivity : Activity() {
      if(index==0) pickFile("application/pdf") else showPaint()
     }
    }
-   row.addView(TextView(this).apply {
-    text=item.first; textSize=20f; gravity=Gravity.CENTER
-   },LinearLayout.LayoutParams(42,42))
+   val recIcon = ImageView(this).apply {
+    val iconType = if(index==0) FluentIcon.PDF_READER else FluentIcon.PAINT
+    val recD = FluentIcons.createDrawable(this@MainActivity, iconType, (28 * resources.displayMetrics.density).toInt())
+    setImageDrawable(recD)
+    setPadding(2,2,2,2)
+   }
+   row.addView(recIcon,LinearLayout.LayoutParams((38 * resources.displayMetrics.density).toInt(),(38 * resources.displayMetrics.density).toInt()))
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
    labels.addView(TextView(this).apply {
     text=item.second; textSize=10.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
@@ -1798,19 +1734,37 @@ class MainActivity : Activity() {
   }
   fun folderTile(label:String,icon:String,folder:String) {
    val f=java.io.File(workspace,folder).apply{mkdirs()}
-   val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(229,233,239))};isClickable=true;setOnClickListener{current=f;render()}}
-   tile.addView(TextView(this).apply{text=icon;textSize=22.88f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(45,48))
+   val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=8f;setStroke(1,Color.rgb(229,233,239))};isClickable=true;setOnClickListener{current=f;render()}}
+   val folderIcon=when(folder){
+    "Documents"->FluentIcon.FOLDER_DOCUMENTS
+    "Downloads"->FluentIcon.FOLDER_DOWNLOADS
+    "Pictures"->FluentIcon.FOLDER_PICTURES
+    "Videos"->FluentIcon.FOLDER_VIDEOS
+    "Music"->FluentIcon.FOLDER_MUSIC
+    "Desktop"->FluentIcon.FOLDER_DESKTOP
+    "Projects"->FluentIcon.FOLDER_PROJECTS
+    else->FluentIcon.FOLDER
+   }
+   val fIcon=ImageView(this).apply {
+    val dIcon=FluentIcons.createDrawable(this@MainActivity,folderIcon,(38*resources.displayMetrics.density).toInt())
+    setImageDrawable(dIcon)
+   }
+   tile.addView(fIcon,LinearLayout.LayoutParams((45*resources.displayMetrics.density).toInt(),(48*resources.displayMetrics.density).toInt()))
    tile.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_VERTICAL
-    addView(TextView(this@MainActivity).apply{text=label;textSize=11.44f;setTextColor(navy)})
+    addView(TextView(this@MainActivity).apply{text=label;textSize=11.44f;setTextColor(navy);typeface=Typeface.create("Arial",Typeface.BOLD)})
     addView(TextView(this@MainActivity).apply{text=if(f.listFiles().isNullOrEmpty()) "مجلد" else "العناصر: ${f.listFiles()?.size ?: 0}";textSize=8.8f;setTextColor(Color.GRAY)})
    },LinearLayout.LayoutParams(0,48,1f))
    main.addView(tile,LinearLayout.LayoutParams(-1,58).apply{bottomMargin=5})
   }
-  fun driveTile(title:String,sub:String,icon:String,onClick:()->Unit) {
-   val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=5f;setStroke(1,Color.rgb(220,226,234))};isClickable=true;setOnClickListener{onClick()}}
-   tile.addView(TextView(this).apply{text=icon;textSize=26.4f;gravity=Gravity.CENTER;setTextColor(blue)},LinearLayout.LayoutParams(52,54))
+  fun driveTile(title:String,sub:String,driveIcon:FluentIcon,onClick:()->Unit) {
+   val tile=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,5,10,5);background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=8f;setStroke(1,Color.rgb(220,226,234))};isClickable=true;setOnClickListener{onClick()}}
+   val dIcon=ImageView(this).apply {
+    val d=FluentIcons.createDrawable(this@MainActivity,driveIcon,(42*resources.displayMetrics.density).toInt())
+    setImageDrawable(d)
+   }
+   tile.addView(dIcon,LinearLayout.LayoutParams((52*resources.displayMetrics.density).toInt(),(54*resources.displayMetrics.density).toInt()))
    tile.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_VERTICAL
-    addView(TextView(this@MainActivity).apply{text=title;textSize=12.32f;setTextColor(navy)})
+    addView(TextView(this@MainActivity).apply{text=title;textSize=12.32f;setTextColor(navy);typeface=Typeface.create("Arial",Typeface.BOLD)})
     addView(TextView(this@MainActivity).apply{text=sub;textSize=8.8f;setTextColor(Color.GRAY)})
     val track=ProgressBar(this@MainActivity,null,android.R.attr.progressBarStyleHorizontal).apply{progress=if(title.contains("الهاتف"))45 else 22}
     addView(track,LinearLayout.LayoutParams(-1,5).apply{topMargin=4})
@@ -1821,18 +1775,32 @@ class MainActivity : Activity() {
    address.text=if(current==null)"⌂  هذا الكمبيوتر" else "⌂  هذا الكمبيوتر  ›  "+current!!.name
    sidebar.removeAllViews();main.removeAllViews()
    sidebar.addView(TextView(this).apply{text="الوصول السريع";textSize=10.56f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(Color.GRAY);setPadding(5,4,0,7)})
-   listOf("سطح المكتب" to "🖥","التنزيلات" to "⬇","المستندات" to "📄","الصور" to "🖼","الفيديو" to "🎬","الموسيقى" to "♫","هذا الكمبيوتر" to "💻").forEach { item ->
-    sidebar.addView(task(item.second+"  "+item.first){
-     current=when(item.first){"سطح المكتب"->java.io.File(workspace,"Desktop");"التنزيلات"->java.io.File(workspace,"Downloads");"المستندات"->java.io.File(workspace,"Documents");"الصور"->java.io.File(workspace,"Pictures");"الفيديو"->java.io.File(workspace,"Videos");"الموسيقى"->java.io.File(workspace,"Music");else->null}
+   val sideItems=listOf(
+    Triple("سطح المكتب",FluentIcon.FOLDER_DESKTOP,"Desktop"),
+    Triple("التنزيلات",FluentIcon.FOLDER_DOWNLOADS,"Downloads"),
+    Triple("المستندات",FluentIcon.FOLDER_DOCUMENTS,"Documents"),
+    Triple("الصور",FluentIcon.FOLDER_PICTURES,"Pictures"),
+    Triple("الفيديو",FluentIcon.FOLDER_VIDEOS,"Videos"),
+    Triple("الموسيقى",FluentIcon.FOLDER_MUSIC,"Music"),
+    Triple("هذا الكمبيوتر",FluentIcon.THIS_PC,"")
+   )
+   sideItems.forEach { (label,icon,folder) ->
+    val b=task("  "+label){
+     current=if(folder.isNotEmpty()) java.io.File(workspace,folder) else null
      render()
-    },LinearLayout.LayoutParams(-1,38).apply{bottomMargin=2})
+    }
+    val d=FluentIcons.createDrawable(this@MainActivity,icon,(18*resources.displayMetrics.density).toInt())
+    b.setCompoundDrawablesWithIntrinsicBounds(d,null,null,null)
+    b.gravity=Gravity.CENTER_VERTICAL or Gravity.START
+    b.setPadding((8*resources.displayMetrics.density).toInt(),0,(8*resources.displayMetrics.density).toInt(),0)
+    sidebar.addView(b,LinearLayout.LayoutParams(-1,38).apply{bottomMargin=2})
    }
    if(current==null) {
     sectionTitle("المجلدات")
     listOf("سطح المكتب" to "Desktop","التنزيلات" to "Downloads","المستندات" to "Documents","الصور" to "Pictures","الفيديو" to "Videos","الموسيقى" to "Music","المشاريع" to "Projects").forEach{folderTile(it.first,"📁",it.second)}
     sectionTitle("الأجهزة ومحركات الأقراص")
-    driveTile("القرص المحلي (C:)","مساحة ملفات Oriket الداخلية","💽"){current=workspace;render()}
-    driveTile("التخزين الداخلي للهاتف","فتح ملفات الهاتف واستيرادها","📱"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}}
+    driveTile("القرص المحلي (C:)","مساحة ملفات Oriket الداخلية",FluentIcon.HARD_DRIVE){current=workspace;render()}
+    driveTile("التخزين الداخلي للهاتف","فتح ملفات الهاتف واستيرادها",FluentIcon.SMARTPHONE){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},61)}catch(_:Exception){}}
     main.addView(TextView(this).apply{text="ملاحظة: محركات الأقراص المعروضة واجهة تنظيمية؛ Android لا يتيح للتطبيق إدارة أقراص Windows الفعلية.";textSize=8.8f;setTextColor(Color.GRAY);setPadding(3,8,3,4)})
    } else {
     main.addView(TextView(this).apply{text=current!!.absolutePath;textSize=9.68f;setTextColor(Color.GRAY);setPadding(2,2,2,8)})
@@ -1849,7 +1817,22 @@ class MainActivity : Activity() {
       orientation=LinearLayout.HORIZONTAL
       gravity=Gravity.CENTER_VERTICAL
       background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=6f;setStroke(1,Color.rgb(237,240,245))}
-      addView(task((if(f.isDirectory)"📁  " else "📄  ")+f.name){if(f.isDirectory){current=f;fileSearch.setText("");render()}else showFile(Uri.fromFile(f))},LinearLayout.LayoutParams(0,42,1f))
+      val fileIcon=when {
+       f.isDirectory -> FluentIcon.FOLDER
+       f.name.endsWith(".txt",true) || f.name.endsWith(".doc",true) || f.name.endsWith(".docx",true) -> FluentIcon.NOTEPAD
+       f.name.endsWith(".pdf",true) -> FluentIcon.PDF_READER
+       f.name.endsWith(".jpg",true) || f.name.endsWith(".png",true) || f.name.endsWith(".webp",true) -> FluentIcon.PHOTOS
+       f.name.endsWith(".mp4",true) || f.name.endsWith(".mkv",true) -> FluentIcon.VIDEOS
+       f.name.endsWith(".mp3",true) || f.name.endsWith(".wav",true) -> FluentIcon.MUSIC
+       f.name.endsWith(".xls",true) || f.name.endsWith(".xlsx",true) -> FluentIcon.SPREADSHEET
+       else -> FluentIcon.NOTEPAD
+      }
+      val fBtn=task("  "+f.name){if(f.isDirectory){current=f;fileSearch.setText("");render()}else showFile(Uri.fromFile(f))}
+      val fDrawable=FluentIcons.createDrawable(this@MainActivity,fileIcon,(22*resources.displayMetrics.density).toInt())
+      fBtn.setCompoundDrawablesWithIntrinsicBounds(fDrawable,null,null,null)
+      fBtn.gravity=Gravity.CENTER_VERTICAL or Gravity.START
+      fBtn.setPadding((8*resources.displayMetrics.density).toInt(),0,(8*resources.displayMetrics.density).toInt(),0)
+      addView(fBtn,LinearLayout.LayoutParams(0,42,1f))
       lateinit var more:Button
       more=task("⋯"){
        android.widget.PopupMenu(this@MainActivity,more).apply {
@@ -1932,7 +1915,24 @@ class MainActivity : Activity() {
      }
     }
    }
-   card.addView(TextView(this).apply { text=item[0]; textSize=23f; gravity=Gravity.CENTER; setTextColor(blue) },LinearLayout.LayoutParams(42,48))
+   val cIcon=ImageView(this).apply {
+    val fIcon=when(item[1]) {
+     "الشبكة والإنترنت" -> FluentIcon.WIFI
+     "Bluetooth" -> FluentIcon.BLUETOOTH
+     "الشاشة والسطوع" -> FluentIcon.THIS_PC
+     "الصوت" -> FluentIcon.MUSIC
+     "البطارية" -> FluentIcon.BATTERY
+     "الإشعارات" -> FluentIcon.NOTIFICATIONS
+     "التاريخ والوقت" -> FluentIcon.DATETIME
+     "التطبيقات" -> FluentIcon.APPS
+     "الخلفية والتخصيص" -> FluentIcon.WALLPAPER
+     "الخصوصية" -> FluentIcon.SECURITY
+     "حول التطبيق" -> FluentIcon.ABOUT
+     else -> FluentIcon.SETTINGS
+    }
+    setImageDrawable(FluentIcons.createDrawable(this@MainActivity,fIcon,(28*resources.displayMetrics.density).toInt()))
+   }
+   card.addView(cIcon,LinearLayout.LayoutParams((38*resources.displayMetrics.density).toInt(),(42*resources.displayMetrics.density).toInt()))
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
    labels.addView(TextView(this).apply { text=item[1]; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) })
    labels.addView(TextView(this).apply { text=item[2]; textSize=9.5f; setTextColor(Color.rgb(112,124,142)); setPadding(0,2,0,0) })
@@ -1963,7 +1963,11 @@ class MainActivity : Activity() {
    if(openWindows.isEmpty()) list.addView(message("لا توجد نوافذ مفتوحة"))
    openWindows.toList().forEach { entry ->
     val row=LinearLayout(this@MainActivity).apply { gravity=Gravity.CENTER_VERTICAL }
-    row.addView(TextView(this@MainActivity).apply { text=windowIcon(entry.title)+"  "+entry.title; setTextColor(navy); textSize=12.32f },LinearLayout.LayoutParams(0,44,1f))
+    val tIcon=ImageView(this@MainActivity).apply {
+     setImageDrawable(FluentIcons.createDrawable(this@MainActivity,FluentIcons.getIconForTitle(entry.title),(24*resources.displayMetrics.density).toInt()))
+    }
+    row.addView(tIcon,LinearLayout.LayoutParams((32*resources.displayMetrics.density).toInt(),(32*resources.displayMetrics.density).toInt()))
+    row.addView(TextView(this@MainActivity).apply { text="  "+entry.title; setTextColor(navy); textSize=12.32f; gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,44,1f))
     row.addView(task("إنهاء المهمة"){ if(entry.id!=openWindows.firstOrNull{it.title=="إدارة المهام"}?.id) { desktopArea.removeView(entry.frame); taskbar.removeView(entry.taskButton); openWindows.removeAll{it.id==entry.id}; refresh() } })
     list.addView(row)
    }
@@ -2372,7 +2376,21 @@ class MainActivity : Activity() {
      } else openSystemSetting(item.third)
     }
    }
-   tile.addView(TextView(this).apply { text=item.first; textSize=21f; gravity=Gravity.CENTER; setTextColor(Color.rgb(42,91,151)) },LinearLayout.LayoutParams(38,42))
+   val qIcon=ImageView(this).apply {
+    val fIcon=when(item.second) {
+     "Wi-Fi والشبكة" -> FluentIcon.WIFI
+     "Bluetooth" -> FluentIcon.BLUETOOTH
+     "الصوت" -> FluentIcon.MUSIC
+     "الشاشة والسطوع" -> FluentIcon.THIS_PC
+     "البطارية" -> FluentIcon.BATTERY
+     "التاريخ والوقت" -> FluentIcon.SETTINGS
+     "الإشعارات" -> FluentIcon.NOTIFICATIONS
+     "إعدادات الجهاز" -> FluentIcon.SETTINGS
+     else -> FluentIcon.SETTINGS
+    }
+    setImageDrawable(FluentIcons.createDrawable(this@MainActivity,fIcon,(24*resources.displayMetrics.density).toInt()))
+   }
+   tile.addView(qIcon,LinearLayout.LayoutParams((34*resources.displayMetrics.density).toInt(),(38*resources.displayMetrics.density).toInt()))
    tile.addView(TextView(this).apply { text=item.second; textSize=11.2f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,42,1f))
    grid.addView(tile,GridLayout.LayoutParams().apply {
     width=0; height=58; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(4,4,4,4)

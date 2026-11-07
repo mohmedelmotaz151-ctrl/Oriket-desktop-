@@ -17,35 +17,23 @@ android {
         targetSdk = 36
         versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
         versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
-    }
-
-    flavorDimensions += "distribution"
-    productFlavors {
-        create("direct") {
-            dimension = "distribution"
-            buildConfigField("boolean", "PLAY_DISTRIBUTION", "false")
-        }
-        create("play") {
-            dimension = "distribution"
-            buildConfigField("boolean", "PLAY_DISTRIBUTION", "true")
-        }
+        buildConfigField("boolean", "PLAY_DISTRIBUTION", "false")
     }
 
     signingConfigs {
-        create("playRelease") {
-            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
-            if (!keystorePath.isNullOrBlank()) {
-                storeFile = file(keystorePath)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-            }
+        create("debugConfig") {
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
     buildTypes {
-        getByName("release") {
-            signingConfig = signingConfigs.getByName("playRelease")
+        debug {
+            signingConfig = signingConfigs.getByName("debugConfig")
+        }
+        release {
             isMinifyEnabled = false
         }
     }
