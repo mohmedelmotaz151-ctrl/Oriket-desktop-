@@ -468,41 +468,41 @@ class MainActivity : Activity() {
    elevation=22f
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
+  val d=resources.displayMetrics.density
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding(9,6,9,6)
+   setPadding((6*d).toInt(),(2*d).toInt(),(6*d).toInt(),(2*d).toInt())
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.argb(92,255,255,255))
-    cornerRadius=17f
+    cornerRadius=14f*d
     setStroke(1,Color.argb(38,255,255,255))
    }
   }
-  val d=resources.displayMetrics.density
   val startButton=Button(this).apply {
    text=""
-   val startD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(28*d).toInt())
+   val startD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(24*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(null,startD,null,null)
    isAllCaps=false
-   minWidth=(48*d).toInt(); minimumWidth=(48*d).toInt(); minHeight=(48*d).toInt(); minimumHeight=(48*d).toInt()
+   minWidth=(40*d).toInt(); minimumWidth=(40*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
    gravity=Gravity.CENTER
    setPadding(0,0,0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT); cornerRadius=12f
+    setColor(Color.TRANSPARENT); cornerRadius=10f*d
    }
    contentDescription="ابدأ"
    setOnClickListener { showStartMenu() }
   }
   val searchButton=Button(this).apply {
    text=""
-   val searchD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.SEARCH,(22*d).toInt())
+   val searchD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.SEARCH,(19*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(null,searchD,null,null)
    isAllCaps=false
-   minWidth=(44*d).toInt(); minimumWidth=(44*d).toInt(); minHeight=(46*d).toInt(); minimumHeight=(46*d).toInt()
+   minWidth=(36*d).toInt(); minimumWidth=(36*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
    gravity=Gravity.CENTER
    setPadding(0,0,0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT); cornerRadius=12f
+    setColor(Color.TRANSPARENT); cornerRadius=10f*d
    }
    contentDescription="بحث"
    setOnClickListener { showStartMenu() }
@@ -510,15 +510,15 @@ class MainActivity : Activity() {
   val centerGroup=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER
-   addView(startButton,LinearLayout.LayoutParams(54,58))
-   addView(searchButton,LinearLayout.LayoutParams(50,58))
-   addView(taskbar,LinearLayout.LayoutParams(-2,62))
+   addView(startButton,LinearLayout.LayoutParams((44*d).toInt(),(44*d).toInt()))
+   addView(searchButton,LinearLayout.LayoutParams((40*d).toInt(),(44*d).toInt()))
+   addView(taskbar,LinearLayout.LayoutParams(-2,(48*d).toInt()))
   }
-  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,66,Gravity.CENTER))
+  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,(50*d).toInt(),Gravity.CENTER))
   val tray=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER_VERTICAL
-   setPadding(5,0,10,0)
+   setPadding((4*d).toInt(),0,(8*d).toInt(),0)
    background=android.graphics.drawable.GradientDrawable().apply {
     setColor(Color.TRANSPARENT); cornerRadius=10f
    }
@@ -526,38 +526,38 @@ class MainActivity : Activity() {
    contentDescription="منطقة النظام والإعدادات السريعة"
   }
   val networkLabel=TextView(this).apply {
-   val netD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WIFI,(18*d).toInt())
+   val netD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WIFI,(16*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(netD,null,null,null)
-   gravity=Gravity.CENTER; setPadding((4*d).toInt(),0,(4*d).toInt(),0)
+   gravity=Gravity.CENTER; setPadding((3*d).toInt(),0,(3*d).toInt(),0)
   }
   val batteryLabel=TextView(this).apply {
-   text="100%"; textSize=11f; setTextColor(Color.rgb(235,241,250))
-   val batD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.BATTERY,(20*d).toInt())
+   text="100%"; textSize=10f; setTextColor(Color.rgb(235,241,250))
+   val batD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.BATTERY,(18*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(batD,null,null,null)
-   compoundDrawablePadding=(4*d).toInt()
-   gravity=Gravity.CENTER; setPadding((3*d).toInt(),0,(5*d).toInt(),0)
+   compoundDrawablePadding=(3*d).toInt()
+   gravity=Gravity.CENTER; setPadding((2*d).toInt(),0,(4*d).toInt(),0)
   }
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
-   textSize=10.5f
+   textSize=9.8f
    setTextColor(Color.WHITE)
-   setPadding((5*d).toInt(),2,(3*d).toInt(),2)
+   setPadding((4*d).toInt(),1,(3*d).toInt(),1)
    setOnClickListener { showQuickSettings() }
    contentDescription="التاريخ والوقت والإعدادات السريعة"
   }
-  tray.addView(networkLabel,LinearLayout.LayoutParams((28*d).toInt(),58))
-  tray.addView(batteryLabel,LinearLayout.LayoutParams(-2,48))
+  tray.addView(networkLabel,LinearLayout.LayoutParams((24*d).toInt(),(44*d).toInt()))
+  tray.addView(batteryLabel,LinearLayout.LayoutParams(-2,(40*d).toInt()))
   notificationButton=TextView(this).apply {
-   val notifD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.NOTIFICATIONS,(19*d).toInt())
+   val notifD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.NOTIFICATIONS,(17*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(notifD,null,null,null)
    gravity=Gravity.CENTER
-   setPadding((5*d).toInt(),0,(5*d).toInt(),0); contentDescription="مركز الإشعارات"
+   setPadding((4*d).toInt(),0,(4*d).toInt(),0); contentDescription="مركز الإشعارات"
    setOnClickListener { showNotificationCenter() }
   }
-  tray.addView(notificationButton,LinearLayout.LayoutParams((38*d).toInt(),58))
-  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,58))
+  tray.addView(notificationButton,LinearLayout.LayoutParams((32*d).toInt(),(44*d).toInt()))
+  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,(44*d).toInt()))
   dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
-  root.addView(dock,LinearLayout.LayoutParams(-1,(74*d).toInt()))
+  root.addView(dock,LinearLayout.LayoutParams(-1,(54*d).toInt()))
   setContentView(root)
 
   fun refreshTray() {
@@ -785,11 +785,11 @@ class MainActivity : Activity() {
    cornerRadius=2f*d
   }
   val layer=android.graphics.drawable.LayerDrawable(arrayOf(base,pill))
-  val pillW=(18*d).toInt()
-  val pillH=(3*d).toInt()
+  val pillW=(16*d).toInt()
+  val pillH=(2.5f*d).toInt()
   val padB=(2*d).toInt()
-  val insetX=((50*d-pillW)/2).toInt().coerceAtLeast(0)
-  layer.setLayerInset(1,insetX,(52*d-pillH-padB).toInt(),insetX,padB)
+  val insetX=((42*d-pillW)/2).toInt().coerceAtLeast(0)
+  layer.setLayerInset(1,insetX,(42*d-pillH-padB).toInt(),insetX,padB)
   return layer
  }
  private fun windowButton(label:String)=Button(this).apply {
@@ -820,12 +820,12 @@ class MainActivity : Activity() {
  private fun taskButton(title:String)=Button(this).apply {
   text=""
   val d=resources.displayMetrics.density
-  val iconSizePx=(26*d).toInt()
+  val iconSizePx=(22*d).toInt()
   val icon=FluentIcons.getIconForTitle(title)
   val dIcon=FluentIcons.createDrawable(this@MainActivity,icon,iconSizePx)
   setCompoundDrawablesWithIntrinsicBounds(null,dIcon,null,null)
-  isAllCaps=false; minWidth=(50*d).toInt(); minimumWidth=(50*d).toInt(); minHeight=(52*d).toInt(); minimumHeight=(52*d).toInt()
-  gravity=Gravity.CENTER; setPadding((4*d).toInt(),(4*d).toInt(),(4*d).toInt(),(4*d).toInt())
+  isAllCaps=false; minWidth=(42*d).toInt(); minimumWidth=(42*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
+  gravity=Gravity.CENTER; setPadding((2*d).toInt(),(2*d).toInt(),(2*d).toInt(),(2*d).toInt())
   background=createTaskbarBackground(false)
   elevation=0f; contentDescription=title
  }
