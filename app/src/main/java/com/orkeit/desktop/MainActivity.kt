@@ -853,7 +853,7 @@ class MainActivity : Activity() {
   override fun onDraw(canvas:Canvas) {
    super.onDraw(canvas)
    val bounds=RectF(0f,0f,width.toFloat(),height.toFloat())
-   FluentIcons.drawIcon(canvas,FluentIcons.getIconForTitle(label),bounds)
+   FluentIcons.drawIcon(context,canvas,FluentIcons.getIconForTitle(label),bounds)
   }
  }
  private fun showDesktop() {

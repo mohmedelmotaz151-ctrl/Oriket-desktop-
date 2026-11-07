@@ -98,7 +98,68 @@ object FluentIcons {
         else -> FluentIcon.GENERIC_WINDOW
     }
 
+    fun getDrawableRes(icon: FluentIcon): Int = when (icon) {
+        FluentIcon.WINDOWS_START -> R.drawable.win11_start
+        FluentIcon.SEARCH -> R.drawable.win11_search
+        FluentIcon.THIS_PC -> R.drawable.win11_thispc
+        FluentIcon.FILE_EXPLORER -> R.drawable.win11_file_explorer
+        FluentIcon.RECYCLE_BIN -> R.drawable.win11_recyclebin_empty
+        FluentIcon.SETTINGS -> R.drawable.win11_settings
+        FluentIcon.EDGE_BROWSER -> R.drawable.win11_edge
+        FluentIcon.PAINT -> R.drawable.win11_paint
+        FluentIcon.NOTEPAD -> R.drawable.win11_notepad
+        FluentIcon.CALCULATOR -> R.drawable.win11_calculator
+        FluentIcon.DOCUMENTS -> R.drawable.win11_word
+        FluentIcon.SPREADSHEET -> R.drawable.win11_excel
+        FluentIcon.DOWNLOADS -> R.drawable.win11_folder_downloads
+        FluentIcon.MUSIC -> R.drawable.win11_music
+        FluentIcon.VIDEOS -> R.drawable.win11_movies
+        FluentIcon.PHOTOS -> R.drawable.win11_photos
+        FluentIcon.PDF_READER -> R.drawable.win11_pdf
+        FluentIcon.YOUTUBE -> R.drawable.win11_youtube
+        FluentIcon.YOUTUBE_MUSIC -> R.drawable.win11_youtubemusic
+        FluentIcon.TASK_MANAGER -> R.drawable.win11_taskmanager
+        FluentIcon.TERMINAL -> R.drawable.win11_terminal
+        FluentIcon.GAMES -> R.drawable.win11_games
+        FluentIcon.WINDOWS_UPDATE -> R.drawable.win11_settings
+        FluentIcon.CIVIL_DEFENSE -> R.drawable.win11_civil_defense
+        FluentIcon.FOLDER -> R.drawable.win11_folder
+        FluentIcon.FOLDER_DOCUMENTS -> R.drawable.win11_folder_documents
+        FluentIcon.FOLDER_DOWNLOADS -> R.drawable.win11_folder_downloads
+        FluentIcon.FOLDER_PICTURES -> R.drawable.win11_folder_pictures
+        FluentIcon.FOLDER_VIDEOS -> R.drawable.win11_folder_videos
+        FluentIcon.FOLDER_MUSIC -> R.drawable.win11_folder_music
+        FluentIcon.FOLDER_DESKTOP -> R.drawable.win11_folder_desktop
+        FluentIcon.FOLDER_PROJECTS -> R.drawable.win11_folder
+        FluentIcon.HARD_DRIVE -> R.drawable.win11_drive
+        FluentIcon.SMARTPHONE -> R.drawable.win11_cellphone
+        FluentIcon.WIFI -> R.drawable.win11_wifi
+        FluentIcon.BLUETOOTH -> R.drawable.win11_bluetooth
+        FluentIcon.SOUND -> R.drawable.win11_music
+        FluentIcon.DISPLAY -> R.drawable.win11_thispc
+        FluentIcon.BATTERY -> R.drawable.win11_battery
+        FluentIcon.NOTIFICATIONS -> R.drawable.win11_bell
+        FluentIcon.DATETIME -> R.drawable.win11_alarm
+        FluentIcon.APPS -> R.drawable.win11_store
+        FluentIcon.WALLPAPER -> R.drawable.win11_photos
+        FluentIcon.SECURITY -> R.drawable.win11_protection
+        FluentIcon.ABOUT -> R.drawable.win11_settings
+        FluentIcon.GENERIC_WINDOW -> R.drawable.win11_folder
+    }
+
     fun createBitmap(context: Context, icon: FluentIcon, sizePx: Int): Bitmap {
+        val resId = getDrawableRes(icon)
+        try {
+            val d = androidx.core.content.ContextCompat.getDrawable(context, resId)
+            if (d != null) {
+                val s = sizePx.coerceAtLeast(16)
+                val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+                val c = Canvas(bmp)
+                d.setBounds(0, 0, s, s)
+                d.draw(c)
+                return bmp
+            }
+        } catch (_: Exception) {}
         val bitmap = Bitmap.createBitmap(sizePx.coerceAtLeast(16), sizePx.coerceAtLeast(16), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val bounds = RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
@@ -107,8 +168,42 @@ object FluentIcons {
     }
 
     fun createDrawable(context: Context, icon: FluentIcon, sizePx: Int): Drawable {
+        val resId = getDrawableRes(icon)
+        try {
+            val d = androidx.core.content.ContextCompat.getDrawable(context, resId)
+            if (d != null) {
+                if (sizePx <= 0) return d
+                val s = sizePx.coerceAtLeast(16)
+                val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+                val c = Canvas(bmp)
+                d.setBounds(0, 0, s, s)
+                d.draw(c)
+                return BitmapDrawable(context.resources, bmp)
+            }
+        } catch (_: Exception) {}
         val bmp = createBitmap(context, icon, sizePx)
         return BitmapDrawable(context.resources, bmp)
+    }
+
+    fun drawIcon(context: Context?, canvas: Canvas, icon: FluentIcon, bounds: RectF) {
+        if (context != null) {
+            val resId = getDrawableRes(icon)
+            try {
+                val d = androidx.core.content.ContextCompat.getDrawable(context, resId)
+                if (d != null) {
+                    val pad = (minOf(bounds.width(), bounds.height()) * 0.04f).toInt()
+                    d.setBounds(
+                        (bounds.left + pad).toInt(),
+                        (bounds.top + pad).toInt(),
+                        (bounds.right - pad).toInt(),
+                        (bounds.bottom - pad).toInt()
+                    )
+                    d.draw(canvas)
+                    return
+                }
+            } catch (_: Exception) {}
+        }
+        drawIcon(canvas, icon, bounds)
     }
 
     fun drawIcon(canvas: Canvas, icon: FluentIcon, bounds: RectF) {
