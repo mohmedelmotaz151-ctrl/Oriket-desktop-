@@ -13,13 +13,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Keep the same debug signing key between CI builds so Android can update
-      # the installed APK instead of rejecting it because its signature changed.
+      # Preserve one debug signing key across CI runs so updates install over the
+      # previous direct-distribution APK without changing its signature.
       - name: Restore stable Android debug signing key
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: orkeit-desktop-debug-signing-key-v1
+      - name: Ensure stable Android debug signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/debug.keystore"
       - name: Install Android 16 SDK
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -n 1)
@@ -36,14 +51,14 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - name: Build direct-distribution debug APK
-        run: gradle assembleDirectDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+        run: gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
       - name: Prepare update package
-        run: cp app/build/outputs/apk/direct/debug/app-direct-debug.apk app/build/outputs/apk/direct/debug/orkeit-desktop.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/orkeit-desktop.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: orkeit-desktop-direct-debug-apk
-          path: app/build/outputs/apk/direct/debug/app-direct-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
       - name: Publish/update latest APK release
@@ -58,7 +73,7 @@ jobs:
               "versionCode": ${{ github.run_number }},
               "versionName": "1.0.${{ github.run_number }}"
             }
-          files: app/build/outputs/apk/direct/debug/orkeit-desktop.apk
+          files: app/build/outputs/apk/debug/orkeit-desktop.apk
           overwrite_files: true
           make_latest: false
           prerelease: true
