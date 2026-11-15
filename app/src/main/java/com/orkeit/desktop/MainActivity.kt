@@ -77,6 +77,7 @@ class MainActivity : Activity() {
  private var musicPlayer:MediaPlayer?=null
  private var onMusicPermissionGranted:(()->Unit)?=null
  private var onAudioPickedCallback:((Uri)->Unit)?=null
+ private var onExcelCsvPickedCallback:((Uri)->Unit)?=null
  private data class PhotoItem(val uri:Uri,val name:String,val date:Long)
  private var selectedPhoto:PhotoItem?=null
  private var editorBitmap:Bitmap?=null
@@ -984,6 +985,7 @@ class MainActivity : Activity() {
         val updated=prefs.getStringSet("hidden_shortcuts", emptySet())?.toMutableSet() ?: mutableSetOf()
         updated.add(item.second)
         prefs.edit().putStringSet("hidden_shortcuts",updated).apply()
+        RecycleBinStorage.recordShortcutDeleted(this@MainActivity,item.second)
         showDesktop()
         Toast.makeText(this@MainActivity,"نُقل الاختصار إلى سلة المحذوفات",Toast.LENGTH_SHORT).show()
         true
@@ -1187,31 +1189,622 @@ class MainActivity : Activity() {
  }
 
  private fun showRecycleBin() {
-  val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
-  val hidden=prefs.getStringSet("hidden_shortcuts",emptySet())?.toList().orEmpty()
-  if(hidden.isEmpty()) {
-   AlertDialog.Builder(this).setTitle("سلة المحذوفات").setMessage("سلة المحذوفات فارغة.")
-    .setPositiveButton("إغلاق",null).show()
-   return
+  shell("Recycle Bin")
+  val d=resources.displayMetrics.density
+  content.setPadding(0,0,0,0)
+  content.setBackgroundColor(RecycleBinTheme.WINDOW_BG)
+  val outerWindow=content.parent as? LinearLayout
+  val windowTitleBar=outerWindow?.getChildAt(0) as? LinearLayout
+  windowTitleBar?.setBackgroundColor(RecycleBinTheme.WINDOW_BG)
+
+  var allEntries=RecycleBinStorage.listItems(this)
+  val selectedIds=linkedSetOf<String>()
+  var activeTab="Manage"
+  var ribbonCollapsed=false
+  var groupExpanded=true
+  var largeIconsMode=true
+  var searchQuery=""
+
+  val page=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+   setBackgroundColor(RecycleBinTheme.WINDOW_BG)
   }
-  AlertDialog.Builder(this).setTitle("سلة المحذوفات — اختر اختصارًا لاستعادته")
-   .setItems(hidden.toTypedArray()) { _,which ->
-    val updated=hidden.toMutableSet()
-    val restored=hidden[which]
-    updated.remove(restored)
-    prefs.edit().putStringSet("hidden_shortcuts",updated).apply()
-    showDesktop()
-    Toast.makeText(this,"تمت استعادة الاختصار: $restored",Toast.LENGTH_SHORT).show()
+
+  lateinit var refreshAll:()->Unit
+  lateinit var renderContent:()->Unit
+  lateinit var renderRibbonBody:()->Unit
+  lateinit var updateStatusBar:()->Unit
+
+  fun visibleEntries():List<RecycledEntry> =
+   if(searchQuery.isBlank()) allEntries
+   else allEntries.filter {
+    it.displayName.contains(searchQuery,true) || it.originalLocation.contains(searchQuery,true)
    }
-   .setNeutralButton("إفراغ السلة") { _,_ ->
-    AlertDialog.Builder(this).setTitle("إفراغ سلة المحذوفات؟")
-     .setMessage("سيتم حذف الاختصارات من السلة نهائيًا، ولن تُحذف ملفات الهاتف.")
-     .setPositiveButton("إفراغ") { _,_ ->
-      prefs.edit().putStringSet("hidden_shortcuts",emptySet()).apply()
-      showDesktop()
-     }.setNegativeButton("إلغاء",null).show()
+
+  fun showPropertiesDialog(entry:RecycledEntry?=null) {
+   if(entry==null) {
+    val totalBytes=allEntries.sumOf { it.sizeBytes }
+    val filesCount=allEntries.count { !it.isShortcut }
+    val shortcutsCount=allEntries.count { it.isShortcut }
+    val box=LinearLayout(this).apply {
+     orientation=LinearLayout.VERTICAL
+     setPadding((16*d).toInt(),(10*d).toInt(),(16*d).toInt(),(6*d).toInt())
+    }
+    box.addView(TextView(this).apply {
+     text="الموقع: C:\\OriketWorkspace\\\$Recycle.Bin\nإجمالي العناصر: ${allEntries.size} ($filesCount ملفات، $shortcutsCount اختصارات)\nالمساحة المستخدمة: ${RecycleBinStorage.formatSize(totalBytes)}"
+     textSize=11.5f; setTextColor(RecycleBinTheme.TEXT_DARK)
+    })
+    val confirmCheck=CheckBox(this).apply {
+     text="عرض مربع حوار تأكيد الحذف"
+     isChecked=RecycleBinStorage.isConfirmDeleteEnabled(this@MainActivity)
+     setTextColor(RecycleBinTheme.TEXT_DARK)
+     setPadding(0,(8*d).toInt(),0,0)
+    }
+    box.addView(confirmCheck)
+    AlertDialog.Builder(this).setTitle("Recycle Bin Properties")
+     .setView(box)
+     .setPositiveButton("حفظ") { _,_ ->
+      RecycleBinStorage.setConfirmDeleteEnabled(this@MainActivity,confirmCheck.isChecked)
+     }
+     .setNegativeButton("إغلاق",null).show()
+   } else {
+    val dateFmt=java.text.SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault())
+    val kind=if(entry.isShortcut) "Desktop Shortcut" else if(entry.recycledFile?.isDirectory==true) "Folder" else "File"
+    AlertDialog.Builder(this).setTitle("${entry.displayName} Properties")
+     .setMessage("الاسم: ${entry.displayName}\nالنوع: $kind\nالموقع الأصلي: ${entry.originalLocation}\nالحجم: ${RecycleBinStorage.formatSize(entry.sizeBytes)}\nتاريخ الحذف: ${dateFmt.format(java.util.Date(entry.deletedAtMs))}")
+     .setPositiveButton("استعادة") { _,_ ->
+      if(RecycleBinStorage.restoreEntry(this,entry)) {
+       if(entry.isShortcut) showDesktop()
+       refreshAll()
+       Toast.makeText(this,"تمت استعادة: ${entry.displayName}",Toast.LENGTH_SHORT).show()
+      }
+     }
+     .setNegativeButton("إغلاق",null).show()
    }
-   .setNegativeButton("إغلاق",null).show()
+  }
+
+  fun performEmptyRecycleBin() {
+   if(allEntries.isEmpty()) return
+   AlertDialog.Builder(this).setTitle("Empty Recycle Bin")
+    .setMessage("هل تريد حذف جميع العناصر (${allEntries.size}) نهائيًا؟ لن تُحذف ملفات الهاتف الأساسية.")
+    .setPositiveButton("حذف الكل") { _,_ ->
+     RecycleBinStorage.emptyAll(this)
+     selectedIds.clear()
+     showDesktop()
+     refreshAll()
+     Toast.makeText(this,"تم إفراغ سلة المهملات",Toast.LENGTH_SHORT).show()
+    }.setNegativeButton("إلغاء",null).show()
+  }
+
+  fun performRestoreAll() {
+   if(allEntries.isEmpty()) return
+   var restoredAnyShortcut=false
+   var restoredCount=0
+   allEntries.forEach { entry ->
+    if(RecycleBinStorage.restoreEntry(this,entry)) {
+     restoredCount++
+     if(entry.isShortcut) restoredAnyShortcut=true
+    }
+   }
+   selectedIds.clear()
+   if(restoredAnyShortcut) showDesktop()
+   refreshAll()
+   Toast.makeText(this,"تمت استعادة $restoredCount عنصر",Toast.LENGTH_SHORT).show()
+  }
+
+  fun performRestoreSelected() {
+   val targets=allEntries.filter { it.id in selectedIds }
+   if(targets.isEmpty()) {
+    Toast.makeText(this,"حدد عنصرًا أولًا للاستعادة",Toast.LENGTH_SHORT).show()
+    return
+   }
+   var restoredAnyShortcut=false
+   var restoredCount=0
+   targets.forEach { entry ->
+    if(RecycleBinStorage.restoreEntry(this,entry)) {
+     restoredCount++
+     if(entry.isShortcut) restoredAnyShortcut=true
+    }
+   }
+   selectedIds.clear()
+   if(restoredAnyShortcut) showDesktop()
+   refreshAll()
+   Toast.makeText(this,"تمت استعادة $restoredCount عنصر",Toast.LENGTH_SHORT).show()
+  }
+
+  fun performDeleteSelected() {
+   val targets=allEntries.filter { it.id in selectedIds }
+   if(targets.isEmpty()) return
+   AlertDialog.Builder(this).setTitle("Delete Permanently")
+    .setMessage("حذف ${targets.size} عنصر نهائيًا من سلة المهملات؟")
+    .setPositiveButton("حذف") { _,_ ->
+     targets.forEach { RecycleBinStorage.deleteEntryPermanently(this,it) }
+     selectedIds.clear()
+     showDesktop()
+     refreshAll()
+    }.setNegativeButton("إلغاء",null).show()
+  }
+
+  // 1. Contextual Tab Strip: File | Home | Share | View | [Recycle Bin Tools -> Manage]
+  val tabStripRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.BOTTOM
+   setPadding((4*d).toInt(),(2*d).toInt(),(6*d).toInt(),0)
+   setBackgroundColor(RecycleBinTheme.RIBBON_TAB_BG)
+  }
+  val fileTabBtn=TextView(this).apply {
+   text="File"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.NORMAL)
+   setPadding((14*d).toInt(),(4*d).toInt(),(14*d).toInt(),(4*d).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(RecycleBinTheme.FILE_BLUE)
+    cornerRadii=floatArrayOf(2f*d,2f*d,2f*d,2f*d,0f,0f,0f,0f)
+   }
+   setOnClickListener { anchor ->
+    android.widget.PopupMenu(this@MainActivity,anchor).apply {
+     menu.add("Open This PC").setOnMenuItemClickListener { showMyComputer(); true }
+     menu.add("Empty Recycle Bin").setOnMenuItemClickListener { performEmptyRecycleBin(); true }
+     menu.add("Restore all items").setOnMenuItemClickListener { performRestoreAll(); true }
+     menu.add("Recycle Bin properties").setOnMenuItemClickListener { showPropertiesDialog(null); true }
+     show()
+    }
+   }
+  }
+  tabStripRow.addView(fileTabBtn,LinearLayout.LayoutParams(-2,(24*d).toInt()).apply { rightMargin=(2*d).toInt() })
+
+  val tabViews=mutableMapOf<String,TextView>()
+  listOf("Home","Share","View").forEach { name ->
+   val tv=TextView(this).apply {
+    text=name; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_DARK)
+    setPadding((11*d).toInt(),(4*d).toInt(),(11*d).toInt(),(4*d).toInt())
+    setOnClickListener { activeTab=name; ribbonCollapsed=false; renderRibbonBody() }
+   }
+   tabViews[name]=tv
+   tabStripRow.addView(tv,LinearLayout.LayoutParams(-2,(24*d).toInt()))
+  }
+
+  // Contextual "Recycle Bin Tools" purple header badge + "Manage" tab below/beside
+  val ctxTabGroup=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(RecycleBinTheme.CTX_PURPLE_BG)
+   }
+  }
+  ctxTabGroup.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.CTX_PURPLE_BAR) },LinearLayout.LayoutParams(-1,(2.5f*d).toInt().coerceAtLeast(2)))
+  ctxTabGroup.addView(TextView(this).apply {
+   text="Recycle Bin Tools"; textSize=9.5f; gravity=Gravity.CENTER
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(RecycleBinTheme.CTX_PURPLE_TEXT)
+   setPadding((10*d).toInt(),(1*d).toInt(),(10*d).toInt(),(1*d).toInt())
+  })
+  val manageTabBtn=TextView(this).apply {
+   text="Manage"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_DARK)
+   setPadding((12*d).toInt(),(3*d).toInt(),(12*d).toInt(),(4*d).toInt())
+   setOnClickListener { activeTab="Manage"; ribbonCollapsed=false; renderRibbonBody() }
+  }
+  tabViews["Manage"]=manageTabBtn
+  ctxTabGroup.addView(manageTabBtn,LinearLayout.LayoutParams(-1,(24*d).toInt()))
+  tabStripRow.addView(ctxTabGroup,LinearLayout.LayoutParams(-2,-2).apply { leftMargin=(4*d).toInt() })
+  tabStripRow.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+
+  val collapseBtn=TextView(this).apply {
+   text="⌃"; textSize=12f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED)
+   contentDescription="طي أو توسيع الشريط"
+   setOnClickListener { ribbonCollapsed=!ribbonCollapsed; text=if(ribbonCollapsed) "⌄" else "⌃"; renderRibbonBody() }
+  }
+  val helpBtn=TextView(this).apply {
+   text="?"; textSize=10f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   background=android.graphics.drawable.GradientDrawable().apply { shape=android.graphics.drawable.GradientDrawable.OVAL; setColor(RecycleBinTheme.FILE_BLUE) }
+   setOnClickListener {
+    AlertDialog.Builder(this@MainActivity).setTitle("سلة المحذوفات")
+     .setMessage("تعرض هذه النافذة الاختصارات والملفات المحذوفة داخل Oriket Desktop.\n• حدد عنصرًا ثم اضغط Restore the selected items لاستعادته.\n• أو اضغط Empty Recycle Bin لإفراغ السلة.")
+     .setPositiveButton("فهمت",null).show()
+   }
+  }
+  tabStripRow.addView(collapseBtn,LinearLayout.LayoutParams((22*d).toInt(),(22*d).toInt()))
+  tabStripRow.addView(helpBtn,LinearLayout.LayoutParams((16*d).toInt(),(16*d).toInt()).apply { leftMargin=(4*d).toInt(); bottomMargin=(4*d).toInt() })
+  page.addView(tabStripRow)
+
+  // 2. Ribbon Body (#F5F6F7) matching screenshot
+  val ribbonScroll=HorizontalScrollView(this).apply {
+   isHorizontalScrollBarEnabled=false
+   setBackgroundColor(RecycleBinTheme.RIBBON_BG)
+  }
+  val ribbonRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(4*d).toInt(),(8*d).toInt(),(3*d).toInt())
+  }
+  ribbonScroll.addView(ribbonRow)
+  page.addView(ribbonScroll,LinearLayout.LayoutParams(-1,-2))
+  val ribbonDivider=View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER) }
+  page.addView(ribbonDivider,LinearLayout.LayoutParams(-1,1))
+
+  fun makeRibbonButton(glyph:RecycleGlyph,label:String,enabled:Boolean=true,onClick:()->Unit):LinearLayout {
+   val btn=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL or Gravity.TOP
+    setPadding((6*d).toInt(),(3*d).toInt(),(6*d).toInt(),(2*d).toInt())
+    background=RecycleBinTheme.ribbonBtnBg(d,enabled)
+    isClickable=enabled
+    alpha=if(enabled) 1f else 0.48f
+    if(enabled) setOnClickListener { onClick() }
+   }
+   val iconView=RecycleRibbonGlyphView(this,glyph,d).apply { setGlyphEnabled(enabled) }
+   btn.addView(iconView,LinearLayout.LayoutParams((28*d).toInt(),(28*d).toInt()).apply { bottomMargin=(2*d).toInt() })
+   btn.addView(TextView(this).apply {
+    text=label; textSize=9.2f; gravity=Gravity.CENTER_HORIZONTAL
+    setTextColor(RecycleBinTheme.TEXT_DARK)
+    maxLines=2; includeFontPadding=false; setLineSpacing(0f,1.0f)
+   })
+   return btn
+  }
+
+  fun addRibbonGroup(title:String,build:(LinearLayout)->Unit) {
+   val grp=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL }
+   val inner=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+   build(inner)
+   grp.addView(inner,LinearLayout.LayoutParams(-2,(64*d).toInt()))
+   grp.addView(TextView(this).apply {
+    text=title; textSize=8.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED); maxLines=1
+   },LinearLayout.LayoutParams(-2,-2))
+   ribbonRow.addView(grp)
+   ribbonRow.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER) },LinearLayout.LayoutParams(1,(68*d).toInt()).apply {
+    leftMargin=(6*d).toInt(); rightMargin=(6*d).toInt()
+   })
+  }
+
+  renderRibbonBody={
+   tabViews.forEach { (k,tv) -> tv.background=RecycleBinTheme.tabBg(d,activeTab==k) }
+   ribbonScroll.visibility=if(ribbonCollapsed) View.GONE else View.VISIBLE
+   ribbonDivider.visibility=if(ribbonCollapsed) View.GONE else View.VISIBLE
+   ribbonRow.removeAllViews()
+   val hasAny=allEntries.isNotEmpty()
+   val hasSel=selectedIds.isNotEmpty()
+   when(activeTab) {
+    "Home" -> {
+     addRibbonGroup("Select") { g ->
+      g.addView(makeRibbonButton(RecycleGlyph.SELECT_ALL,"Select\nall",hasAny) {
+       selectedIds.clear(); selectedIds.addAll(visibleEntries().map { it.id })
+       renderContent(); renderRibbonBody(); updateStatusBar()
+      })
+      g.addView(makeRibbonButton(RecycleGlyph.PROPERTIES,"Properties",true) {
+       val single=allEntries.firstOrNull { it.id in selectedIds }
+       showPropertiesDialog(single)
+      })
+     }
+     addRibbonGroup("Organize") { g ->
+      g.addView(makeRibbonButton(RecycleGlyph.DELETE_PERM,"Delete\npermanently",hasSel) { performDeleteSelected() })
+      g.addView(makeRibbonButton(RecycleGlyph.RESTORE_SELECTED,"Restore\nselected",hasSel) { performRestoreSelected() })
+     }
+    }
+    "View" -> {
+     addRibbonGroup("Layout") { g ->
+      val largeBtn=makeRibbonButton(RecycleGlyph.LARGE_ICONS_VIEW,"Large\nicons",true) {
+       largeIconsMode=true; renderContent(); updateStatusBar()
+      }.apply { background=RecycleBinTheme.ribbonBtnBg(d,true,largeIconsMode) }
+      val detailsBtn=makeRibbonButton(RecycleGlyph.DETAILS_VIEW,"Details",true) {
+       largeIconsMode=false; renderContent(); updateStatusBar()
+      }.apply { background=RecycleBinTheme.ribbonBtnBg(d,true,!largeIconsMode) }
+      g.addView(largeBtn)
+      g.addView(detailsBtn)
+     }
+    }
+    "Share" -> {
+     addRibbonGroup("Recycle Bin") { g ->
+      g.addView(makeRibbonButton(RecycleGlyph.PROPERTIES,"Recycle Bin\nproperties",true) { showPropertiesDialog(null) })
+      g.addView(makeRibbonButton(RecycleGlyph.RESTORE_ALL,"Restore\nall items",hasAny) { performRestoreAll() })
+     }
+    }
+    else -> { // Default "Manage" (Recycle Bin Tools) matching screenshot
+     addRibbonGroup("Manage") { g ->
+      g.addView(makeRibbonButton(RecycleGlyph.EMPTY_BIN,"Empty\nRecycle Bin",hasAny) { performEmptyRecycleBin() })
+      g.addView(makeRibbonButton(RecycleGlyph.PROPERTIES,"Recycle Bin\nproperties",true) {
+       val single=if(selectedIds.size==1) allEntries.firstOrNull { it.id in selectedIds } else null
+       showPropertiesDialog(single)
+      })
+     }
+     addRibbonGroup("Restore") { g ->
+      g.addView(makeRibbonButton(RecycleGlyph.RESTORE_ALL,"Restore\nall items",hasAny) { performRestoreAll() })
+      g.addView(makeRibbonButton(RecycleGlyph.RESTORE_SELECTED,"Restore the\nselected items",hasSel) { performRestoreSelected() })
+     }
+     if(hasSel) {
+      addRibbonGroup("Delete") { g ->
+       g.addView(makeRibbonButton(RecycleGlyph.DELETE_PERM,"Delete\npermanently",true) { performDeleteSelected() })
+      }
+     }
+    }
+   }
+  }
+
+  // 3. Navigation, Address Bar & Search Row (← → ↑ | [Icon > Recycle Bin v ⟳] | [Search Recycle Bin 🔍])
+  val navRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((6*d).toInt(),(4*d).toInt(),(6*d).toInt(),(4*d).toInt())
+   setBackgroundColor(RecycleBinTheme.WINDOW_BG)
+  }
+  fun navArrow(sym:String,desc:String,onClick:()->Unit)=TextView(this).apply {
+   text=sym; textSize=13f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED)
+   contentDescription=desc
+   setOnClickListener { onClick() }
+  }
+  navRow.addView(navArrow("←","رجوع"){ showMyComputer() },LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()))
+  navRow.addView(navArrow("→","التالي"){ Toast.makeText(this,"لا يوجد مسار تالٍ",Toast.LENGTH_SHORT).show() },LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()))
+  navRow.addView(navArrow("↑","الأعلى"){ showDesktop() },LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()).apply { rightMargin=(4*d).toInt() })
+
+  val addressBox=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((6*d).toInt(),0,(6*d).toInt(),0)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); setStroke(1,RecycleBinTheme.BORDER); cornerRadius=2f*d
+   }
+  }
+  addressBox.addView(ImageView(this).apply {
+   setImageDrawable(FluentIcons.createDrawable(this@MainActivity,FluentIcon.RECYCLE_BIN,(15*d).toInt()))
+  },LinearLayout.LayoutParams((15*d).toInt(),(15*d).toInt()).apply { rightMargin=(5*d).toInt() })
+  addressBox.addView(TextView(this).apply {
+   text="›   Recycle Bin"; textSize=10.5f; setTextColor(RecycleBinTheme.TEXT_DARK); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+  },LinearLayout.LayoutParams(0,-2,1f))
+  addressBox.addView(TextView(this).apply {
+   text="▾"; textSize=10f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED)
+   setOnClickListener { anchor ->
+    android.widget.PopupMenu(this@MainActivity,anchor).apply {
+     menu.add("Desktop").setOnMenuItemClickListener { showMyComputer("Desktop"); true }
+     menu.add("This PC").setOnMenuItemClickListener { showMyComputer(); true }
+     menu.add("Documents").setOnMenuItemClickListener { showMyComputer("Documents"); true }
+     menu.add("Downloads").setOnMenuItemClickListener { showMyComputer("Downloads"); true }
+     menu.add("Recycle Bin").setOnMenuItemClickListener { refreshAll(); true }
+     show()
+    }
+   }
+  },LinearLayout.LayoutParams((18*d).toInt(),(24*d).toInt()))
+  addressBox.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER_LIGHT) },LinearLayout.LayoutParams(1,(16*d).toInt()))
+  addressBox.addView(TextView(this).apply {
+   text="⟳"; textSize=12.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_DARK); contentDescription="تحديث"
+   setOnClickListener { refreshAll() }
+  },LinearLayout.LayoutParams((22*d).toInt(),(24*d).toInt()))
+  navRow.addView(addressBox,LinearLayout.LayoutParams(0,(26*d).toInt(),1f).apply { rightMargin=(6*d).toInt() })
+
+  val searchBox=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((6*d).toInt(),0,(6*d).toInt(),0)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); setStroke(1,RecycleBinTheme.BORDER); cornerRadius=2f*d
+   }
+  }
+  val searchInput=EditText(this).apply {
+   hint="Search Recycle Bin"; textSize=10f; setSingleLine(true); setTextColor(RecycleBinTheme.TEXT_DARK)
+   setHintTextColor(RecycleBinTheme.TEXT_MUTED)
+   background=null; setPadding(0,0,0,0)
+  }
+  searchInput.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+    searchQuery=s?.toString()?.trim().orEmpty()
+    renderContent()
+    updateStatusBar()
+   }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
+  searchBox.addView(searchInput,LinearLayout.LayoutParams(0,-2,1f))
+  searchBox.addView(TextView(this).apply { text="🔍"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED) })
+  navRow.addView(searchBox,LinearLayout.LayoutParams((155*d).toInt(),(26*d).toInt()))
+  page.addView(navRow)
+  page.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER_LIGHT) },LinearLayout.LayoutParams(-1,1))
+
+  // 4. Split Pane: Left Navigation Sidebar + Right Content Grid/Details
+  val split=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(RecycleBinTheme.WINDOW_BG) }
+  val navSidebar=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; setPadding((4*d).toInt(),(6*d).toInt(),(4*d).toInt(),(6*d).toInt())
+   setBackgroundColor(RecycleBinTheme.WINDOW_BG)
+  }
+  fun addSidebarRow(label:String,icon:FluentIcon,indentDp:Int,active:Boolean=false,onClick:()->Unit) {
+   val row=LinearLayout(this).apply {
+    orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+    setPadding(((6+indentDp)*d).toInt(),(4*d).toInt(),(6*d).toInt(),(4*d).toInt())
+    background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(if(active) RecycleBinTheme.SIDEBAR_ACTIVE_FILL else Color.TRANSPARENT)
+     if(active) setStroke(1,RecycleBinTheme.SIDEBAR_ACTIVE_BORDER)
+     cornerRadius=2f*d
+    }
+    isClickable=true
+    setOnClickListener { onClick() }
+   }
+   row.addView(ImageView(this).apply {
+    setImageDrawable(FluentIcons.createDrawable(this@MainActivity,icon,(15*d).toInt()))
+   },LinearLayout.LayoutParams((15*d).toInt(),(15*d).toInt()).apply { rightMargin=(6*d).toInt() })
+   row.addView(TextView(this).apply {
+    text=label; textSize=10f; setTextColor(RecycleBinTheme.TEXT_DARK); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+   },LinearLayout.LayoutParams(0,-2,1f))
+   navSidebar.addView(row,LinearLayout.LayoutParams(-1,(25*d).toInt()).apply { bottomMargin=(1*d).toInt() })
+  }
+  addSidebarRow("Quick access",FluentIcon.FOLDER_PROJECTS,0) { showMyComputer() }
+  addSidebarRow("Desktop",FluentIcon.FOLDER_DESKTOP,6) { showMyComputer("Desktop") }
+  addSidebarRow("This PC",FluentIcon.THIS_PC,0) { showMyComputer() }
+  addSidebarRow("Desktop",FluentIcon.FOLDER_DESKTOP,12) { showMyComputer("Desktop") }
+  addSidebarRow("Documents",FluentIcon.FOLDER_DOCUMENTS,12) { showMyComputer("Documents") }
+  addSidebarRow("Downloads",FluentIcon.FOLDER_DOWNLOADS,12) { showMyComputer("Downloads") }
+  addSidebarRow("Music",FluentIcon.FOLDER_MUSIC,12) { showMyComputer("Music") }
+  addSidebarRow("Pictures",FluentIcon.FOLDER_PICTURES,12) { showMyComputer("Pictures") }
+  addSidebarRow("Videos",FluentIcon.FOLDER_VIDEOS,12) { showMyComputer("Videos") }
+  addSidebarRow("Local Disk (C:)",FluentIcon.HARD_DRIVE,12) { showMyComputer("") }
+  addSidebarRow("Recycle Bin",FluentIcon.RECYCLE_BIN,0,active=true) { refreshAll() }
+
+  val sideScroll=ScrollView(this).apply { isVerticalScrollBarEnabled=false; addView(navSidebar) }
+  split.addView(sideScroll,LinearLayout.LayoutParams((142*d).toInt(),-1))
+  split.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER_LIGHT) },LinearLayout.LayoutParams(1,-1))
+
+  val rightPane=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; setPadding((10*d).toInt(),(6*d).toInt(),(10*d).toInt(),(6*d).toInt())
+   setBackgroundColor(RecycleBinTheme.WINDOW_BG)
+  }
+  val rightScroll=ScrollView(this).apply { addView(rightPane) }
+  split.addView(rightScroll,LinearLayout.LayoutParams(0,-1,1f))
+  page.addView(split,LinearLayout.LayoutParams(-1,0,1f))
+
+  // 5. Bottom Status Bar: "N items  |  M item selected  Size" + [Details | Large Icons]
+  page.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER_LIGHT) },LinearLayout.LayoutParams(-1,1))
+  val statusBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(8*d).toInt(),(2*d).toInt())
+   setBackgroundColor(RecycleBinTheme.STATUS_BG)
+  }
+  val statusText=TextView(this).apply { text="0 items"; textSize=9.5f; setTextColor(RecycleBinTheme.TEXT_DARK); maxLines=1 }
+  val detailsToggle=RecycleRibbonGlyphView(this,RecycleGlyph.DETAILS_VIEW,d).apply {
+   contentDescription="عرض التفاصيل"
+   setOnClickListener { largeIconsMode=false; renderContent(); updateStatusBar() }
+  }
+  val largeIconsToggle=RecycleRibbonGlyphView(this,RecycleGlyph.LARGE_ICONS_VIEW,d).apply {
+   contentDescription="عرض الأيقونات الكبيرة"
+   setOnClickListener { largeIconsMode=true; renderContent(); updateStatusBar() }
+  }
+  statusBar.addView(statusText,LinearLayout.LayoutParams(0,-2,1f))
+  statusBar.addView(detailsToggle,LinearLayout.LayoutParams((22*d).toInt(),(18*d).toInt()).apply { rightMargin=(4*d).toInt() })
+  statusBar.addView(largeIconsToggle,LinearLayout.LayoutParams((22*d).toInt(),(18*d).toInt()))
+  page.addView(statusBar,LinearLayout.LayoutParams(-1,(24*d).toInt()))
+
+  updateStatusBar={
+   val list=visibleEntries()
+   val selList=list.filter { it.id in selectedIds }
+   val countText="${list.size} ${if(list.size==1) "item" else "items"}"
+   val selText=if(selList.isNotEmpty()) {
+    val selBytes=selList.sumOf { it.sizeBytes }
+    "   |   ${selList.size} ${if(selList.size==1) "item" else "items"} selected  ${RecycleBinStorage.formatSize(selBytes)}"
+   } else ""
+   statusText.text=countText+selText
+   detailsToggle.background=RecycleBinTheme.ribbonBtnBg(d,true,!largeIconsMode)
+   largeIconsToggle.background=RecycleBinTheme.ribbonBtnBg(d,true,largeIconsMode)
+  }
+
+  renderContent={
+   rightPane.removeAllViews()
+   val list=visibleEntries()
+   if(list.isEmpty()) {
+    rightPane.addView(TextView(this).apply {
+     text=if(searchQuery.isNotBlank()) "No items match your search." else "This folder is empty.\n\nسلة المحذوفات فارغة — عند حذف اختصار من سطح المكتب أو ملف من «هذا الكمبيوتر» سيظهر هنا."
+     textSize=11.5f; gravity=Gravity.CENTER; setTextColor(RecycleBinTheme.TEXT_MUTED)
+     setPadding((16*d).toInt(),(36*d).toInt(),(16*d).toInt(),(16*d).toInt())
+    },LinearLayout.LayoutParams(-1,-2))
+   } else {
+    // Collapsible Group Header matching "⌄ Earlier this year (N)"
+    val headerRow=LinearLayout(this).apply {
+     orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+     setPadding((2*d).toInt(),(2*d).toInt(),(2*d).toInt(),(6*d).toInt())
+     isClickable=true
+     setOnClickListener { groupExpanded=!groupExpanded; renderContent() }
+    }
+    headerRow.addView(TextView(this).apply {
+     text="${if(groupExpanded) "⌄" else "›"}  Recycle Bin items (${list.size})"
+     textSize=11.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
+     setTextColor(RecycleBinTheme.GROUP_HEADER_BLUE)
+    })
+    headerRow.addView(View(this).apply { setBackgroundColor(RecycleBinTheme.BORDER_LIGHT) },LinearLayout.LayoutParams(0,1,1f).apply { leftMargin=(8*d).toInt() })
+    rightPane.addView(headerRow)
+
+    if(groupExpanded) {
+     if(largeIconsMode) {
+      val availW=(rightPane.width.takeIf { it>0 } ?: (desktopArea.width*0.52f).toInt()).coerceAtLeast((220*d).toInt())
+      val cols=(availW/(92*d).toInt()).coerceIn(2,7)
+      val grid=GridLayout(this).apply { columnCount=cols }
+      list.forEach { entry ->
+       val selected=entry.id in selectedIds
+       val card=LinearLayout(this).apply {
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL or Gravity.TOP
+        setPadding((6*d).toInt(),(6*d).toInt(),(6*d).toInt(),(5*d).toInt())
+        background=RecycleBinTheme.itemCardBg(d,selected)
+        isClickable=true
+        setOnClickListener {
+         if(entry.id in selectedIds) selectedIds.remove(entry.id) else { selectedIds.clear(); selectedIds.add(entry.id) }
+         renderContent(); renderRibbonBody(); updateStatusBar()
+        }
+        setOnLongClickListener { anchor ->
+         selectedIds.clear(); selectedIds.add(entry.id)
+         renderContent(); renderRibbonBody(); updateStatusBar()
+         android.widget.PopupMenu(this@MainActivity,anchor).apply {
+          menu.add("استعادة (Restore)").setOnMenuItemClickListener { performRestoreSelected(); true }
+          menu.add("حذف نهائي (Delete)").setOnMenuItemClickListener { performDeleteSelected(); true }
+          menu.add("خصائص (Properties)").setOnMenuItemClickListener { showPropertiesDialog(entry); true }
+          show()
+         }
+         true
+        }
+       }
+       val thumbBmp=RecycleBinStorage.decodeThumbnail(entry.recycledFile,(56*d).toInt())
+       val preview=ImageView(this).apply {
+        scaleType=if(thumbBmp!=null) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
+        contentDescription=entry.displayName
+        if(thumbBmp!=null) setImageBitmap(thumbBmp)
+        else setImageDrawable(FluentIcons.createDrawable(this@MainActivity,entry.icon,(42*d).toInt()))
+       }
+       card.addView(preview,LinearLayout.LayoutParams((56*d).toInt(),(42*d).toInt()).apply { bottomMargin=(4*d).toInt() })
+       card.addView(TextView(this).apply {
+        text=entry.displayName; textSize=9.2f; gravity=Gravity.CENTER_HORIZONTAL
+        setTextColor(RecycleBinTheme.TEXT_DARK); maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END
+        includeFontPadding=false; setLineSpacing(0f,1.05f)
+       },LinearLayout.LayoutParams(-1,-2))
+       grid.addView(card,GridLayout.LayoutParams().apply {
+        width=0; height=(88*d).toInt(); columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)
+        setMargins((3*d).toInt(),(2*d).toInt(),(3*d).toInt(),(4*d).toInt())
+       })
+      }
+      rightPane.addView(grid,LinearLayout.LayoutParams(-1,-2))
+     } else {
+      val dateFmt=java.text.SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault())
+      list.forEach { entry ->
+       val selected=entry.id in selectedIds
+       val row=LinearLayout(this).apply {
+        orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+        setPadding((6*d).toInt(),(5*d).toInt(),(6*d).toInt(),(5*d).toInt())
+        background=RecycleBinTheme.itemCardBg(d,selected)
+        isClickable=true
+        setOnClickListener {
+         if(entry.id in selectedIds) selectedIds.remove(entry.id) else { selectedIds.clear(); selectedIds.add(entry.id) }
+         renderContent(); renderRibbonBody(); updateStatusBar()
+        }
+        setOnLongClickListener { anchor ->
+         selectedIds.clear(); selectedIds.add(entry.id)
+         renderContent(); renderRibbonBody(); updateStatusBar()
+         android.widget.PopupMenu(this@MainActivity,anchor).apply {
+          menu.add("استعادة (Restore)").setOnMenuItemClickListener { performRestoreSelected(); true }
+          menu.add("حذف نهائي (Delete)").setOnMenuItemClickListener { performDeleteSelected(); true }
+          menu.add("خصائص (Properties)").setOnMenuItemClickListener { showPropertiesDialog(entry); true }
+          show()
+         }
+         true
+        }
+       }
+       row.addView(ImageView(this).apply {
+        setImageDrawable(FluentIcons.createDrawable(this@MainActivity,entry.icon,(20*d).toInt()))
+       },LinearLayout.LayoutParams((20*d).toInt(),(20*d).toInt()).apply { rightMargin=(8*d).toInt() })
+       row.addView(TextView(this).apply {
+        text=entry.displayName; textSize=10f; setTextColor(RecycleBinTheme.TEXT_DARK); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+       },LinearLayout.LayoutParams(0,-2,1.3f))
+       row.addView(TextView(this).apply {
+        text=entry.originalLocation; textSize=9.2f; setTextColor(RecycleBinTheme.TEXT_MUTED); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.MIDDLE
+       },LinearLayout.LayoutParams(0,-2,1f))
+       row.addView(TextView(this).apply {
+        text=dateFmt.format(java.util.Date(entry.deletedAtMs)); textSize=9f; setTextColor(RecycleBinTheme.TEXT_MUTED); gravity=Gravity.END
+       },LinearLayout.LayoutParams((86*d).toInt(),-2))
+       row.addView(TextView(this).apply {
+        text=RecycleBinStorage.formatSize(entry.sizeBytes); textSize=9f; setTextColor(RecycleBinTheme.TEXT_MUTED); gravity=Gravity.END
+       },LinearLayout.LayoutParams((54*d).toInt(),-2))
+       rightPane.addView(row,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(2*d).toInt() })
+      }
+     }
+    }
+   }
+  }
+
+  refreshAll={
+   allEntries=RecycleBinStorage.listItems(this)
+   selectedIds.retainAll(allEntries.map { it.id }.toSet())
+   renderRibbonBody()
+   renderContent()
+   updateStatusBar()
+  }
+
+  panel(page)
+  refreshAll()
+  rightPane.post { if(largeIconsMode && allEntries.isNotEmpty()) renderContent() }
  }
  private fun showPowerMenu() {
   val options=arrayOf("🌙  سكون","⏻  إيقاف Oriket Desktop","🔄  إعادة تشغيل Oriket Desktop")
@@ -1635,6 +2228,11 @@ class MainActivity : Activity() {
    try { contentResolver.takePersistableUriPermission(selected,Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch(_:Exception) {}
    onAudioPickedCallback?.invoke(selected)
   }
+  if(requestCode==73 && resultCode==RESULT_OK && data?.data!=null) {
+   val selected=data.data!!
+   try { contentResolver.takePersistableUriPermission(selected,Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch(_:Exception) {}
+   onExcelCsvPickedCallback?.invoke(selected)
+  }
   if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
    if(selected!=null) {
@@ -1761,13 +2359,17 @@ class MainActivity : Activity() {
   panel(page)
  }
 
- private fun showMyComputer() {
+ private fun showMyComputer(initialFolder:String?=null) {
   shell("هذا الكمبيوتر")
   val workspace=java.io.File(filesDir,"OriketWorkspace").apply {
    mkdirs()
    listOf("Documents","Downloads","Pictures","Videos","Projects","Music","Desktop").forEach { java.io.File(this,it).mkdirs() }
   }
-  var current:java.io.File?=null
+  var current:java.io.File?=when {
+   initialFolder==null -> null
+   initialFolder.isEmpty() -> workspace
+   else -> java.io.File(workspace,initialFolder).apply { mkdirs() }
+  }
   lateinit var render: () -> Unit
   val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE) }
   val toolbar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(7,4,7,4);setBackgroundColor(Color.rgb(246,248,251)) }
@@ -1909,7 +2511,22 @@ class MainActivity : Activity() {
          true
         }
         menu.add("حذف").setOnMenuItemClickListener {
-         AlertDialog.Builder(this@MainActivity).setMessage("هل تريد حذف ${f.name}؟").setPositiveButton("حذف"){_,_->if(f.delete())render()else Toast.makeText(this@MainActivity,"تعذر الحذف",Toast.LENGTH_SHORT).show()}.setNegativeButton("إلغاء",null).show()
+         val doRecycle={
+          if(RecycleBinStorage.moveFileToRecycleBin(this@MainActivity,f)) {
+           render()
+           Toast.makeText(this@MainActivity,"نُقل الملف إلى سلة المحذوفات",Toast.LENGTH_SHORT).show()
+          } else Toast.makeText(this@MainActivity,"تعذر نقل الملف إلى السلة",Toast.LENGTH_SHORT).show()
+         }
+         if(RecycleBinStorage.isConfirmDeleteEnabled(this@MainActivity)) {
+          AlertDialog.Builder(this@MainActivity).setTitle("نقل إلى سلة المحذوفات؟")
+           .setMessage("هل تريد نقل ${f.name} إلى سلة المحذوفات؟")
+           .setPositiveButton("نقل إلى السلة") { _,_ -> doRecycle() }
+           .setNeutralButton("حذف نهائي") { _,_ ->
+            val ok=if(f.isDirectory) f.deleteRecursively() else f.delete()
+            if(ok) render() else Toast.makeText(this@MainActivity,"تعذر الحذف",Toast.LENGTH_SHORT).show()
+           }
+           .setNegativeButton("إلغاء",null).show()
+         } else doRecycle()
          true
         }
        }.show()
@@ -2905,27 +3522,905 @@ class MainActivity : Activity() {
  }
  private fun showExcel() {
   shell("Excel")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  page.addView(TextView(this).apply { text="Excel — جدول البيانات"; textSize=19.36f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setPadding(2,2,2,5) })
+  val d=resources.displayMetrics.density
   val prefs=getSharedPreferences("orkeit_excel",Context.MODE_PRIVATE)
-  val grid=GridLayout(this).apply { columnCount=5; rowCount=11 }
-  val cells=mutableListOf<EditText>()
-  listOf("صف","A","B","C","D").forEach { h -> grid.addView(TextView(this).apply { text=h; textSize=14.08f; gravity=Gravity.CENTER; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(205,224,247)); setStroke(1,border) }) },GridLayout.LayoutParams().apply { width=0; height=46; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f) }) }
-  val saved=prefs.getString("data","").orEmpty().split("\u001F")
-  fun cellIndex(ref:String):Int { val s=ref.trim().uppercase(Locale.ROOT); if(s.length<2)return -1; val col=s[0]-'A'; val row=s.substring(1).toIntOrNull()?.minus(1) ?: return -1; return if(col in 0..3 && row in 0..9) row*4+col else -1 }
-  fun cellValue(i:Int,depth:Int=0):Double { if(i !in cells.indices || depth>8)return Double.NaN; val raw=cells[i].text.toString().trim(); if(!raw.startsWith("="))return raw.replace(",",".").toDoubleOrNull() ?: 0.0; val e=raw.drop(1).trim(); val ref=cellIndex(e); if(ref>=0)return cellValue(ref,depth+1); val sum=Regex("(?i)SUM\\(([A-D]\\d+):([A-D]\\d+)\\)").matchEntire(e); if(sum!=null){val x=cellIndex(sum.groupValues[1]);val y=cellIndex(sum.groupValues[2]);if(x>=0&&y>=0)return (minOf(x,y)..maxOf(x,y)).sumOf{cellValue(it,depth+1)}}; val m=Regex("(-?\\d+(?:[.,]\\d+)?)\\s*([+*/-])\\s*(-?\\d+(?:[.,]\\d+)?)").matchEntire(e); if(m!=null){val x=m.groupValues[1].replace(",",".").toDoubleOrNull()?:return Double.NaN;val y=m.groupValues[3].replace(",",".").toDoubleOrNull()?:return Double.NaN;return when(m.groupValues[2]){"+"->x+y;"-"->x-y;"*"->x*y;"/"->if(y==0.0)Double.NaN else x/y;else->Double.NaN}};return Double.NaN }
-  fun persist(){prefs.edit().putString("data",cells.joinToString("\u001F"){it.text.toString()}).apply()}
-  repeat(40) { i ->
-   val cell=EditText(this).apply { setSingleLine(true); textSize=14.08f; gravity=Gravity.CENTER; setPadding(4,4,4,4); setTextColor(Color.rgb(15,25,40)); setText(saved.getOrNull(i).orEmpty()); setBackground(android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); setStroke(1,border) }); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){persist()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
-   cells.add(cell); grid.addView(cell,GridLayout.LayoutParams().apply { width=0; height=50; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(0,0,0,0) })
+  val numCols=8 // Columns A..H like Microsoft Excel screenshot
+  var numRows=16 // Rows 1..16 initially, expandable
+  val totalInit=numRows*numCols
+
+  // Multi-sheet workbook state (backward-compatible with legacy "data" 4x10 key)
+  data class ExcelSheet(
+   var name:String,
+   var cells:MutableList<String>,
+   var boldSet:MutableSet<Int> = mutableSetOf(),
+   var alignMap:MutableMap<Int,Int> = mutableMapOf(),
+   var tableFilterOn:Boolean = true,
+   var stripedRows:Boolean = true,
+   var activeFilterCol:Int = -1,
+   var activeFilterVal:String? = null
+  )
+
+  val sheets=mutableListOf<ExcelSheet>()
+  var activeSheetIdx=prefs.getInt("active_sheet",0).coerceAtLeast(0)
+
+  fun loadWorkbook() {
+   sheets.clear()
+   val jsonStr=prefs.getString("sheets_v2",null)
+   if(!jsonStr.isNullOrBlank()) {
+    try {
+     val arr=org.json.JSONArray(jsonStr)
+     for(s in 0 until arr.length()) {
+      val obj=arr.getJSONObject(s)
+      val name=obj.optString("name","Sheet${s+1}")
+      val cellArr=obj.optJSONArray("cells")
+      val list=MutableList(totalInit) { "" }
+      if(cellArr!=null) {
+       val count=maxOf(totalInit,cellArr.length())
+       while(list.size<count) list.add("")
+       for(i in 0 until cellArr.length()) list[i]=cellArr.optString(i,"")
+      }
+      val bolds=mutableSetOf<Int>()
+      obj.optJSONArray("bold")?.let { ba -> for(i in 0 until ba.length()) bolds.add(ba.optInt(i)) }
+      val filterOn=obj.optBoolean("filter",true)
+      val stripes=obj.optBoolean("stripes",true)
+      sheets.add(ExcelSheet(name,list,bolds,tableFilterOn=filterOn,stripedRows=stripes))
+     }
+    } catch(_:Exception) {}
+   }
+   if(sheets.isEmpty()) {
+    val legacy=prefs.getString("data","").orEmpty().split("\u001F")
+    val sheet1Cells=MutableList(totalInit) { "" }
+    if(legacy.any { it.isNotBlank() }) {
+     // Migrate saved 4x10 cells cleanly into 8x16 Sheet1
+     for(r in 0 until 10) {
+      for(c in 0 until 4) {
+       val oldIdx=r*4+c
+       if(oldIdx<legacy.size) sheet1Cells[r*numCols+c]=legacy[oldIdx]
+      }
+     }
+    }
+    sheets.add(ExcelSheet("Sheet1",sheet1Cells,tableFilterOn=true,stripedRows=true))
+    sheets.add(ExcelSheet("Sheet2",MutableList(totalInit) { "" },tableFilterOn=false,stripedRows=true))
+   }
+   if(activeSheetIdx !in sheets.indices) activeSheetIdx=0
+   numRows=(sheets[activeSheetIdx].cells.size/numCols).coerceAtLeast(16)
   }
-  val buttons=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
-  buttons.addView(task("حساب الصيغ") { val results=cells.mapIndexedNotNull { i,e -> if(e.text.toString().trim().startsWith("=")){val v=cellValue(i); ("خلية "+('A'+i%4)+(i/4+1)+" = "+(if(v.isNaN()||v.isInfinite()) "#ERROR" else v.toString()))}else null }; AlertDialog.Builder(this).setTitle("نتائج الصيغ").setMessage(results.joinToString("\n").ifEmpty{"لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A4)"}).setPositiveButton("حسنًا",null).show() },LinearLayout.LayoutParams(0,50,1f))
-  buttons.addView(task("مسح الجدول"){AlertDialog.Builder(this).setTitle("مسح الجدول؟").setPositiveButton("مسح"){_,_->cells.forEach{it.setText("")};persist()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(0,50,1f))
-  buttons.addView(action("تصدير CSV"){try{val rows=(0 until 10).joinToString("\n"){r->(0 until 4).joinToString(","){col->val i=r*4+col;val raw=cells[i].text.toString().trim();val value=if(raw.startsWith("="))cellValue(i).let{if(it.isNaN()||it.isInfinite())"#ERROR" else it.toString()}else raw;"\""+value.replace("\"","\"\"")+"\""}};val values=ContentValues().apply{put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Excel-"+System.currentTimeMillis()+".csv");put(MediaStore.Downloads.MIME_TYPE,"text/csv")};val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);if(uri!=null)contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write("\uFEFF"+rows)};Toast.makeText(this,if(uri!=null)"تم تصدير الجدول إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()}catch(_:Exception){Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show()}},LinearLayout.LayoutParams(0,42,1f))
-  page.addView(buttons)
-  page.addView(TextView(this).apply { text="يُحفظ الجدول تلقائيًا. اكتب رقمًا أو صيغة مثل =A1+B1 أو =SUM(A1:A4)، ثم اضغط حساب الصيغ." ; textSize=12.32f; setTextColor(navy); setPadding(3,4,3,4) })
-  page.addView(ScrollView(this).apply { addView(grid) },LinearLayout.LayoutParams(-1,0,1f))
+  loadWorkbook()
+
+  fun saveWorkbook() {
+   try {
+    val arr=org.json.JSONArray()
+    sheets.forEach { sh ->
+     val obj=JSONObject()
+     obj.put("name",sh.name)
+     val ca=org.json.JSONArray()
+     sh.cells.forEach { ca.put(it) }
+     obj.put("cells",ca)
+     val ba=org.json.JSONArray()
+     sh.boldSet.forEach { ba.put(it) }
+     obj.put("bold",ba)
+     obj.put("filter",sh.tableFilterOn)
+     obj.put("stripes",sh.stripedRows)
+     arr.put(obj)
+    }
+    // Also mirror Sheet1's 4x10 slice into legacy "data" key
+    val s0=sheets.firstOrNull()?.cells
+    val legacySlice=if(s0!=null) (0 until 10).flatMap { r -> (0 until 4).map { c -> s0.getOrElse(r*numCols+c) { "" } } }.joinToString("\u001F") else ""
+    prefs.edit().putString("sheets_v2",arr.toString()).putInt("active_sheet",activeSheetIdx).putString("data",legacySlice).apply()
+   } catch(_:Exception) {}
+  }
+
+  // Undo / Redo snapshots
+  val undoStack=mutableListOf<List<String>>()
+  val redoStack=mutableListOf<List<String>>()
+  fun pushUndo() {
+   val snap=sheets[activeSheetIdx].cells.toList()
+   if(undoStack.lastOrNull()!=snap) {
+    undoStack.add(snap)
+    if(undoStack.size>30) undoStack.removeAt(0)
+    redoStack.clear()
+   }
+  }
+
+  // Theme the shell window in classic Microsoft Excel Forest Green (#217346)
+  content.setPadding(0,0,0,0)
+  content.setBackgroundColor(Color.WHITE)
+  val outerWindow=content.parent as? LinearLayout
+  val windowTitleBar=outerWindow?.getChildAt(0) as? LinearLayout
+  val windowTitleLabel=windowTitleBar?.getChildAt(1) as? TextView
+  outerWindow?.background=android.graphics.drawable.GradientDrawable().apply {
+   setColor(Color.WHITE); cornerRadius=8f*d
+   setStroke((1.2f*d).toInt().coerceAtLeast(1),ExcelTheme.EXCEL_GREEN_DARK)
+  }
+  windowTitleBar?.apply {
+   setBackgroundColor(ExcelTheme.EXCEL_GREEN)
+   windowTitleLabel?.apply {
+    text="Book1 - Excel"
+    setTextColor(Color.WHITE)
+    gravity=Gravity.CENTER
+   }
+   (getChildAt(2) as? TextView)?.setTextColor(Color.WHITE)
+   (getChildAt(3) as? TextView)?.setTextColor(Color.WHITE)
+   (getChildAt(4) as? TextView)?.setTextColor(Color.WHITE)
+  }
+
+  // Inject quick access buttons (Save, Undo, Redo) directly into the green Excel titlebar
+  val quickBar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  fun makeTitleQuickBtn(icon:String,desc:String,onClick:()->Unit):TextView = TextView(this).apply {
+   text=icon; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   contentDescription=desc; setPadding((5*d).toInt(),0,(5*d).toInt(),0)
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(35,255,255,255)); cornerRadius=4f*d }
+   setOnClickListener { onClick() }
+  }
+  lateinit var exportCsvAction:()->Unit
+  lateinit var undoAction:()->Unit
+  lateinit var redoAction:()->Unit
+  quickBar.addView(makeTitleQuickBtn("💾","حفظ وتصدير") { saveWorkbook(); exportCsvAction() },LinearLayout.LayoutParams((26*d).toInt(),(24*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  quickBar.addView(makeTitleQuickBtn("↶","تراجع") { undoAction() },LinearLayout.LayoutParams((24*d).toInt(),(24*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  quickBar.addView(makeTitleQuickBtn("↷","إعادة") { redoAction() },LinearLayout.LayoutParams((24*d).toInt(),(24*d).toInt()).apply { rightMargin=(6*d).toInt() })
+  windowTitleBar?.addView(quickBar,1)
+
+  val page=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+   setBackgroundColor(Color.WHITE)
+  }
+
+  // State variables for selection, Ribbon, Zoom, and Grid
+  var selRow=0; var selCol=0
+  var activeRibbonIdx=3 // Start on "Data" tab (matches Microsoft Excel screenshot!)
+  var showFormulasMode=false
+  var zoomPct=100
+  var suppressSync=false
+  val cellEdits=mutableListOf<EditText>()
+  val cellContainers=mutableListOf<LinearLayout>()
+  val colHeaderViews=mutableListOf<TextView>()
+  val rowHeaderViews=mutableListOf<TextView>()
+  val rowWrappers=mutableListOf<LinearLayout>()
+
+  lateinit var nameBox:TextView
+  lateinit var formulaInput:EditText
+  lateinit var statusText:TextView
+  lateinit var zoomLabel:TextView
+  lateinit var zoomSlider:SeekBar
+  lateinit var rebuildGrid:()->Unit
+  lateinit var refreshSelectionAndCells:()->Unit
+  lateinit var rebuildSheetTabs:()->Unit
+
+  // 1. Excel Green Quick Strip / Ribbon Tab Strip (File, Home, Insert, Formulas, Data, View)
+  val ribbonTabStrip=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(2*d).toInt(),(8*d).toInt(),0)
+   setBackgroundColor(ExcelTheme.RIBBON_BG)
+  }
+  val ribbonTabNames=listOf("File","Home","Formulas","Data","View")
+  val ribbonTabButtons=mutableListOf<TextView>()
+  val ribbonToolArea=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(4*d).toInt(),(8*d).toInt(),(4*d).toInt())
+   setBackgroundColor(Color.WHITE)
+  }
+  val ribbonScroller=HorizontalScrollView(this).apply {
+   isHorizontalScrollBarEnabled=false
+   setBackgroundColor(Color.WHITE)
+   addView(ribbonToolArea)
+  }
+
+  fun addRibbonTool(icon:String,label:String,active:Boolean=false,onClick:()->Unit) {
+   val item=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+    setPadding((8*d).toInt(),(3*d).toInt(),(8*d).toInt(),(3*d).toInt())
+    background=ExcelTheme.ribbonToolBackground(d,active)
+    setOnClickListener { onClick() }
+   }
+   item.addView(TextView(this).apply {
+    text=icon; textSize=14f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.EXCEL_GREEN_DARK)
+   })
+   item.addView(TextView(this).apply {
+    text=label; textSize=9f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK); maxLines=1
+   })
+   ribbonToolArea.addView(item,LinearLayout.LayoutParams(-2,(46*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  }
+  fun addRibbonDivider() {
+   ribbonToolArea.addView(View(this).apply { setBackgroundColor(ExcelTheme.RIBBON_GROUP_DIV) },LinearLayout.LayoutParams((1*d).toInt().coerceAtLeast(1),(38*d).toInt()).apply {
+    leftMargin=(4*d).toInt(); rightMargin=(6*d).toInt()
+   })
+  }
+
+  val importCsvAction:()->Unit = {
+   try {
+    startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+     addCategory(Intent.CATEGORY_OPENABLE)
+     type="*/*"
+    },73)
+   } catch(_:Exception) { Toast.makeText(this,"تعذر فتح منتقي ملفات CSV",Toast.LENGTH_SHORT).show() }
+  }
+
+  exportCsvAction={
+   try {
+    val sh=sheets[activeSheetIdx]
+    val getRaw:(Int,Int)->String={ r,c -> sh.cells.getOrElse(r*numCols+c) { "" } }
+    val rows=(0 until numRows).joinToString("\n") { r ->
+     (0 until numCols).joinToString(",") { col ->
+      val raw=getRaw(r,col).trim()
+      val value=if(raw.startsWith("=")) ExcelFormulaEngine.evaluateDisplay(raw,numRows,numCols,getRaw) else raw
+      "\""+value.replace("\"","\"\"")+"\""
+     }
+    }
+    val values=ContentValues().apply {
+     put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-${sh.name}-${System.currentTimeMillis()}.csv")
+     put(MediaStore.Downloads.MIME_TYPE,"text/csv")
+    }
+    val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
+    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write("\uFEFF"+rows) }
+    Toast.makeText(this,if(uri!=null)"تم تصدير ${sh.name}.csv إلى التنزيلات" else "تعذر التصدير",Toast.LENGTH_LONG).show()
+   } catch(_:Exception) { Toast.makeText(this,"تعذر التصدير",Toast.LENGTH_LONG).show() }
+  }
+
+  fun sortByColumn(col:Int,ascending:Boolean) {
+   val sh=sheets[activeSheetIdx]
+   pushUndo()
+   val startRow=if(sh.tableFilterOn) 1 else 0
+   val dataRows=(startRow until numRows).map { r ->
+    (0 until numCols).map { c -> sh.cells[r*numCols+c] }
+   }
+   val nonEmpty=dataRows.filter { row -> row.any { it.isNotBlank() } }
+   val empty=List(dataRows.size-nonEmpty.size) { List(numCols) { "" } }
+   val sorted=nonEmpty.sortedWith { a,b ->
+    val av=a[col].trim(); val bv=b[col].trim()
+    val an=av.replace(",",".").toDoubleOrNull(); val bn=bv.replace(",",".").toDoubleOrNull()
+    val cmp=if(an!=null && bn!=null) an.compareTo(bn) else av.lowercase(Locale.ROOT).compareTo(bv.lowercase(Locale.ROOT))
+    if(ascending) cmp else -cmp
+   }
+   (sorted+empty).forEachIndexed { idx,rowVals ->
+    val r=startRow+idx
+    for(c in 0 until numCols) sh.cells[r*numCols+c]=rowVals[c]
+   }
+   saveWorkbook(); rebuildGrid()
+  }
+
+  fun insertFormulaIntoSelected(formula:String) {
+   val sh=sheets[activeSheetIdx]
+   pushUndo()
+   val idx=selRow*numCols+selCol
+   sh.cells[idx]=formula
+   saveWorkbook()
+   refreshSelectionAndCells()
+  }
+
+  lateinit var renderRibbonTools:(Int)->Unit
+  renderRibbonTools={ tabIdx ->
+   activeRibbonIdx=tabIdx
+   ribbonTabButtons.forEachIndexed { i,tv ->
+    val active=(i==tabIdx)
+    tv.setTextColor(if(active) ExcelTheme.EXCEL_GREEN else ExcelTheme.TEXT_DARK)
+    tv.typeface=Typeface.create("Arial",if(active) Typeface.BOLD else Typeface.NORMAL)
+    tv.background=if(active) ExcelTheme.activeRibbonTabDrawable(d) else null
+   }
+   ribbonToolArea.removeAllViews()
+   val sh=sheets[activeSheetIdx]
+   when(tabIdx) {
+    0 -> { // File
+     addRibbonTool("📂","فتح CSV") { importCsvAction() }
+     addRibbonTool("📤","تصدير CSV") { exportCsvAction() }
+     addRibbonDivider()
+     addRibbonTool("💾","حفظ") { saveWorkbook(); Toast.makeText(this,"تم حفظ المصنف",Toast.LENGTH_SHORT).show() }
+     addRibbonTool("🆕","ورقة جديدة") {
+      AlertDialog.Builder(this).setTitle("مسح الورقة الحالية؟")
+       .setPositiveButton("مسح") { _,_ -> pushUndo(); sh.cells.fill(""); sh.boldSet.clear(); sh.activeFilterVal=null; saveWorkbook(); rebuildGrid() }
+       .setNegativeButton("إلغاء",null).show()
+     }
+    }
+    1 -> { // Home
+     addRibbonTool("B","عريض",sh.boldSet.contains(selRow*numCols+selCol)) {
+      val idx=selRow*numCols+selCol
+      if(sh.boldSet.contains(idx)) sh.boldSet.remove(idx) else sh.boldSet.add(idx)
+      saveWorkbook(); refreshSelectionAndCells(); renderRibbonTools(1)
+     }
+     addRibbonTool("⇤","محاذاة يسار") { sh.alignMap[selRow*numCols+selCol]=Gravity.START or Gravity.CENTER_VERTICAL; refreshSelectionAndCells() }
+     addRibbonTool("≡","توسيط") { sh.alignMap[selRow*numCols+selCol]=Gravity.CENTER; refreshSelectionAndCells() }
+     addRibbonTool("⇥","محاذاة يمين") { sh.alignMap[selRow*numCols+selCol]=Gravity.END or Gravity.CENTER_VERTICAL; refreshSelectionAndCells() }
+     addRibbonDivider()
+     addRibbonTool("∑","جمع تلقائي") {
+      val colL=ExcelFormulaEngine.colName(selCol)
+      val endR=maxOf(1,selRow)
+      val startR=if(sh.tableFilterOn && endR>1) 2 else 1
+      insertFormulaIntoSelected("=SUM(${colL}$startR:${colL}$endR)")
+     }
+     addRibbonTool("🧹","مسح الخلية") { pushUndo(); sh.cells[selRow*numCols+selCol]=""; saveWorkbook(); refreshSelectionAndCells() }
+     addRibbonTool("🗑","مسح الكل") {
+      AlertDialog.Builder(this).setTitle("مسح كل خلايا ${sh.name}؟")
+       .setPositiveButton("مسح") { _,_ -> pushUndo(); sh.cells.fill(""); sh.boldSet.clear(); saveWorkbook(); rebuildGrid() }
+       .setNegativeButton("إلغاء",null).show()
+     }
+    }
+    2 -> { // Formulas
+     val colL=ExcelFormulaEngine.colName(selCol)
+     val endR=maxOf(1,selRow)
+     val startR=if(sh.tableFilterOn && endR>1) 2 else 1
+     addRibbonTool("∑","SUM") { insertFormulaIntoSelected("=SUM(${colL}$startR:${colL}$endR)") }
+     addRibbonTool("x̄","AVERAGE") { insertFormulaIntoSelected("=AVERAGE(${colL}$startR:${colL}$endR)") }
+     addRibbonTool("↓","MIN") { insertFormulaIntoSelected("=MIN(${colL}$startR:${colL}$endR)") }
+     addRibbonTool("↑","MAX") { insertFormulaIntoSelected("=MAX(${colL}$startR:${colL}$endR)") }
+     addRibbonTool("#","COUNT") { insertFormulaIntoSelected("=COUNT(${colL}$startR:${colL}$endR)") }
+     addRibbonDivider()
+     addRibbonTool("fx","عرض الصيغ",showFormulasMode) {
+      showFormulasMode=!showFormulasMode; refreshSelectionAndCells(); renderRibbonTools(2)
+     }
+     addRibbonTool("✓","حساب الكل") {
+      val getRaw:(Int,Int)->String={ r,c -> sh.cells.getOrElse(r*numCols+c) { "" } }
+      val results=mutableListOf<String>()
+      for(r in 0 until numRows) for(c in 0 until numCols) {
+       val raw=getRaw(r,c).trim()
+       if(raw.startsWith("=")) results.add("${ExcelFormulaEngine.cellRef(r,c)}  ($raw) = ${ExcelFormulaEngine.evaluateDisplay(raw,numRows,numCols,getRaw)}")
+      }
+      refreshSelectionAndCells()
+      AlertDialog.Builder(this).setTitle("نتائج الصيغ")
+       .setMessage(results.joinToString("\n").ifEmpty { "لا توجد صيغ. أمثلة: =A1+B1 أو =SUM(A1:A5) أو =AVERAGE(D2:D8)" })
+       .setPositiveButton("حسنًا",null).show()
+     }
+    }
+    3 -> { // Data (Exact Microsoft Excel screenshot layout!)
+     addRibbonTool("📥","استيراد CSV") { importCsvAction() }
+     addRibbonTool("📤","تصدير CSV") { exportCsvAction() }
+     addRibbonDivider()
+     addRibbonTool("A↓Z","فرز تصاعدي") { sortByColumn(selCol,true) }
+     addRibbonTool("Z↓A","فرز تنازلي") { sortByColumn(selCol,false) }
+     addRibbonTool("⧩","Filter",sh.tableFilterOn) {
+      sh.tableFilterOn=!sh.tableFilterOn
+      if(!sh.tableFilterOn) { sh.activeFilterCol=-1; sh.activeFilterVal=null }
+      saveWorkbook(); rebuildGrid(); renderRibbonTools(3)
+     }
+     addRibbonTool("✖","إلغاء التصفية",sh.activeFilterVal!=null) {
+      sh.activeFilterCol=-1; sh.activeFilterVal=null; rebuildGrid(); renderRibbonTools(3)
+     }
+     addRibbonDivider()
+     addRibbonTool("⇄","تقليم العمود") {
+      pushUndo()
+      for(r in 0 until numRows) { val i=r*numCols+selCol; sh.cells[i]=sh.cells[i].trim() }
+      saveWorkbook(); rebuildGrid()
+     }
+     addRibbonTool("↴","ملء لأسفل") {
+      if(selRow+1<numRows) {
+       pushUndo()
+       sh.cells[(selRow+1)*numCols+selCol]=sh.cells[selRow*numCols+selCol]
+       saveWorkbook(); refreshSelectionAndCells()
+      }
+     }
+    }
+    4 -> { // View
+     addRibbonTool("▤","صفوف مخططة",sh.stripedRows) {
+      sh.stripedRows=!sh.stripedRows; saveWorkbook(); refreshSelectionAndCells(); renderRibbonTools(4)
+     }
+     addRibbonTool("＋","إضافة 4 صفوف") {
+      numRows+=4
+      repeat(4*numCols) { sh.cells.add("") }
+      saveWorkbook(); rebuildGrid()
+     }
+     addRibbonDivider()
+     addRibbonTool("🔍+","تكبير") { zoomPct=(zoomPct+15).coerceAtMost(140); zoomSlider.progress=zoomPct-70; rebuildGrid() }
+     addRibbonTool("100%","افتراضي") { zoomPct=100; zoomSlider.progress=30; rebuildGrid() }
+     addRibbonTool("🔍-","تصغير") { zoomPct=(zoomPct-15).coerceAtLeast(70); zoomSlider.progress=zoomPct-70; rebuildGrid() }
+    }
+   }
+  }
+
+  ribbonTabNames.forEachIndexed { i,name ->
+   val tv=TextView(this).apply {
+    text=name; textSize=11f; gravity=Gravity.CENTER
+    setPadding((10*d).toInt(),(4*d).toInt(),(10*d).toInt(),(5*d).toInt())
+    setOnClickListener { renderRibbonTools(i) }
+   }
+   ribbonTabButtons.add(tv)
+   ribbonTabStrip.addView(tv,LinearLayout.LayoutParams(-2,(28*d).toInt()).apply { rightMargin=(2*d).toInt() })
+  }
+  page.addView(ribbonTabStrip,LinearLayout.LayoutParams(-1,(30*d).toInt()))
+  page.addView(ribbonScroller,LinearLayout.LayoutParams(-1,(52*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Color.rgb(214,214,214)) },LinearLayout.LayoutParams(-1,1))
+
+  // 2. Excel Formula Bar (Name Box A1 | ✕ ✓ fx | Formula EditText)
+  val formulaBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((6*d).toInt(),(4*d).toInt(),(6*d).toInt(),(4*d).toInt())
+   setBackgroundColor(Color.rgb(245,245,245))
+  }
+  nameBox=TextView(this).apply {
+   text="A1"; textSize=11f; gravity=Gravity.CENTER
+   setTextColor(ExcelTheme.TEXT_DARK); typeface=Typeface.create("Arial",Typeface.BOLD)
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); cornerRadius=2f*d; setStroke(1,Color.rgb(198,198,198))
+   }
+   setOnClickListener {
+    val jumpInput=EditText(this@MainActivity).apply { hint="مثل C4 أو H12"; setSingleLine(true) }
+    AlertDialog.Builder(this@MainActivity).setTitle("انتقال إلى خلية").setView(jumpInput)
+     .setPositiveButton("انتقال") { _,_ ->
+      ExcelFormulaEngine.parseRef(jumpInput.text.toString(),numCols,numRows)?.let { (r,c) ->
+       selRow=r; selCol=c; refreshSelectionAndCells()
+      }
+     }.setNegativeButton("إلغاء",null).show()
+   }
+  }
+  val cancelEditBtn=TextView(this).apply {
+   text="✕"; textSize=11.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(168,58,52))
+   contentDescription="إلغاء التعديل"
+  }
+  val commitEditBtn=TextView(this).apply {
+   text="✓"; textSize=12f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.EXCEL_GREEN)
+   typeface=Typeface.create("Arial",Typeface.BOLD); contentDescription="تأكيد"
+  }
+  val fxPickerBtn=TextView(this).apply {
+   text="fx"; textSize=11.5f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK)
+   typeface=Typeface.create("serif",Typeface.ITALIC or Typeface.BOLD); contentDescription="إدراج دالة"
+   setOnClickListener {
+    val colL=ExcelFormulaEngine.colName(selCol)
+    val endR=maxOf(1,selRow)
+    val items=arrayOf(
+     "=SUM(${colL}1:${colL}$endR)",
+     "=AVERAGE(${colL}1:${colL}$endR)",
+     "=MIN(${colL}1:${colL}$endR)",
+     "=MAX(${colL}1:${colL}$endR)",
+     "=COUNT(${colL}1:${colL}$endR)",
+     "=A1+B1"
+    )
+    AlertDialog.Builder(this@MainActivity).setTitle("إدراج صيغة")
+     .setItems(items) { _,w -> insertFormulaIntoSelected(items[w]) }.show()
+   }
+  }
+  val formulaControlsBox=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); setStroke(1,Color.rgb(206,206,206))
+   }
+  }
+  formulaControlsBox.addView(cancelEditBtn,LinearLayout.LayoutParams((24*d).toInt(),(26*d).toInt()))
+  formulaControlsBox.addView(commitEditBtn,LinearLayout.LayoutParams((24*d).toInt(),(26*d).toInt()))
+  formulaControlsBox.addView(fxPickerBtn,LinearLayout.LayoutParams((26*d).toInt(),(26*d).toInt()))
+
+  formulaInput=EditText(this).apply {
+   hint="أدخل قيمة أو صيغة مثل =SUM(A1:A4)"; setHintTextColor(Color.rgb(160,166,174))
+   textSize=11.5f; setSingleLine(true); setTextColor(ExcelTheme.TEXT_DARK)
+   setPadding((8*d).toInt(),(2*d).toInt(),(8*d).toInt(),(2*d).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); setStroke(1,Color.rgb(198,198,198))
+   }
+  }
+  formulaBar.addView(nameBox,LinearLayout.LayoutParams((54*d).toInt(),(28*d).toInt()).apply { rightMargin=(6*d).toInt() })
+  formulaBar.addView(formulaControlsBox,LinearLayout.LayoutParams(-2,(28*d).toInt()).apply { rightMargin=(6*d).toInt() })
+  formulaBar.addView(formulaInput,LinearLayout.LayoutParams(0,(28*d).toInt(),1f))
+  page.addView(formulaBar,LinearLayout.LayoutParams(-1,(36*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Color.rgb(212,212,212)) },LinearLayout.LayoutParams(-1,1))
+
+  // 3. Main 2D Scrollable Spreadsheet Grid
+  val gridContainer=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val hScroll=HorizontalScrollView(this).apply { isFillViewport=true }
+  val vScroll=ScrollView(this).apply { isFillViewport=true; addView(gridContainer) }
+  hScroll.addView(vScroll)
+  page.addView(hScroll,LinearLayout.LayoutParams(-1,0,1f))
+
+  fun showColumnFilterMenu(col:Int,anchor:View) {
+   val sh=sheets[activeSheetIdx]
+   android.widget.PopupMenu(this,anchor).apply {
+    menu.add("فرز من الألف إلى الياء (A→Z)").setOnMenuItemClickListener { sortByColumn(col,true); true }
+    menu.add("فرز من الياء إلى الألف (Z→A)").setOnMenuItemClickListener { sortByColumn(col,false); true }
+    menu.add("تصفية حسب قيمة...").setOnMenuItemClickListener {
+     val distinct=((if(sh.tableFilterOn) 1 else 0) until numRows)
+      .map { sh.cells[it*numCols+col].trim() }.filter { it.isNotEmpty() }.distinct().take(20)
+     if(distinct.isEmpty()) {
+      Toast.makeText(this@MainActivity,"لا توجد قيم للتصفية في العمود ${ExcelFormulaEngine.colName(col)}",Toast.LENGTH_SHORT).show()
+     } else {
+      val opts=arrayOf("عرض الكل")+distinct.toTypedArray()
+      AlertDialog.Builder(this@MainActivity).setTitle("تصفية العمود ${ExcelFormulaEngine.colName(col)}")
+       .setItems(opts) { _,w ->
+        if(w==0) { sh.activeFilterCol=-1; sh.activeFilterVal=null }
+        else { sh.activeFilterCol=col; sh.activeFilterVal=opts[w] }
+        rebuildGrid(); renderRibbonTools(activeRibbonIdx)
+       }.show()
+     }
+     true
+    }
+    if(sh.activeFilterVal!=null) {
+     menu.add("إلغاء التصفية").setOnMenuItemClickListener {
+      sh.activeFilterCol=-1; sh.activeFilterVal=null; rebuildGrid(); renderRibbonTools(activeRibbonIdx); true
+     }
+    }
+    show()
+   }
+  }
+
+  refreshSelectionAndCells={
+   val sh=sheets[activeSheetIdx]
+   val getRaw:(Int,Int)->String={ r,c -> sh.cells.getOrElse(r*numCols+c) { "" } }
+   nameBox.text=ExcelFormulaEngine.cellRef(selRow,selCol)
+
+   // Highlight active column & row headers
+   colHeaderViews.forEachIndexed { c,tv ->
+    val active=(c==selCol)
+    tv.setBackgroundColor(if(active) ExcelTheme.EXCEL_GREEN_SOFT else ExcelTheme.HEADER_BG)
+    tv.setTextColor(if(active) ExcelTheme.EXCEL_GREEN_DARK else ExcelTheme.TEXT_DARK)
+    tv.typeface=Typeface.create("Arial",if(active) Typeface.BOLD else Typeface.NORMAL)
+    (tv.background as? android.graphics.drawable.GradientDrawable) ?: Unit
+    tv.background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(if(active) ExcelTheme.EXCEL_GREEN_SOFT else ExcelTheme.HEADER_BG)
+     setStroke(1,ExcelTheme.GRID_LINE)
+    }
+   }
+   rowHeaderViews.forEachIndexed { r,tv ->
+    val active=(r==selRow)
+    tv.background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(if(active) ExcelTheme.EXCEL_GREEN_SOFT else ExcelTheme.HEADER_BG)
+     setStroke(1,ExcelTheme.GRID_LINE)
+    }
+    tv.setTextColor(if(active) ExcelTheme.EXCEL_GREEN_DARK else ExcelTheme.TEXT_DARK)
+    tv.typeface=Typeface.create("Arial",if(active) Typeface.BOLD else Typeface.NORMAL)
+   }
+
+   suppressSync=true
+   val activeRaw=getRaw(selRow,selCol)
+   if(formulaInput.text.toString()!=activeRaw) {
+    formulaInput.setText(activeRaw)
+    formulaInput.setSelection(activeRaw.length)
+   }
+   for(r in 0 until numRows) {
+    for(c in 0 until numCols) {
+     val idx=r*numCols+c
+     if(idx>=cellEdits.size) continue
+     val ed=cellEdits[idx]
+     val box=cellContainers[idx]
+     val isSel=(r==selRow && c==selCol)
+     val isTableHeader=(r==0 && sh.tableFilterOn)
+     val isStriped=(sh.stripedRows && !isTableHeader && r%2==1)
+     box.background=ExcelTheme.cellBackground(d,isSel,null,isTableHeader,isStriped)
+
+     val raw=getRaw(r,c)
+     val shown=if(isSel || showFormulasMode) raw else ExcelFormulaEngine.evaluateDisplay(raw,numRows,numCols,getRaw)
+     if(!ed.isFocused && ed.text.toString()!=shown) ed.setText(shown)
+
+     val isBold=isTableHeader || sh.boldSet.contains(idx)
+     ed.typeface=Typeface.create("Arial",if(isBold) Typeface.BOLD else Typeface.NORMAL)
+     ed.setTextColor(if(isTableHeader) Color.WHITE else ExcelTheme.TEXT_DARK)
+     val customAlign=sh.alignMap[idx]
+     val isNumeric=shown.replace(",",".").toDoubleOrNull()!=null
+     ed.gravity=customAlign ?: (if(!isTableHeader && isNumeric) (Gravity.END or Gravity.CENTER_VERTICAL) else (Gravity.START or Gravity.CENTER_VERTICAL))
+    }
+   }
+   suppressSync=false
+
+   // Update status bar live summary (Sum & Avg of selected column)
+   val colNums=((if(sh.tableFilterOn) 1 else 0) until numRows).mapNotNull { r ->
+    val raw=getRaw(r,selCol).trim()
+    if(raw.isEmpty()) null
+    else {
+     val v=if(raw.startsWith("=")) ExcelFormulaEngine.evaluateNumeric(raw,numRows,numCols,getRaw) else raw.replace(",",".").toDoubleOrNull()
+     if(v!=null && !v.isNaN() && !v.isInfinite()) v else null
+    }
+   }
+   statusText.text=if(colNums.isNotEmpty()) {
+    "Ready   •   ${ExcelFormulaEngine.colName(selCol)}: Sum ${ExcelFormulaEngine.formatNumber(colNums.sum())}   Avg ${ExcelFormulaEngine.formatNumber(colNums.average())}   Count ${colNums.size}"
+   } else "Ready"
+  }
+
+  rebuildGrid={
+   val sh=sheets[activeSheetIdx]
+   val scale=zoomPct/100f
+   val colW=(84*d*scale).toInt().coerceAtLeast((56*d).toInt())
+   val rowH=(27*d*scale).toInt().coerceAtLeast((22*d).toInt())
+   val rowNumW=(34*d*scale).toInt().coerceAtLeast((28*d).toInt())
+   val fontSp=(11.2f*scale).coerceIn(8.5f,16f)
+
+   gridContainer.removeAllViews()
+   cellEdits.clear(); cellContainers.clear()
+   colHeaderViews.clear(); rowHeaderViews.clear(); rowWrappers.clear()
+
+   // Column Headers Row (Corner + A..H)
+   val headerRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+   val corner=TextView(this).apply {
+    text="◢"; textSize=8.5f; gravity=Gravity.BOTTOM or Gravity.END
+    setPadding(0,0,(3*d).toInt(),(2*d).toInt())
+    setTextColor(Color.rgb(142,148,158))
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(ExcelTheme.HEADER_BG); setStroke(1,ExcelTheme.GRID_LINE) }
+    setOnClickListener { selRow=0; selCol=0; refreshSelectionAndCells() }
+   }
+   headerRow.addView(corner,LinearLayout.LayoutParams(rowNumW,rowH))
+   for(c in 0 until numCols) {
+    val ch=TextView(this).apply {
+     text=ExcelFormulaEngine.colName(c); textSize=fontSp; gravity=Gravity.CENTER
+     background=android.graphics.drawable.GradientDrawable().apply { setColor(ExcelTheme.HEADER_BG); setStroke(1,ExcelTheme.GRID_LINE) }
+     setOnClickListener { selCol=c; refreshSelectionAndCells() }
+    }
+    colHeaderViews.add(ch)
+    headerRow.addView(ch,LinearLayout.LayoutParams(colW,rowH))
+   }
+   gridContainer.addView(headerRow)
+
+   for(r in 0 until numRows) {
+    val rowLine=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+    val rowHdr=TextView(this).apply {
+     text=(r+1).toString(); textSize=fontSp*0.92f; gravity=Gravity.CENTER
+     background=android.graphics.drawable.GradientDrawable().apply { setColor(ExcelTheme.HEADER_BG); setStroke(1,ExcelTheme.GRID_LINE) }
+     setOnClickListener { selRow=r; refreshSelectionAndCells() }
+    }
+    rowHeaderViews.add(rowHdr)
+    rowLine.addView(rowHdr,LinearLayout.LayoutParams(rowNumW,rowH))
+
+    for(c in 0 until numCols) {
+     val idx=r*numCols+c
+     val cellBox=LinearLayout(this).apply {
+      orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+      setPadding((4*d).toInt(),0,(2*d).toInt(),0)
+     }
+     val ed=EditText(this).apply {
+      setSingleLine(true); textSize=fontSp; setBackgroundColor(Color.TRANSPARENT)
+      setPadding(0,0,0,0); includeFontPadding=false
+      setOnFocusChangeListener { _,hasFocus ->
+       if(hasFocus) {
+        val prevIdx=selRow*numCols+selCol
+        if(prevIdx!=idx) pushUndo()
+        selRow=r; selCol=c
+        val raw=sh.cells.getOrElse(idx) { "" }
+        suppressSync=true
+        if(text.toString()!=raw) { setText(raw); setSelection(raw.length) }
+        suppressSync=false
+        refreshSelectionAndCells()
+       } else {
+        refreshSelectionAndCells()
+       }
+      }
+      addTextChangedListener(object:android.text.TextWatcher {
+       override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+       override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+        if(suppressSync || !isFocused) return
+        val txt=s?.toString().orEmpty()
+        sh.cells[idx]=txt
+        suppressSync=true
+        if(selRow==r && selCol==c && formulaInput.text.toString()!=txt) {
+         formulaInput.setText(txt); formulaInput.setSelection(txt.length)
+        }
+        suppressSync=false
+        saveWorkbook()
+       }
+       override fun afterTextChanged(s:android.text.Editable?) {}
+      })
+     }
+     cellBox.addView(ed,LinearLayout.LayoutParams(0,-1,1f))
+     if(r==0 && sh.tableFilterOn) {
+      val dropBtn=TextView(this).apply {
+       text="▾"; textSize=9.5f; gravity=Gravity.CENTER
+       setTextColor(Color.rgb(42,68,112))
+       background=android.graphics.drawable.GradientDrawable().apply {
+        setColor(Color.rgb(228,236,248)); cornerRadius=2f*d
+       }
+       setOnClickListener { showColumnFilterMenu(c,it) }
+      }
+      cellBox.addView(dropBtn,LinearLayout.LayoutParams((16*d*scale).toInt(),(16*d*scale).toInt()).apply { leftMargin=(2*d).toInt() })
+     }
+     cellEdits.add(ed)
+     cellContainers.add(cellBox)
+     rowLine.addView(cellBox,LinearLayout.LayoutParams(colW,rowH))
+    }
+
+    // Apply row visibility if active filter is set
+    val visible=if(sh.activeFilterVal!=null && sh.activeFilterCol in 0 until numCols && r>=(if(sh.tableFilterOn) 1 else 0)) {
+     sh.cells.getOrElse(r*numCols+sh.activeFilterCol) { "" }.trim()==sh.activeFilterVal
+    } else true
+    rowLine.visibility=if(visible) View.VISIBLE else View.GONE
+    rowWrappers.add(rowLine)
+    gridContainer.addView(rowLine)
+   }
+   zoomLabel.text="${zoomPct}%"
+   refreshSelectionAndCells()
+  }
+
+  // Formula Bar Listeners
+  formulaInput.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+    if(suppressSync || !formulaInput.isFocused) return
+    val txt=s?.toString().orEmpty()
+    val idx=selRow*numCols+selCol
+    sheets[activeSheetIdx].cells[idx]=txt
+    suppressSync=true
+    cellEdits.getOrNull(idx)?.setText(txt)
+    suppressSync=false
+    saveWorkbook()
+   }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
+  commitEditBtn.setOnClickListener {
+   pushUndo()
+   val idx=selRow*numCols+selCol
+   sheets[activeSheetIdx].cells[idx]=formulaInput.text.toString()
+   saveWorkbook()
+   if(selRow+1<numRows) selRow++
+   formulaInput.clearFocus()
+   cellEdits.getOrNull(idx)?.clearFocus()
+   refreshSelectionAndCells()
+  }
+  cancelEditBtn.setOnClickListener {
+   val prev=undoStack.lastOrNull()
+   if(prev!=null) {
+    val idx=selRow*numCols+selCol
+    sheets[activeSheetIdx].cells[idx]=prev.getOrElse(idx) { "" }
+    saveWorkbook()
+   }
+   formulaInput.clearFocus()
+   refreshSelectionAndCells()
+  }
+
+  undoAction={
+   if(undoStack.isNotEmpty()) {
+    redoStack.add(sheets[activeSheetIdx].cells.toList())
+    val prev=undoStack.removeAt(undoStack.size-1)
+    sheets[activeSheetIdx].cells.clear(); sheets[activeSheetIdx].cells.addAll(prev)
+    numRows=(sheets[activeSheetIdx].cells.size/numCols).coerceAtLeast(16)
+    saveWorkbook(); rebuildGrid()
+   }
+  }
+  redoAction={
+   if(redoStack.isNotEmpty()) {
+    undoStack.add(sheets[activeSheetIdx].cells.toList())
+    val next=redoStack.removeAt(redoStack.size-1)
+    sheets[activeSheetIdx].cells.clear(); sheets[activeSheetIdx].cells.addAll(next)
+    numRows=(sheets[activeSheetIdx].cells.size/numCols).coerceAtLeast(16)
+    saveWorkbook(); rebuildGrid()
+   }
+  }
+
+  // 4. Bottom Sheet Tabs Bar (< > | Sheet1 | Sheet2 | +)
+  val sheetBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(2*d).toInt(),(8*d).toInt(),0)
+   setBackgroundColor(Color.rgb(230,230,230))
+  }
+  val sheetTabContainer=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.BOTTOM }
+  val addSheetBtn=TextView(this).apply {
+   text="＋"; textSize=13f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK)
+   contentDescription="إضافة ورقة عمل"
+   background=android.graphics.drawable.GradientDrawable().apply {
+    shape=android.graphics.drawable.GradientDrawable.OVAL
+    setColor(Color.WHITE); setStroke(1,Color.rgb(188,188,188))
+   }
+   setOnClickListener {
+    val newName="Sheet${sheets.size+1}"
+    sheets.add(ExcelSheet(newName,MutableList(totalInit) { "" },tableFilterOn=false,stripedRows=true))
+    activeSheetIdx=sheets.size-1
+    numRows=16; selRow=0; selCol=0; undoStack.clear(); redoStack.clear()
+    saveWorkbook(); rebuildSheetTabs(); rebuildGrid()
+   }
+  }
+  rebuildSheetTabs={
+   sheetTabContainer.removeAllViews()
+   sheets.forEachIndexed { i,sh ->
+    val active=(i==activeSheetIdx)
+    val tab=TextView(this).apply {
+     text=sh.name; textSize=10.5f; gravity=Gravity.CENTER
+     setTextColor(if(active) ExcelTheme.EXCEL_GREEN else ExcelTheme.TEXT_DARK)
+     typeface=Typeface.create("Arial",if(active) Typeface.BOLD else Typeface.NORMAL)
+     setPadding((12*d).toInt(),(3*d).toInt(),(12*d).toInt(),(4*d).toInt())
+     background=if(active) ExcelTheme.activeSheetTabDrawable(d) else null
+     setOnClickListener {
+      if(activeSheetIdx!=i) {
+       activeSheetIdx=i
+       numRows=(sheets[activeSheetIdx].cells.size/numCols).coerceAtLeast(16)
+       selRow=0; selCol=0; undoStack.clear(); redoStack.clear()
+       saveWorkbook(); rebuildSheetTabs(); rebuildGrid(); renderRibbonTools(activeRibbonIdx)
+      }
+     }
+     setOnLongClickListener {
+      val nameInput=EditText(this@MainActivity).apply { setText(sh.name); setSingleLine(true) }
+      AlertDialog.Builder(this@MainActivity).setTitle("إعادة تسمية الورقة").setView(nameInput)
+       .setPositiveButton("حفظ") { _,_ ->
+        val n=nameInput.text.toString().trim()
+        if(n.isNotEmpty()) { sh.name=n; saveWorkbook(); rebuildSheetTabs() }
+       }.setNegativeButton("إلغاء",null).show()
+      true
+     }
+    }
+    sheetTabContainer.addView(tab,LinearLayout.LayoutParams(-2,(25*d).toInt()).apply { rightMargin=(4*d).toInt() })
+   }
+   sheetTabContainer.addView(addSheetBtn,LinearLayout.LayoutParams((20*d).toInt(),(20*d).toInt()).apply {
+    leftMargin=(4*d).toInt(); bottomMargin=(2*d).toInt()
+   })
+  }
+  sheetBar.addView(TextView(this).apply {
+   text="◂  ▸"; textSize=10.5f; setTextColor(Color.rgb(122,126,134)); setPadding(0,0,(10*d).toInt(),0)
+  })
+  sheetBar.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false; addView(sheetTabContainer) },LinearLayout.LayoutParams(0,(26*d).toInt(),1f))
+  page.addView(sheetBar,LinearLayout.LayoutParams(-1,(28*d).toInt()))
+
+  // 5. Bottom Status Bar (Ready | View toggles | Zoom Slider - o + 100%)
+  val statusBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(10*d).toInt(),(2*d).toInt())
+   setBackgroundColor(ExcelTheme.RIBBON_BG)
+  }
+  statusText=TextView(this).apply {
+   text="Ready"; textSize=10f; setTextColor(ExcelTheme.TEXT_MUTED); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+  }
+  val viewNormalBtn=TextView(this).apply {
+   text="⊞"; textSize=12f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK); contentDescription="عرض عادي"
+   setOnClickListener { showFormulasMode=false; refreshSelectionAndCells() }
+  }
+  val viewStripeBtn=TextView(this).apply {
+   text="▤"; textSize=12f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK); contentDescription="صفوف مخططة"
+   setOnClickListener { val sh=sheets[activeSheetIdx]; sh.stripedRows=!sh.stripedRows; saveWorkbook(); refreshSelectionAndCells() }
+  }
+  val viewFxBtn=TextView(this).apply {
+   text="fx"; textSize=10f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK); contentDescription="عرض الصيغ"
+   typeface=Typeface.create("serif",Typeface.ITALIC or Typeface.BOLD)
+   setOnClickListener { showFormulasMode=!showFormulasMode; refreshSelectionAndCells() }
+  }
+  val zoomOutBtn=TextView(this).apply {
+   text="−"; textSize=13f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK)
+   setOnClickListener { zoomPct=(zoomPct-10).coerceAtLeast(70); zoomSlider.progress=zoomPct-70; rebuildGrid() }
+  }
+  zoomSlider=SeekBar(this).apply {
+   max=70; progress=30 // 70%..140%
+   setPadding((2*d).toInt(),0,(2*d).toInt(),0)
+   progressTintList=android.content.res.ColorStateList.valueOf(ExcelTheme.EXCEL_GREEN)
+   thumbTintList=android.content.res.ColorStateList.valueOf(ExcelTheme.EXCEL_GREEN)
+   setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+    override fun onStartTrackingTouch(bar:SeekBar?) {}
+    override fun onStopTrackingTouch(bar:SeekBar?) { rebuildGrid() }
+    override fun onProgressChanged(bar:SeekBar?,p:Int,fromUser:Boolean) {
+     if(fromUser) { zoomPct=70+p; zoomLabel.text="${zoomPct}%" }
+    }
+   })
+  }
+  val zoomInBtn=TextView(this).apply {
+   text="+"; textSize=13f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK)
+   setOnClickListener { zoomPct=(zoomPct+10).coerceAtMost(140); zoomSlider.progress=zoomPct-70; rebuildGrid() }
+  }
+  zoomLabel=TextView(this).apply { text="100%"; textSize=10f; gravity=Gravity.CENTER; setTextColor(ExcelTheme.TEXT_DARK) }
+
+  statusBar.addView(statusText,LinearLayout.LayoutParams(0,-2,1f))
+  statusBar.addView(viewNormalBtn,LinearLayout.LayoutParams((24*d).toInt(),(22*d).toInt()))
+  statusBar.addView(viewStripeBtn,LinearLayout.LayoutParams((24*d).toInt(),(22*d).toInt()))
+  statusBar.addView(viewFxBtn,LinearLayout.LayoutParams((24*d).toInt(),(22*d).toInt()).apply { rightMargin=(8*d).toInt() })
+  statusBar.addView(zoomOutBtn,LinearLayout.LayoutParams((20*d).toInt(),(22*d).toInt()))
+  statusBar.addView(zoomSlider,LinearLayout.LayoutParams((76*d).toInt(),(20*d).toInt()))
+  statusBar.addView(zoomInBtn,LinearLayout.LayoutParams((20*d).toInt(),(22*d).toInt()))
+  statusBar.addView(zoomLabel,LinearLayout.LayoutParams((36*d).toInt(),(22*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Color.rgb(212,212,212)) },LinearLayout.LayoutParams(-1,1))
+  page.addView(statusBar,LinearLayout.LayoutParams(-1,(26*d).toInt()))
+
+  // CSV Import Handler
+  onExcelCsvPickedCallback={ uri ->
+   try {
+    val rawText=contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+    val parsed=ExcelCsvParser.parse(rawText)
+    if(parsed.isNotEmpty()) {
+     pushUndo()
+     val sh=sheets[activeSheetIdx]
+     numRows=maxOf(16,parsed.size.coerceAtMost(60))
+     sh.cells=MutableList(numRows*numCols) { "" }
+     parsed.take(numRows).forEachIndexed { r,rowVals ->
+      rowVals.take(numCols).forEachIndexed { c,v -> sh.cells[r*numCols+c]=v }
+     }
+     sh.tableFilterOn=true; sh.stripedRows=true; sh.activeFilterVal=null
+     val fileName=try {
+      contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use {
+       if(it.moveToFirst()) it.getString(0) else null
+      }
+     } catch(_:Exception) { null }
+     if(!fileName.isNullOrBlank()) {
+      sh.name=fileName.substringBeforeLast('.').take(16)
+      windowTitleLabel?.text="$fileName - Excel"
+     }
+     saveWorkbook(); rebuildSheetTabs(); rebuildGrid()
+     Toast.makeText(this,"تم استيراد ${parsed.size} صف من CSV",Toast.LENGTH_SHORT).show()
+    } else Toast.makeText(this,"ملف CSV فارغ",Toast.LENGTH_SHORT).show()
+   } catch(_:Exception) {
+    Toast.makeText(this,"تعذر قراءة ملف CSV",Toast.LENGTH_SHORT).show()
+   }
+  }
+  page.addOnAttachStateChangeListener(object:View.OnAttachStateChangeListener {
+   override fun onViewAttachedToWindow(v:View) {}
+   override fun onViewDetachedFromWindow(v:View) { onExcelCsvPickedCallback=null }
+  })
+
+  renderRibbonTools(3)
+  rebuildSheetTabs()
+  rebuildGrid()
   panel(page)
  }
  private fun showGames() {
@@ -3149,63 +4644,509 @@ class MainActivity : Activity() {
   panel(page)
  }
  private fun showPaint() {
-  shell("الرسام")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,246,248)) }
-  val canvas=PaintCanvas(this)
-  val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(12,5,12,5); setBackgroundColor(Color.WHITE) }
-  header.addView(TextView(this).apply { text="الرسام  |  Paint"; textSize=18.48f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy) },LinearLayout.LayoutParams(0,48,1f))
-  header.addView(task("فتح صورة"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="image/*"},62)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الصور",Toast.LENGTH_SHORT).show()}},LinearLayout.LayoutParams(94,42))
-  header.addView(action("حفظ PNG"){saveDrawing(canvas)},LinearLayout.LayoutParams(105,42).apply{leftMargin=6})
-  page.addView(header,LinearLayout.LayoutParams(-1,54))
-  val toolNames=listOf("تحديد","قلم","فرشاة","قلم رصاص","ممحاة","تعبئة","نص","خط","سهم","مستطيل","مستطيل دائري","دائرة","مثلث","قص")
-  val toolsRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(6,5,6,5);setBackgroundColor(Color.rgb(250,250,252))}
-  val toolButtons=mutableMapOf<String,Button>()
-  toolNames.forEach { name ->
-   val b=task(name){canvas.setTool(name);toolButtons.values.forEach{it.isSelected=false};toolButtons[name]?.isSelected=true}
-   b.textSize=10.56f
-   toolButtons[name]=b
-   toolsRow.addView(b,LinearLayout.LayoutParams(if(name.length>7)94 else 78,43).apply{setMargins(3,0,3,0)})
+  shell("Paint")
+  val d=resources.displayMetrics.density
+  content.setPadding(0,0,0,0)
+  content.setBackgroundColor(Win11PaintTheme.CANVAS_STAGE_BG)
+
+  val outerWindow=content.parent as? LinearLayout
+  val windowTitleBar=outerWindow?.getChildAt(0) as? LinearLayout
+  windowTitleBar?.setBackgroundColor(Win11PaintTheme.MICA_BG)
+
+  val canvas=PaintCanvas(this).apply { tag="orkeit-paint-canvas" }
+  var color1=Color.BLACK
+  var color2=Color.WHITE
+  var editingColorSlot=1
+  var currentTool="قلم"
+  var currentBrushSize=5f
+  var gridlinesOn=false
+  val customColors=MutableList(10) { Color.TRANSPARENT }
+
+  val page=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+   setBackgroundColor(Win11PaintTheme.MICA_BG)
   }
-  toolButtons["قلم"]?.isSelected=true
-  page.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(toolsRow)},LinearLayout.LayoutParams(-1,53))
-  val options=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(10,2,10,2);setBackgroundColor(Color.WHITE)}
-  options.addView(TextView(this).apply{text="حجم الأداة";textSize=11.44f;setTextColor(navy)},LinearLayout.LayoutParams(-2,-2))
-  val sizeLabel=TextView(this).apply{text="5";textSize=11.44f;setTextColor(navy);gravity=Gravity.CENTER}
-  val sizeBar=SeekBar(this).apply{max=49;progress=4}
-  sizeBar.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
-   override fun onProgressChanged(s:SeekBar?,p:Int,user:Boolean){val n=p+1;sizeLabel.text=n.toString();canvas.setBrushSize(n.toFloat())}
-   override fun onStartTrackingTouch(s:SeekBar?){}
-   override fun onStopTrackingTouch(s:SeekBar?){}
+
+  lateinit var refreshRibbonSelection:()->Unit
+  lateinit var updateStatusBar:()->Unit
+  lateinit var color1Btn:View
+  lateinit var color2Btn:View
+  val customSwatches=mutableListOf<View>()
+  val toolContainers=mutableMapOf<String,View>()
+
+  fun applyColorChoice(col:Int) {
+   if(editingColorSlot==1) {
+    color1=col
+    canvas.setColor(col)
+    color1Btn.background=Win11PaintTheme.primarySwatchCircle(d,color1,true)
+   } else {
+    color2=col
+    color2Btn.background=Win11PaintTheme.primarySwatchCircle(d,color2,true)
+   }
+  }
+
+  fun selectTool(toolName:String) {
+   currentTool=toolName
+   canvas.setTool(toolName)
+   refreshRibbonSelection()
+   updateStatusBar()
+  }
+
+  fun openImagePicker() {
+   try {
+    startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+     addCategory(Intent.CATEGORY_OPENABLE)
+     type="image/*"
+    },62)
+   } catch(_:Exception) { Toast.makeText(this,"تعذر فتح الصور",Toast.LENGTH_SHORT).show() }
+  }
+
+  fun showCustomColorDialog() {
+   val box=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL
+    setPadding((16*d).toInt(),(10*d).toInt(),(16*d).toInt(),(6*d).toInt())
+   }
+   val preview=View(this).apply {
+    background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(if(editingColorSlot==1) color1 else color2); cornerRadius=8f*d; setStroke(1,Color.GRAY)
+    }
+   }
+   val hexInput=EditText(this).apply {
+    hint="#3366FF"; setSingleLine(true)
+    setText(String.format("#%06X",0xFFFFFF and (if(editingColorSlot==1) color1 else color2)))
+   }
+   var chosen=if(editingColorSlot==1) color1 else color2
+   fun updateFromRgb(r:Int,g:Int,b:Int) {
+    chosen=Color.rgb(r,g,b)
+    preview.background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(chosen); cornerRadius=8f*d; setStroke(1,Color.GRAY)
+    }
+    hexInput.setText(String.format("#%06X",0xFFFFFF and chosen))
+   }
+   val rBar=SeekBar(this).apply { max=255; progress=Color.red(chosen) }
+   val gBar=SeekBar(this).apply { max=255; progress=Color.green(chosen) }
+   val bBar=SeekBar(this).apply { max=255; progress=Color.blue(chosen) }
+   val rgbListener=object:SeekBar.OnSeekBarChangeListener {
+    override fun onStartTrackingTouch(p0:SeekBar?) {}
+    override fun onStopTrackingTouch(p0:SeekBar?) {}
+    override fun onProgressChanged(p0:SeekBar?,p1:Int,fromUser:Boolean) {
+     if(fromUser) updateFromRgb(rBar.progress,gBar.progress,bBar.progress)
+    }
+   }
+   rBar.setOnSeekBarChangeListener(rgbListener)
+   gBar.setOnSeekBarChangeListener(rgbListener)
+   bBar.setOnSeekBarChangeListener(rgbListener)
+   box.addView(preview,LinearLayout.LayoutParams(-1,(36*d).toInt()).apply { bottomMargin=(8*d).toInt() })
+   box.addView(TextView(this).apply { text="أحمر (R)" }); box.addView(rBar)
+   box.addView(TextView(this).apply { text="أخضر (G)" }); box.addView(gBar)
+   box.addView(TextView(this).apply { text="أزرق (B)" }); box.addView(bBar)
+   box.addView(hexInput)
+   AlertDialog.Builder(this).setTitle("تعديل الألوان (Edit Colors)").setView(box)
+    .setPositiveButton("تطبيق") { _,_ ->
+     val finalColor=try { Color.parseColor(hexInput.text.toString().trim()) } catch(_:Exception) { chosen }
+     applyColorChoice(finalColor)
+     val emptySlot=customColors.indexOfFirst { it==Color.TRANSPARENT }.let { if(it>=0) it else 0 }
+     customColors[emptySlot]=finalColor
+     customSwatches.getOrNull(emptySlot)?.background=Win11PaintTheme.swatchCircle(d,finalColor,true)
+    }
+    .setNegativeButton("إلغاء",null).show()
+  }
+
+  // 1. Top Menu Row (File | Edit | View | Save | Undo | Redo ... Grid / Settings)
+  val menuRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(10*d).toInt(),(2*d).toInt())
+   setBackgroundColor(Win11PaintTheme.MICA_BG)
+  }
+  fun makeTopMenuBtn(label:String,onClick:(View)->Unit):TextView = TextView(this).apply {
+   text=label; textSize=11f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK)
+   setPadding((9*d).toInt(),(3*d).toInt(),(9*d).toInt(),(3*d).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=4f*d }
+   setOnClickListener(onClick)
+  }
+  val fileMenuBtn=makeTopMenuBtn("File") { anchor ->
+   android.widget.PopupMenu(this,anchor).apply {
+    menu.add("جديد (مسح اللوحة)").setOnMenuItemClickListener { canvas.clear(); true }
+    menu.add("فتح صورة...").setOnMenuItemClickListener { openImagePicker(); true }
+    menu.add("حفظ كصورة PNG").setOnMenuItemClickListener { saveDrawing(canvas); true }
+    menu.add("خلفية بيضاء").setOnMenuItemClickListener { canvas.setWhiteBackground(); true }
+    show()
+   }
+  }
+  val editMenuBtn=makeTopMenuBtn("Edit") { anchor ->
+   android.widget.PopupMenu(this,anchor).apply {
+    menu.add("تراجع (Undo)").setOnMenuItemClickListener { canvas.undo(); true }
+    menu.add("إعادة (Redo)").setOnMenuItemClickListener { canvas.redo(); true }
+    menu.add("قص إلى التحديد (Crop)").setOnMenuItemClickListener { canvas.applyCrop(); true }
+    menu.add("إلغاء التحديد").setOnMenuItemClickListener { canvas.clearSelection(); true }
+    menu.add("تدوير 90° لليمين").setOnMenuItemClickListener { canvas.rotate90(); true }
+    menu.add("قلب أفقي").setOnMenuItemClickListener { canvas.flipHorizontal(); true }
+    show()
+   }
+  }
+  val viewMenuBtn=makeTopMenuBtn("View") { anchor ->
+   android.widget.PopupMenu(this,anchor).apply {
+    menu.add(if(gridlinesOn) "✓ شبكة الرسم (Gridlines)" else "شبكة الرسم (Gridlines)").setOnMenuItemClickListener {
+     gridlinesOn=!gridlinesOn; canvas.setShowGrid(gridlinesOn); true
+    }
+    menu.add("تكبير 150%").setOnMenuItemClickListener { canvas.setZoomFactor(1.5f); updateStatusBar(); true }
+    menu.add("حجم قياسي 100%").setOnMenuItemClickListener { canvas.setZoomFactor(1.0f); updateStatusBar(); true }
+    menu.add("تصغير 75%").setOnMenuItemClickListener { canvas.setZoomFactor(0.75f); updateStatusBar(); true }
+    show()
+   }
+  }
+  val quickSaveBtn=makeTopMenuBtn("💾") { saveDrawing(canvas) }.apply { contentDescription="حفظ الرسم" }
+  val quickUndoBtn=makeTopMenuBtn("↶") { canvas.undo() }.apply { contentDescription="تراجع"; textSize=13f }
+  val quickRedoBtn=makeTopMenuBtn("↷") { canvas.redo() }.apply { contentDescription="إعادة"; textSize=13f }
+  val gridToggleBtn=makeTopMenuBtn("⊞") { gridlinesOn=!gridlinesOn; canvas.setShowGrid(gridlinesOn) }.apply { contentDescription="شبكة الرسم" }
+
+  menuRow.addView(fileMenuBtn)
+  menuRow.addView(editMenuBtn)
+  menuRow.addView(viewMenuBtn)
+  menuRow.addView(View(this).apply { setBackgroundColor(Win11PaintTheme.BORDER_SUBTLE) },LinearLayout.LayoutParams(1,(16*d).toInt()).apply {
+   leftMargin=(4*d).toInt(); rightMargin=(4*d).toInt()
   })
-  options.addView(sizeBar,LinearLayout.LayoutParams(150,42))
-  options.addView(sizeLabel,LinearLayout.LayoutParams(30,-2))
-  val filled=CheckBox(this).apply{text="تعبئة الأشكال";textSize=10.56f;setTextColor(navy);isChecked=false;setOnCheckedChangeListener{_,v->canvas.setFilled(v)}}
-  options.addView(filled,LinearLayout.LayoutParams(-2,-2).apply{leftMargin=8})
-  page.addView(options,LinearLayout.LayoutParams(-1,48))
-  val paletteWrap=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(8,3,8,4);setBackgroundColor(Color.WHITE)}
-  paletteWrap.addView(TextView(this).apply{text="لوحة الألوان";textSize=11.44f;typeface=Typeface.create("Arial",Typeface.BOLD);setTextColor(navy)},LinearLayout.LayoutParams(-1,20))
-  val palette=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-  val colors=listOf(Color.BLACK,Color.rgb(90,90,90),Color.WHITE,Color.rgb(237,28,36),Color.rgb(255,127,39),Color.rgb(255,242,0),Color.rgb(34,177,76),Color.rgb(0,162,232),Color.rgb(63,72,204),Color.rgb(163,73,164),Color.rgb(185,122,87),Color.rgb(255,174,201))
-  colors.forEach{color->
-   val swatch=Button(this).apply{text="";minWidth=0;minimumWidth=0;setPadding(0,0,0,0);background=android.graphics.drawable.GradientDrawable().apply{setColor(color);cornerRadius=5f;setStroke(if(color==Color.WHITE)2 else 1,if(color==Color.WHITE)border else Color.rgb(210,215,225))};contentDescription="اختيار اللون";setOnClickListener{canvas.setColor(color)}}
-   palette.addView(swatch,LinearLayout.LayoutParams(31,29).apply{setMargins(3,1,3,1)})
+  menuRow.addView(quickSaveBtn)
+  menuRow.addView(quickUndoBtn)
+  menuRow.addView(quickRedoBtn)
+  menuRow.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+  menuRow.addView(gridToggleBtn)
+  page.addView(menuRow,LinearLayout.LayoutParams(-1,(28*d).toInt()))
+
+  // 2. Windows 11 Paint Ribbon Bar
+  val ribbonCard=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(4*d).toInt(),(8*d).toInt(),(4*d).toInt())
+   setBackgroundColor(Win11PaintTheme.RIBBON_BG)
   }
-  palette.addView(task("لون مخصص"){val input=EditText(this).apply{hint="#3366FF";setSingleLine(true)};AlertDialog.Builder(this).setTitle("اختيار لون مخصص").setView(input).setPositiveButton("تطبيق"){_,_->try{canvas.setColor(Color.parseColor(input.text.toString().trim()))}catch(_:Exception){Toast.makeText(this,"اكتب اللون بصيغة #RRGGBB",Toast.LENGTH_SHORT).show()}}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(96,32).apply{leftMargin=4})
-  paletteWrap.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(palette)},LinearLayout.LayoutParams(-1,35))
-  page.addView(paletteWrap,LinearLayout.LayoutParams(-1,62))
-  val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(6,3,6,3);setBackgroundColor(Color.rgb(245,246,248))}
-  actions.addView(task("تراجع  ↶"){canvas.undo()},LinearLayout.LayoutParams(86,38).apply{setMargins(3,0,3,0)})
-  actions.addView(task("إعادة  ↷"){canvas.redo()},LinearLayout.LayoutParams(86,38).apply{setMargins(3,0,3,0)})
-  actions.addView(task("تكبير +"){canvas.zoomBy(1.25f)},LinearLayout.LayoutParams(82,38).apply{setMargins(3,0,3,0)})
-  actions.addView(task("تصغير −"){canvas.zoomBy(0.8f)},LinearLayout.LayoutParams(82,38).apply{setMargins(3,0,3,0)})
-  actions.addView(task("مسح اللوحة"){AlertDialog.Builder(this).setMessage("هل تريد مسح اللوحة بالكامل؟").setPositiveButton("مسح"){_,_->canvas.clear()}.setNegativeButton("إلغاء",null).show()},LinearLayout.LayoutParams(94,38).apply{setMargins(3,0,3,0)})
-  actions.addView(task("خلفية بيضاء"){canvas.setWhiteBackground()},LinearLayout.LayoutParams(98,38).apply{setMargins(3,0,3,0)})
-  page.addView(HorizontalScrollView(this).apply{isHorizontalScrollBarEnabled=false;addView(actions)},LinearLayout.LayoutParams(-1,44))
-  val canvasFrame=FrameLayout(this).apply{setPadding(10,8,10,10);setBackgroundColor(Color.rgb(225,229,235))}
-  canvas.background=android.graphics.drawable.GradientDrawable().apply{setColor(Color.WHITE);setStroke(1,Color.rgb(195,202,213))}
-  canvasFrame.addView(canvas,FrameLayout.LayoutParams(-1,-1))
-  page.addView(canvasFrame,LinearLayout.LayoutParams(-1,0,1f))
-  page.addView(TextView(this).apply{text="تلميح: اسحب على مساحة الرسم لرسم الأشكال. استخدم Ctrl+Z للتراجع وCtrl+S للحفظ عند استخدام لوحة مفاتيح.";textSize=9.68f;setTextColor(Color.rgb(80,90,105));setPadding(10,4,10,4)},LinearLayout.LayoutParams(-1,24))
+  fun ribbonGroup(title:String,build:(LinearLayout)->Unit) {
+   val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL }
+   val body=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+   build(body)
+   col.addView(body,LinearLayout.LayoutParams(-2,(46*d).toInt()))
+   col.addView(TextView(this).apply {
+    text=title; textSize=8.5f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_MUTED); maxLines=1
+   },LinearLayout.LayoutParams(-2,-2))
+   ribbonCard.addView(col)
+   ribbonCard.addView(View(this).apply { setBackgroundColor(Win11PaintTheme.BORDER_SUBTLE) },LinearLayout.LayoutParams(1,(50*d).toInt()).apply {
+    leftMargin=(6*d).toInt(); rightMargin=(6*d).toInt()
+   })
+  }
+
+  fun makeIconCell(glyph:String,toolKey:String?=null,wDp:Int=26,hDp:Int=22,onClick:(View)->Unit):TextView {
+   val tv=TextView(this).apply {
+    text=glyph; textSize=12f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK)
+    background=Win11PaintTheme.toolButtonBg(d,false)
+    setOnClickListener { onClick(it) }
+   }
+   if(toolKey!=null) toolContainers[toolKey]=tv
+   return tv
+  }
+
+  // Group 1: Selection
+  ribbonGroup("Selection") { g ->
+   val selBtn=makeIconCell("⛶","تحديد",38,40) { selectTool("تحديد") }.apply { textSize=17f }
+   g.addView(selBtn,LinearLayout.LayoutParams((38*d).toInt(),(40*d).toInt()))
+  }
+
+  // Group 2: Image (Crop, Rotate/Flip, Fill Toggle)
+  ribbonGroup("Image") { g ->
+   val col=GridLayout(this).apply { columnCount=2; rowCount=2 }
+   val cropBtn=makeIconCell("✂","قص",26,22) {
+    if(canvas.hasSelection()) canvas.applyCrop() else selectTool("قص")
+   }
+   val rotBtn=makeIconCell("↻",null,26,22) { canvas.rotate90() }
+   val flipBtn=makeIconCell("⇄",null,26,22) { canvas.flipHorizontal() }
+   val fillShapeBtn=makeIconCell("◩",null,26,22) {
+    val next=!canvas.isShapeFilled()
+    canvas.setFilled(next)
+    it.background=Win11PaintTheme.toolButtonBg(d,next)
+   }
+   listOf(cropBtn,rotBtn,flipBtn,fillShapeBtn).forEach { b ->
+    col.addView(b,GridLayout.LayoutParams().apply {
+     width=(26*d).toInt(); height=(22*d).toInt(); setMargins((1*d).toInt(),(1*d).toInt(),(1*d).toInt(),(1*d).toInt())
+    })
+   }
+   g.addView(col)
+  }
+
+  // Group 3: Tools (2x3 grid matching Windows 11 Paint: Pencil, Fill, Text, Eraser, Eyedropper, Zoom)
+  ribbonGroup("Tools") { g ->
+   val grid=GridLayout(this).apply { columnCount=3; rowCount=2 }
+   val items=listOf(
+    "✎" to "قلم رصاص",
+    "🪣" to "تعبئة",
+    "A" to "نص",
+    "▭" to "ممحاة",
+    "🧪" to "قطارة",
+    "🔍" to "مكبر"
+   )
+   items.forEach { (glyph,key) ->
+    val btn=makeIconCell(glyph,key,26,22) {
+     if(key=="مكبر") {
+      val nextZoom=if(canvas.getZoomFactor()>=2f) 1f else canvas.getZoomFactor()+0.25f
+      canvas.setZoomFactor(nextZoom)
+      updateStatusBar()
+     } else selectTool(key)
+    }
+    grid.addView(btn,GridLayout.LayoutParams().apply {
+     width=(26*d).toInt(); height=(22*d).toInt(); setMargins((1*d).toInt(),(1*d).toInt(),(1*d).toInt(),(1*d).toInt())
+    })
+   }
+   g.addView(grid)
+  }
+
+  // Group 4: Brushes dropdown
+  ribbonGroup("Brushes") { g ->
+   val brushBtn=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+    setPadding((6*d).toInt(),(2*d).toInt(),(6*d).toInt(),(2*d).toInt())
+    background=Win11PaintTheme.toolButtonBg(d,true)
+    setOnClickListener { anchor ->
+     android.widget.PopupMenu(this@MainActivity,anchor).apply {
+      listOf("قلم" to "قلم ناعم","فرشاة" to "فرشاة زيتية","قلم رصاص" to "قلم رصاص","تحديد عريض" to "قلم خطاط").forEach { (k,label) ->
+       menu.add(label).setOnMenuItemClickListener { selectTool(k); true }
+      }
+      show()
+     }
+    }
+   }
+   toolContainers["قلم"]=brushBtn
+   toolContainers["فرشاة"]=brushBtn
+   toolContainers["تحديد عريض"]=brushBtn
+   brushBtn.addView(TextView(this).apply { text="🖌"; textSize=16f; gravity=Gravity.CENTER })
+   brushBtn.addView(TextView(this).apply { text="▾"; textSize=9f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_MUTED) })
+   g.addView(brushBtn,LinearLayout.LayoutParams((36*d).toInt(),(42*d).toInt()))
+  }
+
+  // Group 5: Shapes (compact 2x3 shape grid)
+  ribbonGroup("Shapes") { g ->
+   val grid=GridLayout(this).apply { columnCount=3; rowCount=2 }
+   listOf("◯" to "دائرة","▭" to "مستطيل","▱" to "مستطيل دائري","△" to "مثلث","╱" to "خط","↗" to "سهم").forEach { (glyph,key) ->
+    val btn=makeIconCell(glyph,key,24,22) { selectTool(key) }.apply { textSize=11f }
+    grid.addView(btn,GridLayout.LayoutParams().apply {
+     width=(24*d).toInt(); height=(22*d).toInt(); setMargins((1*d).toInt(),(1*d).toInt(),(1*d).toInt(),(1*d).toInt())
+    })
+   }
+   g.addView(grid)
+  }
+
+  // Group 6: Size selector
+  ribbonGroup("Size") { g ->
+   val sizeBtn=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+    setPadding((6*d).toInt(),(2*d).toInt(),(6*d).toInt(),(2*d).toInt())
+    background=Win11PaintTheme.toolButtonBg(d,false)
+    setOnClickListener {
+     val wrap=LinearLayout(this@MainActivity).apply {
+      orientation=LinearLayout.VERTICAL; setPadding((16*d).toInt(),(10*d).toInt(),(16*d).toInt(),(8*d).toInt())
+     }
+     val lbl=TextView(this@MainActivity).apply { text="حجم الأداة: ${currentBrushSize.toInt()} px"; textSize=12f }
+     val bar=SeekBar(this@MainActivity).apply {
+      max=49; progress=(currentBrushSize.toInt()-1).coerceIn(0,49)
+      setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+       override fun onStartTrackingTouch(p0:SeekBar?) {}
+       override fun onStopTrackingTouch(p0:SeekBar?) {}
+       override fun onProgressChanged(p0:SeekBar?,p:Int,fromUser:Boolean) {
+        currentBrushSize=(p+1).toFloat(); lbl.text="حجم الأداة: ${p+1} px"
+        canvas.setBrushSize(currentBrushSize); updateStatusBar()
+       }
+      })
+     }
+     val quickRow=LinearLayout(this@MainActivity).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER }
+     listOf(2,5,10,20,35).forEach { sz ->
+      quickRow.addView(task("${sz}px") {
+       currentBrushSize=sz.toFloat(); bar.progress=sz-1; lbl.text="حجم الأداة: $sz px"
+       canvas.setBrushSize(currentBrushSize); updateStatusBar()
+      },LinearLayout.LayoutParams(0,(36*d).toInt(),1f).apply { setMargins(2,4,2,0) })
+     }
+     wrap.addView(lbl); wrap.addView(bar); wrap.addView(quickRow)
+     AlertDialog.Builder(this@MainActivity).setTitle("حجم الفرشاة والأداة").setView(wrap).setPositiveButton("تم",null).show()
+    }
+   }
+   sizeBtn.addView(TextView(this).apply { text="≡"; textSize=16f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK) })
+   sizeBtn.addView(TextView(this).apply { text="▾"; textSize=9f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_MUTED) })
+   g.addView(sizeBtn,LinearLayout.LayoutParams((32*d).toInt(),(42*d).toInt()))
+  }
+
+  // Group 7: Colors (Color1/Color2 + 3x10 Circular Palette + Rainbow Color Wheel)
+  ribbonGroup("Colors") { g ->
+   val primaryStack=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+    setPadding(0,0,(6*d).toInt(),0)
+   }
+   color1Btn=View(this).apply {
+    background=Win11PaintTheme.primarySwatchCircle(d,color1,true)
+    contentDescription="اللون الأساسي"
+    setOnClickListener {
+     editingColorSlot=1
+     canvas.setColor(color1)
+     color1Btn.background=Win11PaintTheme.primarySwatchCircle(d,color1,true)
+     color2Btn.background=Win11PaintTheme.primarySwatchCircle(d,color2,false)
+    }
+   }
+   color2Btn=View(this).apply {
+    background=Win11PaintTheme.primarySwatchCircle(d,color2,false)
+    contentDescription="اللون الثانوي"
+    setOnClickListener {
+     editingColorSlot=2
+     canvas.setColor(color2)
+     color1Btn.background=Win11PaintTheme.primarySwatchCircle(d,color1,false)
+     color2Btn.background=Win11PaintTheme.primarySwatchCircle(d,color2,true)
+    }
+   }
+   primaryStack.addView(color1Btn,LinearLayout.LayoutParams((20*d).toInt(),(20*d).toInt()).apply { bottomMargin=(3*d).toInt() })
+   primaryStack.addView(color2Btn,LinearLayout.LayoutParams((18*d).toInt(),(18*d).toInt()))
+   g.addView(primaryStack)
+
+   val swatchesGrid=GridLayout(this).apply { columnCount=10; rowCount=3 }
+   Win11PaintTheme.ROW1_COLORS.forEach { col ->
+    val sw=View(this).apply {
+     background=Win11PaintTheme.swatchCircle(d,col,false)
+     contentDescription="لون"
+     setOnClickListener { applyColorChoice(col) }
+    }
+    swatchesGrid.addView(sw,GridLayout.LayoutParams().apply {
+     width=(13*d).toInt(); height=(13*d).toInt(); setMargins((1.5f*d).toInt(),(1*d).toInt(),(1.5f*d).toInt(),(1*d).toInt())
+    })
+   }
+   Win11PaintTheme.ROW2_COLORS.forEach { col ->
+    val sw=View(this).apply {
+     background=Win11PaintTheme.swatchCircle(d,col,false)
+     contentDescription="لون"
+     setOnClickListener { applyColorChoice(col) }
+    }
+    swatchesGrid.addView(sw,GridLayout.LayoutParams().apply {
+     width=(13*d).toInt(); height=(13*d).toInt(); setMargins((1.5f*d).toInt(),(1*d).toInt(),(1.5f*d).toInt(),(1*d).toInt())
+    })
+   }
+   repeat(10) { slotIdx ->
+    val sw=View(this).apply {
+     background=Win11PaintTheme.swatchCircle(d,Color.rgb(244,246,250),false)
+     contentDescription="لون مخصص"
+     setOnClickListener {
+      val c=customColors[slotIdx]
+      if(c!=Color.TRANSPARENT) applyColorChoice(c) else showCustomColorDialog()
+     }
+    }
+    customSwatches.add(sw)
+    swatchesGrid.addView(sw,GridLayout.LayoutParams().apply {
+     width=(13*d).toInt(); height=(13*d).toInt(); setMargins((1.5f*d).toInt(),(1*d).toInt(),(1.5f*d).toInt(),(1*d).toInt())
+    })
+   }
+   g.addView(swatchesGrid,LinearLayout.LayoutParams(-2,-2).apply { rightMargin=(6*d).toInt() })
+
+   val wheel=RainbowWheelView(this,d).apply {
+    contentDescription="تعديل الألوان"
+    setOnClickListener { showCustomColorDialog() }
+   }
+   g.addView(wheel,LinearLayout.LayoutParams((26*d).toInt(),(26*d).toInt()))
+  }
+
+  // Group 8: Photo & Reset
+  ribbonGroup("Canvas") { g ->
+   val openBtn=makeIconCell("🖼",null,30,36) { openImagePicker() }.apply { textSize=15f; contentDescription="فتح صورة" }
+   val clearBtn=makeIconCell("🗑",null,30,36) {
+    AlertDialog.Builder(this).setMessage("هل تريد مسح اللوحة بالكامل؟")
+     .setPositiveButton("مسح") { _,_ -> canvas.clear() }.setNegativeButton("إلغاء",null).show()
+   }.apply { textSize=14f; contentDescription="مسح اللوحة" }
+   g.addView(openBtn,LinearLayout.LayoutParams((30*d).toInt(),(36*d).toInt()).apply { rightMargin=(2*d).toInt() })
+   g.addView(clearBtn,LinearLayout.LayoutParams((30*d).toInt(),(36*d).toInt()))
+  }
+
+  page.addView(HorizontalScrollView(this).apply {
+   isHorizontalScrollBarEnabled=false
+   setBackgroundColor(Win11PaintTheme.RIBBON_BG)
+   addView(ribbonCard)
+  },LinearLayout.LayoutParams(-1,(66*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Win11PaintTheme.BORDER_SUBTLE) },LinearLayout.LayoutParams(-1,1))
+
+  // 3. Centered White Artboard Stage (#E5EAF1 backdrop matching screenshot)
+  val canvasStage=FrameLayout(this).apply {
+   setPadding((18*d).toInt(),(14*d).toInt(),(18*d).toInt(),(14*d).toInt())
+   setBackgroundColor(Win11PaintTheme.CANVAS_STAGE_BG)
+  }
+  val sheetFrame=FrameLayout(this).apply {
+   elevation=5f*d
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.WHITE); setStroke(1,Color.rgb(196,204,218))
+   }
+  }
+  sheetFrame.addView(canvas,FrameLayout.LayoutParams(-1,-1))
+  canvasStage.addView(sheetFrame,FrameLayout.LayoutParams(-1,-1))
+  page.addView(canvasStage,LinearLayout.LayoutParams(-1,0,1f))
+
+  // 4. Windows 11 Paint Bottom Status Bar (Coordinates | Canvas Size | Tool | Zoom Slider)
+  val statusBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(10*d).toInt(),(2*d).toInt())
+   setBackgroundColor(Win11PaintTheme.MICA_BG)
+  }
+  val cursorCoordLabel=TextView(this).apply { text="📍 0, 0 px"; textSize=9.5f; setTextColor(Win11PaintTheme.TEXT_MUTED) }
+  val canvasDimLabel=TextView(this).apply { text="📐 0 × 0 px"; textSize=9.5f; setTextColor(Win11PaintTheme.TEXT_MUTED) }
+  val activeToolLabel=TextView(this).apply { text="🖌 قلم • 5px"; textSize=9.5f; setTextColor(Win11PaintTheme.TEXT_MUTED) }
+  val fitBtn=TextView(this).apply {
+   text="⛶"; textSize=12f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK); contentDescription="حجم 100%"
+   setOnClickListener { canvas.setZoomFactor(1f); updateStatusBar() }
+  }
+  val zoomPctLabel=TextView(this).apply { text="100%"; textSize=9.5f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK) }
+  val zoomOutBtn=TextView(this).apply {
+   text="−"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK)
+   setOnClickListener { canvas.setZoomFactor((canvas.getZoomFactor()-0.25f).coerceAtLeast(0.5f)); updateStatusBar() }
+  }
+  val zoomBar=SeekBar(this).apply {
+   max=200; progress=50 // 50%..250%
+   progressTintList=android.content.res.ColorStateList.valueOf(Win11PaintTheme.ACCENT_BLUE)
+   thumbTintList=android.content.res.ColorStateList.valueOf(Win11PaintTheme.ACCENT_BLUE)
+   setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+    override fun onStartTrackingTouch(p0:SeekBar?) {}
+    override fun onStopTrackingTouch(p0:SeekBar?) {}
+    override fun onProgressChanged(p0:SeekBar?,p:Int,fromUser:Boolean) {
+     if(fromUser) {
+      val z=(50+p)/100f
+      canvas.setZoomFactor(z)
+      zoomPctLabel.text="${(z*100).toInt()}%"
+     }
+    }
+   })
+  }
+  val zoomInBtn=TextView(this).apply {
+   text="+"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Win11PaintTheme.TEXT_DARK)
+   setOnClickListener { canvas.setZoomFactor((canvas.getZoomFactor()+0.25f).coerceAtMost(2.5f)); updateStatusBar() }
+  }
+
+  statusBar.addView(cursorCoordLabel,LinearLayout.LayoutParams(-2,-2).apply { rightMargin=(14*d).toInt() })
+  statusBar.addView(canvasDimLabel,LinearLayout.LayoutParams(-2,-2).apply { rightMargin=(14*d).toInt() })
+  statusBar.addView(activeToolLabel,LinearLayout.LayoutParams(0,-2,1f))
+  statusBar.addView(fitBtn,LinearLayout.LayoutParams((22*d).toInt(),(22*d).toInt()).apply { rightMargin=(4*d).toInt() })
+  statusBar.addView(zoomPctLabel,LinearLayout.LayoutParams((36*d).toInt(),(22*d).toInt()))
+  statusBar.addView(zoomOutBtn,LinearLayout.LayoutParams((20*d).toInt(),(22*d).toInt()))
+  statusBar.addView(zoomBar,LinearLayout.LayoutParams((76*d).toInt(),(20*d).toInt()))
+  statusBar.addView(zoomInBtn,LinearLayout.LayoutParams((20*d).toInt(),(22*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Win11PaintTheme.BORDER_SUBTLE) },LinearLayout.LayoutParams(-1,1))
+  page.addView(statusBar,LinearLayout.LayoutParams(-1,(26*d).toInt()))
+
+  refreshRibbonSelection={
+   toolContainers.values.distinct().forEach { it.background=Win11PaintTheme.toolButtonBg(d,false) }
+   toolContainers[currentTool]?.background=Win11PaintTheme.toolButtonBg(d,true)
+  }
+  updateStatusBar={
+   val zPct=(canvas.getZoomFactor()*100).toInt()
+   zoomPctLabel.text="${zPct}%"
+   zoomBar.progress=(zPct-50).coerceIn(0,200)
+   activeToolLabel.text="🖌 $currentTool • ${currentBrushSize.toInt()}px"
+  }
+
+  canvas.onCursorMove={ px,py -> cursorCoordLabel.text="📍 $px, $py px" }
+  canvas.onCanvasSizeChanged={ cw,ch -> canvasDimLabel.text="📐 $cw × $ch px" }
+  canvas.onColorPickedByDropper={ sampled ->
+   applyColorChoice(sampled)
+   selectTool("قلم")
+  }
+
+  refreshRibbonSelection()
+  updateStatusBar()
   panel(page)
  }
 
@@ -3303,13 +5244,27 @@ class MainActivity : Activity() {
   private var imported:Bitmap?=null
   private var filledShapes=false
   private var whiteBackground=true
+  private var showGrid=false
+  var onCursorMove:((Int,Int)->Unit)?=null
+  var onCanvasSizeChanged:((Int,Int)->Unit)?=null
+  var onColorPickedByDropper:((Int)->Unit)?=null
   init{isFocusable=true;isFocusableInTouchMode=true;setLayerType(View.LAYER_TYPE_SOFTWARE,null);setBackgroundColor(Color.WHITE)}
-  fun setTool(value:String){tool=value;currentPaint.xfermode=null;Toast.makeText(context,"الأداة: $value",Toast.LENGTH_SHORT).show();invalidate()}
+  override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int){super.onSizeChanged(w,h,oldw,oldh);if(w>0&&h>0)onCanvasSizeChanged?.invoke(w,h)}
+  fun setTool(value:String){tool=value;currentPaint.xfermode=null;invalidate()}
   fun setColor(value:Int){currentPaint.color=value;currentPaint.xfermode=null;invalidate()}
   fun setBrushSize(value:Float){currentPaint.strokeWidth=value.coerceIn(1f,50f);invalidate()}
   fun setFilled(value:Boolean){filledShapes=value;invalidate()}
+  fun isShapeFilled():Boolean=filledShapes
+  fun setShowGrid(value:Boolean){showGrid=value;invalidate()}
   fun setWhiteBackground(){whiteBackground=true;invalidate()}
+  fun setZoomFactor(factor:Float){zoom=factor.coerceIn(0.5f,2.5f);invalidate()}
+  fun getZoomFactor():Float=zoom
   fun zoomBy(factor:Float){zoom=(zoom*factor).coerceIn(0.25f,5f);invalidate()}
+  fun hasSelection():Boolean=cropRect?.let{it.width()>2f&&it.height()>2f}==true
+  fun clearSelection(){cropRect=null;invalidate()}
+  fun applyCrop(){if(!hasSelection())return;try{imported=exportBitmap();paths.clear();undone.clear();cropRect=null;invalidate()}catch(_:Exception){}}
+  fun rotate90(){try{val src=exportBitmap();val m=Matrix().apply{postRotate(90f)};imported=Bitmap.createBitmap(src,0,0,src.width,src.height,m,true);paths.clear();undone.clear();invalidate()}catch(_:Exception){}}
+  fun flipHorizontal(){try{val src=exportBitmap();val m=Matrix().apply{postScale(-1f,1f,src.width/2f,src.height/2f)};imported=Bitmap.createBitmap(src,0,0,src.width,src.height,m,true);paths.clear();undone.clear();invalidate()}catch(_:Exception){}}
   fun undo(){if(paths.isNotEmpty())undone.add(paths.removeAt(paths.lastIndex));invalidate()}
   fun redo(){if(undone.isNotEmpty())paths.add(undone.removeAt(undone.lastIndex));invalidate()}
   fun importImage(uri:Uri){try{imported=this@MainActivity.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it)};invalidate()}catch(_:Exception){Toast.makeText(context,"تعذر استيراد الصورة",Toast.LENGTH_SHORT).show()}}
@@ -3319,8 +5274,8 @@ class MainActivity : Activity() {
    when(tool){
     "خط"->{p.moveTo(startX,startY);p.lineTo(x,y)}
     "سهم"->{p.moveTo(startX,startY);p.lineTo(x,y);val angle=kotlin.math.atan2((y-startY).toDouble(),(x-startX).toDouble());val head=(currentPaint.strokeWidth*3.2f).coerceAtLeast(12f);p.moveTo(x,y);p.lineTo((x-head*kotlin.math.cos(angle-0.48)).toFloat(),(y-head*kotlin.math.sin(angle-0.48)).toFloat());p.moveTo(x,y);p.lineTo((x-head*kotlin.math.cos(angle+0.48)).toFloat(),(y-head*kotlin.math.sin(angle+0.48)).toFloat())}
-    "مستطيل"->{if(filledShapes)p.addRect(l,t,r,b,Path.Direction.CW)else p.addRect(l,t,r,b,Path.Direction.CW)}
-    "مستطيل دائري"->{val rect=RectF(l,t,r,b);if(filledShapes)p.addRoundRect(rect,18f,18f,Path.Direction.CW)else p.addRoundRect(rect,18f,18f,Path.Direction.CW)}
+    "مستطيل"->{p.addRect(l,t,r,b,Path.Direction.CW)}
+    "مستطيل دائري"->{p.addRoundRect(RectF(l,t,r,b),18f,18f,Path.Direction.CW)}
     "دائرة"->{p.addOval(RectF(l,t,r,b),Path.Direction.CW)}
     "مثلث"->{p.moveTo((l+r)/2f,t);p.lineTo(r,b);p.lineTo(l,b);p.close()}
     else->{p.moveTo(startX,startY);p.lineTo(x,y)}
@@ -3331,6 +5286,8 @@ class MainActivity : Activity() {
    when(tool){
     "ممحاة"->{color=Color.WHITE;strokeWidth=(currentPaint.strokeWidth*2.5f).coerceAtMost(100f);style=Paint.Style.STROKE}
     "قلم رصاص"->{strokeWidth=(currentPaint.strokeWidth*0.55f).coerceAtLeast(1f);alpha=190}
+    "فرشاة"->{strokeWidth=(currentPaint.strokeWidth*1.4f).coerceAtMost(64f);alpha=230}
+    "تحديد عريض"->{strokeWidth=(currentPaint.strokeWidth*1.8f).coerceAtMost(72f);strokeCap=Paint.Cap.SQUARE}
     "تعبئة"->{style=Paint.Style.FILL}
     "مستطيل","مستطيل دائري","دائرة","مثلث"->{style=if(filledShapes)Paint.Style.FILL else Paint.Style.STROKE}
     else->{style=Paint.Style.STROKE}
@@ -3342,22 +5299,50 @@ class MainActivity : Activity() {
    imported?.let{c.drawBitmap(it,null,RectF(0f,0f,width/zoom,height/zoom),Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))}
    paths.forEach{c.drawPath(it.first,it.second)}
    if(!activePath.isEmpty)c.drawPath(activePath,paintForTool())
+   if(showGrid){val gp=Paint().apply{color=Color.argb(38,100,130,175);strokeWidth=1f};val step=32f;var gx=step;while(gx<width/zoom){c.drawLine(gx,0f,gx,height/zoom,gp);gx+=step};var gy=step;while(gy<height/zoom){c.drawLine(0f,gy,width/zoom,gy,gp);gy+=step}}
    c.restore()
    cropRect?.let{val p=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(0,120,215);style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(9f,6f),0f)};c.drawRect(it,p)}
   }
   override fun onTouchEvent(e:MotionEvent):Boolean{
    val x=e.x/zoom;val y=e.y/zoom
+   onCursorMove?.invoke(x.toInt().coerceAtLeast(0),y.toInt().coerceAtLeast(0))
    when(e.action){
-    MotionEvent.ACTION_DOWN->{requestFocus();startX=x;startY=y;activePath=Path();if(tool=="قلم"||tool=="فرشاة"||tool=="قلم رصاص"||tool=="ممحاة"){activePath.moveTo(x,y)}else if(tool=="تعبئة"){val p=Paint(currentPaint).apply{style=Paint.Style.FILL};val dot=Path().apply{addCircle(x,y,(currentPaint.strokeWidth*2f).coerceAtLeast(8f),Path.Direction.CW)};paths.add(Pair(dot,p));undone.clear();invalidate();return true};invalidate();return true}
-    MotionEvent.ACTION_MOVE->{if(tool=="قلم"||tool=="فرشاة"||tool=="قلم رصاص"||tool=="ممحاة")activePath.lineTo(x,y)else activePath=shapePath(x,y);invalidate();return true}
+    MotionEvent.ACTION_DOWN->{
+     requestFocus();startX=x;startY=y;activePath=Path()
+     when(tool){
+      "قطارة"->{
+       try{val bmp=exportBitmap();val px=x.toInt().coerceIn(0,bmp.width-1);val py=y.toInt().coerceIn(0,bmp.height-1);onColorPickedByDropper?.invoke(bmp.getPixel(px,py))}catch(_:Exception){}
+       return true
+      }
+      "تعبئة"->{
+       try{
+        val bmp=exportBitmap()
+        val px=x.toInt().coerceIn(0,bmp.width-1)
+        val py=y.toInt().coerceIn(0,bmp.height-1)
+        if(PaintFloodFiller.floodFill(bmp,px,py,currentPaint.color)){imported=bmp;paths.clear();undone.clear();invalidate()}
+       }catch(_:Exception){}
+       return true
+      }
+      "قلم","فرشاة","قلم رصاص","تحديد عريض","ممحاة"->{activePath.moveTo(x,y)}
+     }
+     invalidate();return true
+    }
+    MotionEvent.ACTION_MOVE->{
+     if(tool=="قلم"||tool=="فرشاة"||tool=="قلم رصاص"||tool=="تحديد عريض"||tool=="ممحاة") activePath.lineTo(x,y)
+     else if(tool!="تعبئة"&&tool!="قطارة") activePath=shapePath(x,y)
+     invalidate();return true
+    }
     MotionEvent.ACTION_UP->{
      when(tool){
       "نص"->{val input=EditText(context).apply{hint="اكتب النص هنا";minLines=2};AlertDialog.Builder(context).setTitle("إضافة نص").setView(input).setPositiveButton("إضافة"){_,_->if(input.text.isNotBlank())addText(input.text.toString(),x,y)}.setNegativeButton("إلغاء",null).show();activePath=Path()}
       "قص","تحديد"->{cropRect=RectF(minOf(startX,x),minOf(startY,y),maxOf(startX,x),maxOf(startY,y));activePath=Path()}
-      else->{if(tool!="تعبئة"){val p=paintForTool();val completed=if(tool=="خط"||tool=="سهم"||tool=="مستطيل"||tool=="مستطيل دائري"||tool=="دائرة"||tool=="مثلث")shapePath(x,y)else Path(activePath);paths.add(Pair(completed,p));undone.clear()};activePath=Path()}
-     };invalidate();return true
+      "تعبئة","قطارة"->{activePath=Path()}
+      else->{val p=paintForTool();val completed=if(tool=="خط"||tool=="سهم"||tool=="مستطيل"||tool=="مستطيل دائري"||tool=="دائرة"||tool=="مثلث")shapePath(x,y)else Path(activePath);paths.add(Pair(completed,p));undone.clear();activePath=Path()}
+     }
+     invalidate();return true
     }
-   };return true
+   }
+   return true
   }
   fun exportBitmap():Bitmap{
    val bmp=Bitmap.createBitmap((width/zoom).toInt().coerceAtLeast(1),(height/zoom).toInt().coerceAtLeast(1),Bitmap.Config.ARGB_8888)

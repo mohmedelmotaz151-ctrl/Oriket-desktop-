@@ -65,12 +65,12 @@ object FluentIcons {
         title.contains("متصفح") || title.contains("الإنترنت") || title.contains("المتصفح") -> FluentIcon.EDGE_BROWSER
         title.contains("زيارات الدفاع المدني") -> FluentIcon.CIVIL_DEFENSE
         title.contains("هذا الكمبيوتر") || title.contains("الكمبيوتر") -> FluentIcon.THIS_PC
-        title.contains("سلة المحذوفات") -> FluentIcon.RECYCLE_BIN
+        title.contains("سلة المحذوفات") || title.contains("Recycle Bin") -> FluentIcon.RECYCLE_BIN
         title.contains("مستكشف الملفات") || title.contains("الملفات") -> FluentIcon.FILE_EXPLORER
         title.contains("PDF") -> FluentIcon.PDF_READER
         title.contains("الفيديو") -> FluentIcon.VIDEOS
         title.contains("الصور") -> FluentIcon.PHOTOS
-        title.contains("الرسام") -> FluentIcon.PAINT
+        title.contains("الرسام") || title.contains("Paint") -> FluentIcon.PAINT
         title.contains("Word") || title.contains("معالج النصوص") -> FluentIcon.DOCUMENTS
         title.contains("Excel") || title.contains("الجداول") -> FluentIcon.SPREADSHEET
         title.contains("لوحة التحكم") || title.contains("الإعدادات") -> FluentIcon.SETTINGS
