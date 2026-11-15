@@ -60,6 +60,9 @@ class MainActivity : Activity() {
  private var startupSplashVisible=false
  private var startupAdAttempted=false
  private var bootSequenceShown=false
+ private var bootSequenceStartMs=0L
+ private var startupTimeoutRunnable:Runnable?=null
+ private var startupAdvanceRunnable:Runnable?=null
  private val appOpenAdUnitId="ca-app-pub-6392100417582868/6096867927" // Oriket App Open ad unit; shown at startup only
  private val openWindows=mutableListOf<WindowEntry>()
  private var web:WebView?=null
@@ -72,6 +75,8 @@ class MainActivity : Activity() {
  private var clockRunnable:Runnable?=null
  private var fileManagerDir:java.io.File?=null
  private var musicPlayer:MediaPlayer?=null
+ private var onMusicPermissionGranted:(()->Unit)?=null
+ private var onAudioPickedCallback:((Uri)->Unit)?=null
  private data class PhotoItem(val uri:Uri,val name:String,val date:Long)
  private var selectedPhoto:PhotoItem?=null
  private var editorBitmap:Bitmap?=null
@@ -118,8 +123,12 @@ class MainActivity : Activity() {
    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
   window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-  MobileAds.initialize(this) {
-   runOnUiThread { loadStartupAppOpenAd() }
+  try {
+   MobileAds.initialize(this) {
+    runOnUiThread { if(!isFinishing && !isDestroyed) loadStartupAppOpenAd() }
+   }
+  } catch(e:Exception) {
+   android.util.Log.w("OriketAdMob","MobileAds initialization skipped: ${e.message}")
   }
   showBootSequence()
   try {
@@ -131,6 +140,8 @@ class MainActivity : Activity() {
 
  override fun onDestroy() {
   if(updateReceiverRegistered) try { unregisterReceiver(updateReceiver) } catch(_:Exception) {}
+  startupTimeoutRunnable?.let { uiHandler.removeCallbacks(it) }
+  startupAdvanceRunnable?.let { uiHandler.removeCallbacks(it) }
   clockRunnable?.let { uiHandler.removeCallbacks(it) }
   try { musicPlayer?.stop(); musicPlayer?.release() } catch(_:Exception) {}; musicPlayer=null
   openWindows.mapNotNull { it.frame as? ViewGroup }.forEach { group ->
@@ -172,42 +183,58 @@ class MainActivity : Activity() {
  }
 
  private fun loadStartupAppOpenAd() {
-  if(startupAdAttempted || isFinishing) return
+  if(startupAdAttempted || isFinishing || isDestroyed) return
   startupAdAttempted=true
   startupAdLoadInProgress=true
-  AppOpenAd.load(
-   this,
-   appOpenAdUnitId,
-   AdRequest.Builder().build(),
-   object:AppOpenAd.AppOpenAdLoadCallback() {
-    override fun onAdLoaded(ad:AppOpenAd) {
-     startupAdLoadInProgress=false
-     startupAppOpenAd=ad
-     android.util.Log.i("OriketAdMob","App Open ad loaded")
-     if(startupSplashVisible && !startupAdHandled && !isFinishing) showStartupAppOpenAd()
+  try {
+   AppOpenAd.load(
+    this,
+    appOpenAdUnitId,
+    AdRequest.Builder().build(),
+    object:AppOpenAd.AppOpenAdLoadCallback() {
+     override fun onAdLoaded(ad:AppOpenAd) {
+      startupAdLoadInProgress=false
+      startupAppOpenAd=ad
+      android.util.Log.i("OriketAdMob","App Open ad loaded")
+      if(startupSplashVisible && !startupAdHandled && !isFinishing && !isDestroyed) showStartupAppOpenAd()
+     }
+     override fun onAdFailedToLoad(error:LoadAdError) {
+      startupAdLoadInProgress=false
+      startupAppOpenAd=null
+      val msg="App Open skipped: code=${error.code}, domain=${error.domain}, message=${error.message}"
+      if(error.code==AdRequest.ERROR_CODE_NO_FILL) android.util.Log.i("OriketAdMob",msg)
+      else android.util.Log.w("OriketAdMob",msg)
+      // Ads are optional: never block startup or log expected No-Fill inventory responses as fatal errors.
+      if(startupSplashVisible && !startupAdHandled && !isFinishing && !isDestroyed) {
+       scheduleFinishStartupSplashAfterMinBoot()
+      }
+     }
     }
-    override fun onAdFailedToLoad(error:LoadAdError) {
-     startupAdLoadInProgress=false
-     startupAppOpenAd=null
-     android.util.Log.e("OriketAdMob","App Open failed: code=${error.code}, domain=${error.domain}, message=${error.message}")
-     // Ads are optional: never block startup or show a disruptive error toast.
-    }
+   )
+  } catch(e:Exception) {
+   startupAdLoadInProgress=false
+   startupAppOpenAd=null
+   android.util.Log.w("OriketAdMob","App Open load exception: ${e.message}")
+   if(startupSplashVisible && !startupAdHandled && !isFinishing && !isDestroyed) {
+    scheduleFinishStartupSplashAfterMinBoot()
    }
-  )
+  }
  }
 
  private fun showStartupAppOpenAd() {
   val ad=startupAppOpenAd ?: return
-  if(startupAdHandled || !startupSplashVisible || isFinishing) return
+  if(startupAdHandled || !startupSplashVisible || isFinishing || isDestroyed) return
   startupAdHandled=true
   startupAppOpenAd=null
+  startupTimeoutRunnable?.let { uiHandler.removeCallbacks(it) }
+  startupTimeoutRunnable=null
   ad.fullScreenContentCallback=object:FullScreenContentCallback() {
    override fun onAdDismissedFullScreenContent() {
     android.util.Log.i("OriketAdMob","App Open ad dismissed")
     finishStartupSplash()
    }
    override fun onAdFailedToShowFullScreenContent(error:AdError) {
-    android.util.Log.e("OriketAdMob","App Open failed to show: ${error.message}")
+    android.util.Log.w("OriketAdMob","App Open failed to show: ${error.message}")
     finishStartupSplash()
    }
    override fun onAdShowedFullScreenContent() {
@@ -215,15 +242,31 @@ class MainActivity : Activity() {
    }
   }
   try { ad.show(this) } catch(e:Exception) {
-   android.util.Log.e("OriketAdMob","App Open show exception",e)
+   android.util.Log.w("OriketAdMob","App Open show exception: ${e.message}")
    finishStartupSplash()
   }
  }
 
+ private fun scheduleFinishStartupSplashAfterMinBoot() {
+  if(!startupSplashVisible || startupAdHandled || isFinishing || isDestroyed) return
+  startupTimeoutRunnable?.let { uiHandler.removeCallbacks(it) }
+  startupTimeoutRunnable=null
+  startupAdvanceRunnable?.let { uiHandler.removeCallbacks(it) }
+  val elapsed=android.os.SystemClock.elapsedRealtime()-bootSequenceStartMs
+  val remaining=(1900L-elapsed).coerceAtLeast(0L)
+  val runnable=Runnable { finishStartupSplash() }
+  startupAdvanceRunnable=runnable
+  uiHandler.postDelayed(runnable,remaining)
+ }
+
  private fun finishStartupSplash() {
-  if(!startupSplashVisible || isFinishing) return
+  if(!startupSplashVisible || isFinishing || isDestroyed) return
   startupSplashVisible=false
-  uiHandler.post { if(!isFinishing) showLocalLoginScreen() }
+  startupTimeoutRunnable?.let { uiHandler.removeCallbacks(it) }
+  startupTimeoutRunnable=null
+  startupAdvanceRunnable?.let { uiHandler.removeCallbacks(it) }
+  startupAdvanceRunnable=null
+  uiHandler.post { if(!isFinishing && !isDestroyed) showLocalLoginScreen() }
  }
 
  private fun showBootSequence() {
@@ -272,6 +315,7 @@ class MainActivity : Activity() {
   boot.addView(panel,FrameLayout.LayoutParams(-1,-1))
   setContentView(boot)
   startupSplashVisible=isFirstBootSequence
+  bootSequenceStartMs=android.os.SystemClock.elapsedRealtime()
   logo.animate().alpha(1f).setDuration(650).start()
   title.animate().alpha(1f).setStartDelay(280).setDuration(650).start()
   subtitle.animate().alpha(1f).setStartDelay(450).setDuration(650).start()
@@ -279,17 +323,19 @@ class MainActivity : Activity() {
   // Give the App Open request time to finish before leaving the startup screen.
   // If the ad loads during this window, its callback displays it immediately.
   if(isFirstBootSequence) {
-   uiHandler.postDelayed({
-    if(!isFinishing && startupSplashVisible) {
-     if(startupAppOpenAd!=null && !startupAdHandled) showStartupAppOpenAd()
+   val timeoutTask=Runnable {
+    if(!isFinishing && !isDestroyed && startupSplashVisible && !startupAdHandled) {
+     if(startupAppOpenAd!=null) showStartupAppOpenAd()
      else {
       android.util.Log.w("OriketAdMob","Startup ad was not ready within 12 seconds; continuing without an ad")
       finishStartupSplash()
      }
     }
-   },12000L)
+   }
+   startupTimeoutRunnable=timeoutTask
+   uiHandler.postDelayed(timeoutTask,12000L)
   } else {
-   uiHandler.postDelayed({ if(!isFinishing) showLocalLoginScreen() },1900L)
+   uiHandler.postDelayed({ if(!isFinishing && !isDestroyed) showLocalLoginScreen() },1900L)
   }
  }
 
@@ -459,50 +505,46 @@ class MainActivity : Activity() {
   }
   root.addView(desktopArea,LinearLayout.LayoutParams(-1,0,1f))
 
-  // Windows 11-inspired translucent taskbar with centered app controls and a right system tray.
+  // Windows 11-inspired slim translucent light taskbar with centered app icons and right system tray.
+  val d=resources.displayMetrics.density
   val dock=FrameLayout(this).apply {
    background=android.graphics.drawable.GradientDrawable(
     android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-    intArrayOf(Color.argb(246,31,39,52),Color.argb(238,17,23,34))
-   ).apply { cornerRadii=floatArrayOf(18f,18f,18f,18f,0f,0f,0f,0f); setStroke(1,Color.argb(55,210,226,248)) }
-   elevation=22f
+    intArrayOf(Color.argb(240,242,246,253),Color.argb(245,232,239,248))
+   ).apply { setStroke(1,Color.argb(95,186,200,220)) }
+   elevation=18f*d
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
-  val d=resources.displayMetrics.density
   taskbar=LinearLayout(this).apply {
    gravity=Gravity.CENTER
    orientation=LinearLayout.HORIZONTAL
-   setPadding((6*d).toInt(),(2*d).toInt(),(6*d).toInt(),(2*d).toInt())
-   background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.argb(92,255,255,255))
-    cornerRadius=14f*d
-    setStroke(1,Color.argb(38,255,255,255))
-   }
+   setPadding((2*d).toInt(),0,(2*d).toInt(),0)
+   background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
   val startButton=Button(this).apply {
    text=""
-   val startD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(24*d).toInt())
+   val startD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(22*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(null,startD,null,null)
    isAllCaps=false
-   minWidth=(40*d).toInt(); minimumWidth=(40*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
+   minWidth=(38*d).toInt(); minimumWidth=(38*d).toInt(); minHeight=(38*d).toInt(); minimumHeight=(38*d).toInt()
    gravity=Gravity.CENTER
-   setPadding(0,0,0,0)
+   setPadding(0,(6*d).toInt(),0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT); cornerRadius=10f*d
+    setColor(Color.TRANSPARENT); cornerRadius=6f*d
    }
    contentDescription="ابدأ"
    setOnClickListener { showStartMenu() }
   }
   val searchButton=Button(this).apply {
    text=""
-   val searchD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.SEARCH,(19*d).toInt())
+   val searchD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.SEARCH,(18*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(null,searchD,null,null)
    isAllCaps=false
-   minWidth=(36*d).toInt(); minimumWidth=(36*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
+   minWidth=(36*d).toInt(); minimumWidth=(36*d).toInt(); minHeight=(38*d).toInt(); minimumHeight=(38*d).toInt()
    gravity=Gravity.CENTER
-   setPadding(0,0,0,0)
+   setPadding(0,(8*d).toInt(),0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT); cornerRadius=10f*d
+    setColor(Color.TRANSPARENT); cornerRadius=6f*d
    }
    contentDescription="بحث"
    setOnClickListener { showStartMenu() }
@@ -510,54 +552,56 @@ class MainActivity : Activity() {
   val centerGroup=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER
-   addView(startButton,LinearLayout.LayoutParams((44*d).toInt(),(44*d).toInt()))
-   addView(searchButton,LinearLayout.LayoutParams((40*d).toInt(),(44*d).toInt()))
-   addView(taskbar,LinearLayout.LayoutParams(-2,(48*d).toInt()))
+   addView(startButton,LinearLayout.LayoutParams((38*d).toInt(),(38*d).toInt()).apply{ setMargins((1.5f*d).toInt(),0,(1.5f*d).toInt(),0) })
+   addView(searchButton,LinearLayout.LayoutParams((36*d).toInt(),(38*d).toInt()).apply{ setMargins((1.5f*d).toInt(),0,(1.5f*d).toInt(),0) })
+   addView(taskbar,LinearLayout.LayoutParams(-2,(40*d).toInt()))
   }
-  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,(50*d).toInt(),Gravity.CENTER))
+  dock.addView(centerGroup,FrameLayout.LayoutParams(-2,(42*d).toInt(),Gravity.CENTER))
+  val trayTextColor=Color.rgb(32,44,62)
   val tray=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER_VERTICAL
    setPadding((4*d).toInt(),0,(8*d).toInt(),0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.TRANSPARENT); cornerRadius=10f
+    setColor(Color.TRANSPARENT); cornerRadius=6f*d
    }
    setOnClickListener { showQuickSettings() }
    contentDescription="منطقة النظام والإعدادات السريعة"
   }
   val networkLabel=TextView(this).apply {
-   val netD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WIFI,(16*d).toInt())
+   val netD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.WIFI,(15*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(netD,null,null,null)
    gravity=Gravity.CENTER; setPadding((3*d).toInt(),0,(3*d).toInt(),0)
   }
   val batteryLabel=TextView(this).apply {
-   text="100%"; textSize=10f; setTextColor(Color.rgb(235,241,250))
-   val batD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.BATTERY,(18*d).toInt())
+   text="100%"; textSize=9.2f; setTextColor(trayTextColor)
+   val batD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.BATTERY,(16*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(batD,null,null,null)
-   compoundDrawablePadding=(3*d).toInt()
-   gravity=Gravity.CENTER; setPadding((2*d).toInt(),0,(4*d).toInt(),0)
+   compoundDrawablePadding=(2*d).toInt()
+   gravity=Gravity.CENTER; setPadding((3*d).toInt(),0,(4*d).toInt(),0)
   }
   clockLabel=TextView(this).apply {
    gravity=Gravity.CENTER
-   textSize=9.8f
-   setTextColor(Color.WHITE)
-   setPadding((4*d).toInt(),1,(3*d).toInt(),1)
+   textSize=9.2f
+   setTextColor(trayTextColor)
+   setLineSpacing(0f,0.95f)
+   setPadding((4*d).toInt(),1,(4*d).toInt(),1)
    setOnClickListener { showQuickSettings() }
    contentDescription="التاريخ والوقت والإعدادات السريعة"
   }
-  tray.addView(networkLabel,LinearLayout.LayoutParams((24*d).toInt(),(44*d).toInt()))
-  tray.addView(batteryLabel,LinearLayout.LayoutParams(-2,(40*d).toInt()))
+  tray.addView(networkLabel,LinearLayout.LayoutParams((22*d).toInt(),(36*d).toInt()))
+  tray.addView(batteryLabel,LinearLayout.LayoutParams(-2,(36*d).toInt()))
   notificationButton=TextView(this).apply {
-   val notifD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.NOTIFICATIONS,(17*d).toInt())
+   val notifD=FluentIcons.createDrawable(this@MainActivity,FluentIcon.NOTIFICATIONS,(15*d).toInt())
    setCompoundDrawablesWithIntrinsicBounds(notifD,null,null,null)
    gravity=Gravity.CENTER
-   setPadding((4*d).toInt(),0,(4*d).toInt(),0); contentDescription="مركز الإشعارات"
+   setPadding((4*d).toInt(),0,(3*d).toInt(),0); contentDescription="مركز الإشعارات"
    setOnClickListener { showNotificationCenter() }
   }
-  tray.addView(notificationButton,LinearLayout.LayoutParams((32*d).toInt(),(44*d).toInt()))
-  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,(44*d).toInt()))
+  tray.addView(clockLabel,LinearLayout.LayoutParams(-2,(38*d).toInt()))
+  tray.addView(notificationButton,LinearLayout.LayoutParams((26*d).toInt(),(36*d).toInt()))
   dock.addView(tray,FrameLayout.LayoutParams(-2,-1,Gravity.RIGHT or Gravity.CENTER_VERTICAL))
-  root.addView(dock,LinearLayout.LayoutParams(-1,(54*d).toInt()))
+  root.addView(dock,LinearLayout.LayoutParams(-1,(44*d).toInt()))
   setContentView(root)
 
   fun refreshTray() {
@@ -567,14 +611,9 @@ class MainActivity : Activity() {
     val scale=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,-1) ?: -1
     val percent=if(level>=0 && scale>0) level*100/scale else -1
     val charging=batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS,-1) in listOf(android.os.BatteryManager.BATTERY_STATUS_CHARGING,android.os.BatteryManager.BATTERY_STATUS_FULL)
-    batteryLabel.text=(if(charging) "⚡" else "▰")+(if(percent>=0) "$percent%" else "")
-   } catch(_:Exception) { batteryLabel.text="▰" }
-   try {
-    val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-    val network=cm.activeNetworkInfo
-    networkLabel.text=if(network==null || !network.isConnected) "○" else if(network.type==android.net.ConnectivityManager.TYPE_WIFI) "◉" else "▮"
-   } catch(_:Exception) { networkLabel.text="◉" }
-   clockLabel?.text=java.text.SimpleDateFormat("HH:mm\n dd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
+    batteryLabel.text=(if(charging) "⚡" else "")+(if(percent>=0) "$percent%" else "")
+   } catch(_:Exception) { batteryLabel.text="" }
+   clockLabel?.text=java.text.SimpleDateFormat("HH:mm\ndd/MM/yyyy",Locale.getDefault()).format(java.util.Date())
   }
   refreshTray()
   val clock=object:Runnable {
@@ -591,44 +630,44 @@ class MainActivity : Activity() {
   web=null
   windowCounter++
   val id=windowCounter
+  val td=resources.displayMetrics.density
   val outer=LinearLayout(this).apply {
    orientation=LinearLayout.VERTICAL
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=13f; setStroke(1,Color.rgb(180,195,216)) }
-   elevation=18f
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=10f*td; setStroke(1,Color.rgb(198,210,226)) }
+   elevation=14f*td
    clipToOutline=true
    layoutDirection=View.LAYOUT_DIRECTION_LTR
   }
   val titlebar=LinearLayout(this).apply {
    orientation=LinearLayout.HORIZONTAL
    gravity=Gravity.CENTER_VERTICAL
-   setPadding(12,0,4,0)
-   setBackgroundColor(Color.rgb(247,249,253))
+   setPadding((10*td).toInt(),0,(4*td).toInt(),0)
+   setBackgroundColor(Color.rgb(245,248,252))
   }
-  val td=resources.displayMetrics.density
   val titleIcon=ImageView(this).apply {
-   val dIcon=FluentIcons.createDrawable(this@MainActivity,FluentIcons.getIconForTitle(title),(22*td).toInt())
+   val dIcon=FluentIcons.createDrawable(this@MainActivity,FluentIcons.getIconForTitle(title),(16*td).toInt())
    setImageDrawable(dIcon)
   }
-  titlebar.addView(titleIcon,LinearLayout.LayoutParams((22*td).toInt(),(22*td).toInt()).apply{rightMargin=(6*td).toInt()})
-  titlebar.addView(TextView(this).apply { text=title; textSize=13.2f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding(4,0,8,0) },LinearLayout.LayoutParams(0,50,1f))
+  titlebar.addView(titleIcon,LinearLayout.LayoutParams((16*td).toInt(),(16*td).toInt()).apply{rightMargin=(6*td).toInt()})
+  titlebar.addView(TextView(this).apply { text=title; textSize=12f; setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD); gravity=Gravity.CENTER_VERTICAL; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; includeFontPadding=true; setPadding((2*td).toInt(),0,(6*td).toInt(),0) },LinearLayout.LayoutParams(0,(36*td).toInt(),1f))
   val minimize=windowButton("—")
   val maximize=windowButton("▢")
   val close=windowButton("✕")
-  titlebar.addView(minimize,LinearLayout.LayoutParams(46,46))
-  titlebar.addView(maximize,LinearLayout.LayoutParams(46,46))
-  titlebar.addView(close,LinearLayout.LayoutParams(48,46))
-  outer.addView(titlebar,LinearLayout.LayoutParams(-1,52))
-  val body=FrameLayout(this).apply { setPadding(10,8,10,8); setBackgroundColor(Color.rgb(250,251,254)) }
+  titlebar.addView(minimize,LinearLayout.LayoutParams((36*td).toInt(),(34*td).toInt()))
+  titlebar.addView(maximize,LinearLayout.LayoutParams((36*td).toInt(),(34*td).toInt()))
+  titlebar.addView(close,LinearLayout.LayoutParams((38*td).toInt(),(34*td).toInt()))
+  outer.addView(titlebar,LinearLayout.LayoutParams(-1,(38*td).toInt()))
+  val body=FrameLayout(this).apply { setPadding((8*td).toInt(),(6*td).toInt(),(8*td).toInt(),(6*td).toInt()); setBackgroundColor(Color.rgb(250,251,254)) }
   outer.addView(body,LinearLayout.LayoutParams(-1,0,1f))
-  val lp=FrameLayout.LayoutParams((desktopArea.width*0.86f).toInt().coerceIn(280,(desktopArea.width-16).coerceAtLeast(280)), (desktopArea.height*0.84f).toInt().coerceIn(220,(desktopArea.height-16).coerceAtLeast(220)),Gravity.CENTER)
+  val lp=FrameLayout.LayoutParams((desktopArea.width*0.80f).toInt().coerceIn((280*td).toInt(),(desktopArea.width-(16*td).toInt()).coerceAtLeast((280*td).toInt())), (desktopArea.height*0.82f).toInt().coerceIn((220*td).toInt(),(desktopArea.height-(14*td).toInt()).coerceAtLeast((220*td).toInt())),Gravity.CENTER)
   var maximized=false
   var oldParams:FrameLayout.LayoutParams?=null
   val resizeGrip=TextView(this).apply {
-   text="◢"; textSize=13.2f; gravity=Gravity.CENTER; setTextColor(Color.rgb(105,125,155))
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(225,238,243,250)); cornerRadius=7f }
+   text="◢"; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.rgb(105,125,155))
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(225,238,243,250)); cornerRadius=5f*td }
    contentDescription="تغيير حجم النافذة"
   }
-  body.addView(resizeGrip,FrameLayout.LayoutParams(26,26,Gravity.BOTTOM or Gravity.RIGHT).apply{rightMargin=2;bottomMargin=2})
+  body.addView(resizeGrip,FrameLayout.LayoutParams((22*td).toInt(),(22*td).toInt(),Gravity.BOTTOM or Gravity.RIGHT).apply{rightMargin=(2*td).toInt();bottomMargin=(2*td).toInt()})
   var resizeX=0f; var resizeY=0f; var resizeW=0; var resizeH=0
   resizeGrip.setOnTouchListener { _,e ->
    when(e.action) {
@@ -771,9 +810,9 @@ class MainActivity : Activity() {
  }
  private fun createTaskbarBackground(selected:Boolean):android.graphics.drawable.Drawable {
   val d=resources.displayMetrics.density
-  val corner=11f*d
-  val strokeColor=if(selected) Color.argb(60,255,255,255) else Color.TRANSPARENT
-  val bgColor=if(selected) Color.argb(90,255,255,255) else Color.argb(25,255,255,255)
+  val corner=6f*d
+  val strokeColor=if(selected) Color.argb(45,100,130,170) else Color.TRANSPARENT
+  val bgColor=if(selected) Color.argb(180,255,255,255) else Color.TRANSPARENT
   val base=android.graphics.drawable.GradientDrawable().apply {
    setColor(bgColor)
    cornerRadius=corner
@@ -781,35 +820,36 @@ class MainActivity : Activity() {
   }
   if(!selected) return base
   val pill=android.graphics.drawable.GradientDrawable().apply {
-   setColor(Color.rgb(0,120,215))
+   setColor(Color.rgb(0,120,212))
    cornerRadius=2f*d
   }
   val layer=android.graphics.drawable.LayerDrawable(arrayOf(base,pill))
-  val pillW=(16*d).toInt()
+  val pillW=(14*d).toInt()
   val pillH=(2.5f*d).toInt()
   val padB=(2*d).toInt()
-  val insetX=((42*d-pillW)/2).toInt().coerceAtLeast(0)
-  layer.setLayerInset(1,insetX,(42*d-pillH-padB).toInt(),insetX,padB)
+  val insetX=((38*d-pillW)/2).toInt().coerceAtLeast(0)
+  layer.setLayerInset(1,insetX,(38*d-pillH-padB).toInt(),insetX,padB)
   return layer
  }
  private fun windowButton(label:String)=Button(this).apply {
-  text=label; textSize=15.84f; isAllCaps=false; minWidth=38; minimumWidth=38; minHeight=38; minimumHeight=38
+  val d=resources.displayMetrics.density
+  text=label; textSize=13.5f; isAllCaps=false; minWidth=(34*d).toInt(); minimumWidth=(34*d).toInt(); minHeight=(32*d).toInt(); minimumHeight=(32*d).toInt()
   gravity=Gravity.CENTER; setPadding(0,0,0,0); setTextColor(navy)
   typeface=Typeface.create("Arial",Typeface.NORMAL)
   val isClose = label=="×" || label=="✕"
-  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
+  background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=6f*d }
   setOnTouchListener { v,e ->
    if(e.action==MotionEvent.ACTION_DOWN) {
     if(isClose) {
-     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(232,17,35)); cornerRadius=9f }
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(232,17,35)); cornerRadius=6f*d }
      setTextColor(Color.WHITE)
     } else {
-     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(230,237,247)); cornerRadius=9f }
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(226,232,240)); cornerRadius=6f*d }
     }
    }
    if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL) {
     v.postDelayed({
-     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=9f }
+     v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=6f*d }
      if(isClose) setTextColor(navy)
     },140)
    }
@@ -820,12 +860,12 @@ class MainActivity : Activity() {
  private fun taskButton(title:String)=Button(this).apply {
   text=""
   val d=resources.displayMetrics.density
-  val iconSizePx=(22*d).toInt()
+  val iconSizePx=(21*d).toInt()
   val icon=FluentIcons.getIconForTitle(title)
   val dIcon=FluentIcons.createDrawable(this@MainActivity,icon,iconSizePx)
   setCompoundDrawablesWithIntrinsicBounds(null,dIcon,null,null)
-  isAllCaps=false; minWidth=(42*d).toInt(); minimumWidth=(42*d).toInt(); minHeight=(42*d).toInt(); minimumHeight=(42*d).toInt()
-  gravity=Gravity.CENTER; setPadding((2*d).toInt(),(2*d).toInt(),(2*d).toInt(),(2*d).toInt())
+  isAllCaps=false; minWidth=(38*d).toInt(); minimumWidth=(38*d).toInt(); minHeight=(38*d).toInt(); minimumHeight=(38*d).toInt()
+  gravity=Gravity.CENTER; setPadding(0,(7*d).toInt(),0,0)
   background=createTaskbarBackground(false)
   elevation=0f; contentDescription=title
  }
@@ -861,19 +901,17 @@ class MainActivity : Activity() {
   val prefs=getSharedPreferences("orkeit_desktop",Context.MODE_PRIVATE)
   val old=desktopArea.findViewWithTag<View>("desktop-shortcuts")
   if(old!=null) desktopArea.removeView(old)
-  val shortcuts=LinearLayout(this).apply {
+  val density=resources.displayMetrics.density.coerceAtLeast(1f)
+  val shortcuts=FrameLayout(this).apply {
    tag="desktop-shortcuts"
-   orientation=LinearLayout.VERTICAL
-   gravity=Gravity.TOP or Gravity.LEFT
-   setPadding(8,10,8,8)
+   setPadding((8*density).toInt(),(8*density).toInt(),(8*density).toInt(),(6*density).toInt())
    background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
   }
-  // Grid dimensions are measured in dp, not raw pixels, so density changes cannot squeeze tiles together.
-  val density=resources.displayMetrics.density.coerceAtLeast(1f)
-  val desktopWidthDp=(if(desktopArea.width>0) desktopArea.width else resources.displayMetrics.widthPixels)/density
-  val desktopColumns=((desktopWidthDp-32f)/142f).toInt().coerceIn(2,7)
+  val desktopHeightDp=((if(desktopArea.height>0) desktopArea.height else (resources.displayMetrics.heightPixels-(46*density).toInt()))/density)
+  val rowsPerCol=((desktopHeightDp-16f)/80f).toInt().coerceIn(3,8)
   val grid=GridLayout(this).apply {
-   columnCount=desktopColumns
+   orientation=GridLayout.VERTICAL
+   rowCount=rowsPerCol
    useDefaultMargins=false
    alignmentMode=GridLayout.ALIGN_BOUNDS
    setPadding(0,0,0,0)
@@ -894,10 +932,14 @@ class MainActivity : Activity() {
    val index=savedOrder.indexOf(item.second)
    if(index<0) Int.MAX_VALUE else index
   }
+  val tileW=(72*density).toInt()
+  val tileH=(74*density).toInt()
+  val iconSz=(36*density).toInt()
   items.forEach { item ->
    val displayName=prefs.getString("shortcut_label_${item.second}",item.second) ?: item.second
    val tile=LinearLayout(this).apply {
-    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(5,8,5,8)
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL or Gravity.TOP
+    setPadding((3*density).toInt(),(4*density).toInt(),(3*density).toInt(),(2*density).toInt())
     background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
     isClickable=true; isFocusable=true
     setOnClickListener { item.third.invoke() }
@@ -951,40 +993,42 @@ class MainActivity : Activity() {
      true
     }
     setOnHoverListener { v,e ->
-     if(e.action==MotionEvent.ACTION_HOVER_ENTER) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(55,255,255,255)); cornerRadius=10f }
+     if(e.action==MotionEvent.ACTION_HOVER_ENTER) v.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(65,255,255,255)); cornerRadius=6f*density }
      if(e.action==MotionEvent.ACTION_HOVER_EXIT) v.background=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
      false
     }
    }
-   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(76,76))
-   tile.addView(TextView(this).apply { text=displayName; textSize=9.2f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD); setShadowLayer(3f,1f,1f,Color.BLACK); setPadding(5,5,5,2); maxLines=2; minLines=2; includeFontPadding=true; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(1f,1.05f) })
-   grid.addView(tile,GridLayout.LayoutParams().apply { width=132; height=140; setMargins(5,5,5,5) })
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(iconSz,iconSz))
+   tile.addView(TextView(this).apply { text=displayName; textSize=9.2f; gravity=Gravity.CENTER_HORIZONTAL; setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD); setShadowLayer(4f,0f,1.5f,Color.argb(215,0,18,45)); setPadding((2*density).toInt(),(3*density).toInt(),(2*density).toInt(),0); maxLines=2; includeFontPadding=false; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(0f,1.02f) },LinearLayout.LayoutParams(-1,-2))
+   grid.addView(tile,GridLayout.LayoutParams().apply { width=tileW; height=tileH; setMargins((3*density).toInt(),(2*density).toInt(),(3*density).toInt(),(2*density).toInt()) })
   }
-  shortcuts.addView(grid,LinearLayout.LayoutParams(-1,-2))
+  shortcuts.addView(grid,FrameLayout.LayoutParams(-2,-2,Gravity.TOP or Gravity.LEFT))
   val clock=TextView(this).apply {
-   text="Oriket Desktop"; textSize=10.56f; setTextColor(Color.WHITE); setShadowLayer(3f,1f,1f,Color.BLACK)
-   gravity=Gravity.CENTER; setPadding(14,8,14,8)
-   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(85,25,50,90)); cornerRadius=18f }
+   text="Oriket Desktop"; textSize=9.5f; setTextColor(Color.argb(225,255,255,255)); setShadowLayer(3f,0f,1f,Color.argb(180,0,20,50))
+   gravity=Gravity.CENTER; setPadding((10*density).toInt(),(4*density).toInt(),(10*density).toInt(),(4*density).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(65,15,40,80)); cornerRadius=12f*density }
   }
-  shortcuts.addView(clock,LinearLayout.LayoutParams(-2,-2).apply { gravity=Gravity.LEFT; topMargin=8 })
+  shortcuts.addView(clock,FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM or Gravity.RIGHT).apply { rightMargin=(8*density).toInt(); bottomMargin=(4*density).toInt() })
   desktopArea.addView(shortcuts,FrameLayout.LayoutParams(-1,-1))
+  shortcuts.post {
+   val hDp=(desktopArea.height.toFloat()/density)
+   val targetRows=((hDp-16f)/80f).toInt().coerceIn(3,8)
+   if(hDp>0f && grid.rowCount!=targetRows) {
+    grid.rowCount=targetRows
+    grid.requestLayout()
+   }
+  }
   shortcuts.bringToFront()
   openWindows.forEach { it.frame.bringToFront() }
-  val start=taskButton("ابدأ").apply { setOnClickListener { showStartMenu() } }
-  if(taskbar.childCount==0) taskbar.addView(start)
-  val searchButton=taskButton("بحث").apply { setOnClickListener { showStartMenu(); desktopArea.findViewWithTag<EditText>("start-search")?.requestFocus() } }
   val browser=taskButton("متصفح الإنترنت").apply { setOnClickListener { showBrowser() } }
   val files=taskButton("هذا الكمبيوتر").apply { setOnClickListener { showMyComputer() } }
   val paint=taskButton("الرسام").apply { setOnClickListener { showPaint() } }
   val settings=taskButton("الإعدادات").apply { setOnClickListener { showControlPanel() } }
-  val staticButtons=listOf(searchButton,browser,files,paint,settings)
+  val staticButtons=listOf(files,browser,paint,settings)
   staticButtons.forEach { b ->
-   b.setTextColor(Color.rgb(239,245,255))
-   b.background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(0,255,255,255)); cornerRadius=12f }
-   b.elevation=0f
-   b.minWidth=42; b.minimumWidth=42; b.minHeight=44; b.minimumHeight=44
-   b.setPadding(2,0,2,0)
-   if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) taskbar.addView(b)
+   if((0 until taskbar.childCount).none { taskbar.getChildAt(it).contentDescription==b.contentDescription }) {
+    taskbar.addView(b,LinearLayout.LayoutParams((38*density).toInt(),(38*density).toInt()).apply{ setMargins((1.5f*density).toInt(),0,(1.5f*density).toInt(),0) })
+   }
   }
  }
 
@@ -1008,6 +1052,12 @@ class MainActivity : Activity() {
  }
  override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray) {
   super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+  if(requestCode==704) {
+   val granted=if(Build.VERSION.SDK_INT>=33) checkSelfPermission(android.Manifest.permission.READ_MEDIA_AUDIO)==PackageManager.PERMISSION_GRANTED
+   else checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED
+   if(granted) onMusicPermissionGranted?.invoke()
+   else Toast.makeText(this,"يرجى منح إذن الصوت أو استخدام «فتح ملف صوتي»",Toast.LENGTH_LONG).show()
+  }
   if(requestCode==705) {
    if(hasPhotoPermission()) refreshPhotoGallery()
    else {
@@ -1206,51 +1256,51 @@ class MainActivity : Activity() {
  private fun showStartMenu() {
   val existing=desktopArea.findViewWithTag<View>("start-menu")
   if(existing!=null) { desktopArea.removeView(existing); return }
-  val availableWidth=(desktopArea.width-24).coerceAtLeast(280)
-  val panelWidth=(desktopArea.width*0.88f).toInt().coerceIn(280,minOf(680,availableWidth))
-  val panelHeight=(desktopArea.height*0.92f).toInt().coerceIn(300,(desktopArea.height-12).coerceAtLeast(300))
+  val d=resources.displayMetrics.density.coerceAtLeast(1f)
+  val availableWidth=(desktopArea.width-(20*d).toInt()).coerceAtLeast((280*d).toInt())
+  val panelWidth=(desktopArea.width*0.72f).toInt().coerceIn((290*d).toInt(),minOf((520*d).toInt(),availableWidth))
+  val panelHeight=(desktopArea.height*0.88f).toInt().coerceIn((280*d).toInt(),(desktopArea.height-(14*d).toInt()).coerceAtLeast((280*d).toInt()))
   val menu=LinearLayout(this).apply {
-   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(20,16,20,12)
+   tag="start-menu"; orientation=LinearLayout.VERTICAL; setPadding(0,(14*d).toInt(),0,0)
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.argb(249,246,249,254)); cornerRadius=28f
-    setStroke(1,Color.rgb(218,228,242))
+    setColor(Color.argb(248,245,248,253)); cornerRadius=14f*d
+    setStroke(1,Color.rgb(214,224,238))
    }
-   elevation=38f
+   elevation=28f*d
+   clipToOutline=true
   }
-  val top=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,0,2,10) }
-  top.addView(TextView(this).apply {
-   text="ابدأ"; textSize=18f; typeface=Typeface.create("Arial",Typeface.BOLD)
-   setTextColor(navy)
-  },LinearLayout.LayoutParams(0,42,1f))
-  top.addView(TextView(this).apply {
-   text="Oriket Desktop"; textSize=10.5f; setTextColor(Color.rgb(105,121,145))
-  })
-  menu.addView(top,LinearLayout.LayoutParams(-1,44))
+  val bodyWrap=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   setPadding((18*d).toInt(),0,(18*d).toInt(),(8*d).toInt())
+  }
   val search=EditText(this).apply {
    tag="start-search"; hint="⌕  البحث عن التطبيقات والإعدادات"
-   textSize=12f; setSingleLine(true)
-   setPadding(16,2,16,2); setTextColor(navy); setHintTextColor(Color.rgb(105,120,143))
+   textSize=11.2f; setSingleLine(true)
+   setPadding((14*d).toInt(),0,(14*d).toInt(),0); setTextColor(navy); setHintTextColor(Color.rgb(105,120,143))
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.WHITE); cornerRadius=18f; setStroke(1,Color.rgb(210,222,239))
+    setColor(Color.WHITE); cornerRadius=18f*d; setStroke(1,Color.rgb(210,222,239))
    }
   }
-  menu.addView(search,LinearLayout.LayoutParams(-1,46))
-  val grid=GridLayout(this).apply { columnCount=4; useDefaultMargins=false }
+  bodyWrap.addView(search,LinearLayout.LayoutParams(-1,(36*d).toInt()))
+  val colCount=if(panelWidth/d >= 420f) 6 else 4
+  val grid=GridLayout(this).apply { columnCount=colCount; useDefaultMargins=false }
   lateinit var allButton:Button
   var expandedApps=false
-  val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(2,12,2,5) }
+  val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding((2*d).toInt(),(10*d).toInt(),(2*d).toInt(),(4*d).toInt()) }
   heading.addView(TextView(this).apply {
-   text="التطبيقات المثبّتة"; textSize=13f
+   text="التطبيقات المثبّتة"; textSize=11.5f
    typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
-  },LinearLayout.LayoutParams(0,36,1f))
+  },LinearLayout.LayoutParams(0,(28*d).toInt(),1f))
   allButton=task("كل التطبيقات  ›") {
    expandedApps=!expandedApps
-   grid.columnCount=if(expandedApps) 2 else 4
+   grid.columnCount=if(expandedApps) 2 else colCount
    allButton.text=if(expandedApps) "عرض المختصر  ‹" else "كل التطبيقات  ›"
   }
-  allButton.textSize=10f
-  heading.addView(allButton,LinearLayout.LayoutParams(-2,36))
-  menu.addView(heading)
+  allButton.textSize=9.5f
+  allButton.minHeight=(26*d).toInt(); allButton.minimumHeight=(26*d).toInt()
+  allButton.setPadding((10*d).toInt(),0,(10*d).toInt(),0)
+  heading.addView(allButton,LinearLayout.LayoutParams(-2,(28*d).toInt()))
+  bodyWrap.addView(heading)
   val items=listOf(
    Triple("🌐","متصفح الإنترنت",{showBrowser()}),Triple("🖥️","هذا الكمبيوتر",{showMyComputer()}),
    Triple("📁","مستكشف الملفات",{showMyComputer()}),Triple("📄","PDF",{pickFile("application/pdf")}),
@@ -1264,39 +1314,40 @@ class MainActivity : Activity() {
    Triple("🔄","تحديث التطبيق",{checkForUpdates(true)}),Triple("ℹ️","حول Oriket",{showAbout()})
   )
   val empty=TextView(this).apply {
-   text="لا توجد تطبيقات مطابقة لبحثك"; textSize=12f
+   text="لا توجد تطبيقات مطابقة لبحثك"; textSize=11f
    setTextColor(Color.rgb(105,120,143)); gravity=Gravity.CENTER
    visibility=View.GONE
   }
   items.forEach { item ->
    val tile=LinearLayout(this).apply {
-    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(3,6,3,6)
+    orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding((2*d).toInt(),(4*d).toInt(),(2*d).toInt(),(4*d).toInt())
     background=android.graphics.drawable.GradientDrawable().apply {
-     setColor(Color.TRANSPARENT); cornerRadius=13f
+     setColor(Color.TRANSPARENT); cornerRadius=8f*d
     }
     isClickable=true; isFocusable=true
     setOnClickListener { desktopArea.removeView(menu); item.third.invoke() }
     setOnTouchListener { v,e ->
      if(e.action==MotionEvent.ACTION_DOWN) v.background=android.graphics.drawable.GradientDrawable().apply {
-      setColor(Color.rgb(225,235,249)); cornerRadius=13f
+      setColor(Color.rgb(228,237,250)); cornerRadius=8f*d
      }
      if(e.action==MotionEvent.ACTION_UP || e.action==MotionEvent.ACTION_CANCEL)
       v.postDelayed({v.background=android.graphics.drawable.GradientDrawable().apply {
-       setColor(Color.TRANSPARENT); cornerRadius=13f
+       setColor(Color.TRANSPARENT); cornerRadius=8f*d
       }},160)
      false
     }
    }
-   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams(46,46))
+   tile.addView(Icon3DView(this,item.first,item.second),LinearLayout.LayoutParams((30*d).toInt(),(30*d).toInt()))
    tile.addView(TextView(this).apply {
-    text=item.second; textSize=9.4f; gravity=Gravity.CENTER
-    setTextColor(navy); typeface=Typeface.create("Arial",Typeface.BOLD)
+    text=item.second; textSize=8.8f; gravity=Gravity.CENTER
+    setTextColor(navy); typeface=Typeface.create("Arial",Typeface.NORMAL)
     maxLines=2; minLines=2; ellipsize=android.text.TextUtils.TruncateAt.END
-    setLineSpacing(1f,1.02f)
-   },LinearLayout.LayoutParams(-1,38))
+    setLineSpacing(0f,1.02f)
+    setPadding(0,(3*d).toInt(),0,0)
+   },LinearLayout.LayoutParams(-1,(26*d).toInt()))
    grid.addView(tile,GridLayout.LayoutParams().apply {
-    width=0; height=98; columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)
-    setMargins(4,4,4,4)
+    width=0; height=(68*d).toInt(); columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)
+    setMargins((2*d).toInt(),(2*d).toInt(),(2*d).toInt(),(2*d).toInt())
    })
   }
   val appsScroll=ScrollView(this).apply {
@@ -1304,25 +1355,25 @@ class MainActivity : Activity() {
    addView(LinearLayout(this@MainActivity).apply {
     orientation=LinearLayout.VERTICAL
     addView(grid,LinearLayout.LayoutParams(-1,-2))
-    addView(empty,LinearLayout.LayoutParams(-1,80))
+    addView(empty,LinearLayout.LayoutParams(-1,(60*d).toInt()))
    })
   }
-  menu.addView(appsScroll,LinearLayout.LayoutParams(-1,0,1f))
+  bodyWrap.addView(appsScroll,LinearLayout.LayoutParams(-1,0,1f))
   val recommendedHeading=TextView(this).apply {
-   text="موصى به"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD)
-   setTextColor(navy); setPadding(2,8,2,5)
+   text="موصى به"; textSize=11f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(navy); setPadding((2*d).toInt(),(6*d).toInt(),(2*d).toInt(),(4*d).toInt())
   }
-  menu.addView(recommendedHeading)
-  val rec=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  bodyWrap.addView(recommendedHeading)
+  val rec=GridLayout(this).apply { columnCount=2; useDefaultMargins=false }
   listOf(
    Triple("📄","فتح مستند PDF","اختر ملف PDF من جهازك"),
    Triple("🎨","الرسام","افتح لوحة الرسم وابدأ مشروعًا جديدًا")
   ).forEachIndexed { index,item ->
    val row=LinearLayout(this).apply {
     orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
-    setPadding(8,3,8,3)
+    setPadding((6*d).toInt(),(3*d).toInt(),(6*d).toInt(),(3*d).toInt())
     background=android.graphics.drawable.GradientDrawable().apply {
-     setColor(Color.rgb(250,252,255)); cornerRadius=12f
+     setColor(Color.rgb(252,253,255)); cornerRadius=8f*d
      setStroke(1,Color.rgb(232,237,245))
     }
     isClickable=true
@@ -1333,38 +1384,45 @@ class MainActivity : Activity() {
    }
    val recIcon = ImageView(this).apply {
     val iconType = if(index==0) FluentIcon.PDF_READER else FluentIcon.PAINT
-    val recD = FluentIcons.createDrawable(this@MainActivity, iconType, (28 * resources.displayMetrics.density).toInt())
+    val recD = FluentIcons.createDrawable(this@MainActivity, iconType, (24*d).toInt())
     setImageDrawable(recD)
-    setPadding(2,2,2,2)
    }
-   row.addView(recIcon,LinearLayout.LayoutParams((38 * resources.displayMetrics.density).toInt(),(38 * resources.displayMetrics.density).toInt()))
+   row.addView(recIcon,LinearLayout.LayoutParams((28*d).toInt(),(28*d).toInt()).apply{ rightMargin=(6*d).toInt() })
    val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
    labels.addView(TextView(this).apply {
-    text=item.second; textSize=10.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
-    setTextColor(navy)
+    text=item.second; textSize=9.8f; typeface=Typeface.create("Arial",Typeface.BOLD)
+    setTextColor(navy); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
    })
    labels.addView(TextView(this).apply {
-    text=item.third; textSize=9f; setTextColor(Color.DKGRAY)
+    text=item.third; textSize=8.4f; setTextColor(Color.GRAY); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
    })
    row.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
-   rec.addView(row,LinearLayout.LayoutParams(-1,48).apply { bottomMargin=3 })
+   rec.addView(row,GridLayout.LayoutParams().apply {
+    width=0; height=(40*d).toInt(); columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)
+    setMargins((2*d).toInt(),(2*d).toInt(),(2*d).toInt(),(2*d).toInt())
+   })
   }
-  menu.addView(rec,LinearLayout.LayoutParams(-1,-2))
+  bodyWrap.addView(rec,LinearLayout.LayoutParams(-1,-2))
+  menu.addView(bodyWrap,LinearLayout.LayoutParams(-1,0,1f))
   val footer=LinearLayout(this).apply {
-   gravity=Gravity.CENTER_VERTICAL; setPadding(10,6,8,4)
+   gravity=Gravity.CENTER_VERTICAL; setPadding((18*d).toInt(),(4*d).toInt(),(16*d).toInt(),(4*d).toInt())
    background=android.graphics.drawable.GradientDrawable().apply {
-    setColor(Color.rgb(235,241,249)); cornerRadius=16f
+    setColor(Color.rgb(235,241,249)); setStroke(1,Color.rgb(220,229,242))
    }
   }
+  val avatarView=ImageView(this).apply {
+   setImageDrawable(FluentIcons.createDrawable(this@MainActivity,FluentIcon.WINDOWS_START,(18*d).toInt()))
+  }
+  footer.addView(avatarView,LinearLayout.LayoutParams((22*d).toInt(),(22*d).toInt()).apply{ rightMargin=(8*d).toInt() })
   footer.addView(TextView(this).apply {
-   text="◉  المستخدم  •  Oriket Desktop"; textSize=10.5f
+   text="Oriket Desktop"; textSize=10.5f
    typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(navy)
-  },LinearLayout.LayoutParams(0,40,1f))
-  footer.addView(task("⚙") { desktopArea.removeView(menu); showControlPanel() })
-  footer.addView(task("⏻") { desktopArea.removeView(menu); showPowerMenu() })
-  menu.addView(footer,LinearLayout.LayoutParams(-1,48).apply { topMargin=8 })
+  },LinearLayout.LayoutParams(0,(36*d).toInt(),1f).apply{ gravity=Gravity.CENTER_VERTICAL })
+  footer.addView(task("⚙") { desktopArea.removeView(menu); showControlPanel() }.apply { minHeight=(32*d).toInt(); minimumHeight=(32*d).toInt(); setPadding((10*d).toInt(),0,(10*d).toInt(),0) },LinearLayout.LayoutParams((36*d).toInt(),(32*d).toInt()).apply{ rightMargin=(6*d).toInt() })
+  footer.addView(task("⏻") { desktopArea.removeView(menu); showPowerMenu() }.apply { minHeight=(32*d).toInt(); minimumHeight=(32*d).toInt(); setPadding((10*d).toInt(),0,(10*d).toInt(),0) },LinearLayout.LayoutParams((36*d).toInt(),(32*d).toInt()))
+  menu.addView(footer,LinearLayout.LayoutParams(-1,(46*d).toInt()))
   desktopArea.addView(menu,FrameLayout.LayoutParams(panelWidth,panelHeight,
-   Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=12 })
+   Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=(8*d).toInt() })
   menu.bringToFront()
   search.addTextChangedListener(object:android.text.TextWatcher {
    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
@@ -1571,6 +1629,11 @@ class MainActivity : Activity() {
     if(editor!=null){editor.setText(loaded);Toast.makeText(this,"تم فتح الملف",Toast.LENGTH_SHORT).show()}
     else Toast.makeText(this,"افتح المفكرة أو Word أولًا",Toast.LENGTH_SHORT).show()
    } catch(_:Exception){Toast.makeText(this,"تعذرت قراءة الملف النصي",Toast.LENGTH_SHORT).show()}
+  }
+  if(requestCode==72 && resultCode==RESULT_OK && data?.data!=null) {
+   val selected=data.data!!
+   try { contentResolver.takePersistableUriPermission(selected,Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch(_:Exception) {}
+   onAudioPickedCallback?.invoke(selected)
   }
   if(requestCode==52 && resultCode==RESULT_OK) {
    val selected=data?.data
@@ -2009,43 +2072,449 @@ class MainActivity : Activity() {
  private fun showYouTubeMusic() { showBrowser("https://music.youtube.com", "YouTube Music") }
 
  private fun showMusicPlayer() {
-  shell("مشغل الموسيقى")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(8,6,8,6); setBackgroundColor(Color.rgb(242,246,251)) }
-  val topBar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,4,10,4); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(30,91,160)); cornerRadius=9f } }
-  topBar.addView(TextView(this).apply { text="♫"; textSize=22f; setTextColor(Color.WHITE); gravity=Gravity.CENTER; setPadding(3,0,10,0) },LinearLayout.LayoutParams(34,40))
-  topBar.addView(TextView(this).apply { text="Oriket Media Player"; textSize=14f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL },LinearLayout.LayoutParams(0,40,1f))
-  topBar.addView(TextView(this).apply { text="⋯"; textSize=18f; setTextColor(Color.WHITE); gravity=Gravity.CENTER },LinearLayout.LayoutParams(30,40))
-  page.addView(topBar,LinearLayout.LayoutParams(-1,46).apply { bottomMargin=7 })
-  val nowPlaying=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(10,8,10,8); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=10f; setStroke(1,Color.rgb(218,226,236)) } }
-  nowPlaying.addView(TextView(this).apply { text="♫"; textSize=36f; setTextColor(Color.rgb(42,108,181)); gravity=Gravity.CENTER; background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(225,238,252)); cornerRadius=8f } },LinearLayout.LayoutParams(72,72).apply { rightMargin=10 })
-  val trackLabels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
-  val currentTitle=TextView(this).apply { text="اختر «تحميل الموسيقى» لعرض الأغاني الموجودة على الجهاز"; textSize=12.5f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(25,43,65)); gravity=Gravity.START; maxLines=2; setPadding(2,2,2,4) }
-  val currentArtist=TextView(this).apply { text="لم يتم اختيار مقطع"; textSize=10.5f; setTextColor(Color.rgb(94,108,126)); gravity=Gravity.START; maxLines=1 }
-  trackLabels.addView(currentTitle); trackLabels.addView(currentArtist)
-  nowPlaying.addView(trackLabels,LinearLayout.LayoutParams(0,-2,1f))
-  page.addView(nowPlaying,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=5 })
-  val seek=SeekBar(this).apply { progressTintList=android.content.res.ColorStateList.valueOf(Color.rgb(35,105,184)); thumbTintList=android.content.res.ColorStateList.valueOf(Color.rgb(35,105,184)) }
-  val times=TextView(this).apply { text="00:00 / 00:00"; textSize=10f; setTextColor(Color.rgb(72,87,105)); gravity=Gravity.CENTER }
-  page.addView(seek,LinearLayout.LayoutParams(-1,28)); page.addView(times,LinearLayout.LayoutParams(-1,18))
-  val songs=mutableListOf<Uri>(); val titles=mutableListOf<String>(); val artists=mutableListOf<String>()
-  var index=0; var shuffle=getSharedPreferences("orkeit_music",Context.MODE_PRIVATE).getBoolean("shuffle",false)
-  var prepared=false; var userSeeking=false
+  shell("Windows Media Player")
+  val d=resources.displayMetrics.density
   val prefs=getSharedPreferences("orkeit_music",Context.MODE_PRIVATE)
-  val progressHandler=Handler(Looper.getMainLooper())
-  val progress=object:Runnable { override fun run() {
-   val p=musicPlayer
-   if(p!=null && prepared) {
-    if(!userSeeking) seek.progress=p.currentPosition.coerceAtLeast(0)
-    times.text=clockTime(p.currentPosition)+" / "+clockTime(p.duration)
+  val songs=mutableListOf<Uri>()
+  val titles=mutableListOf<String>()
+  val artists=mutableListOf<String>()
+  var index=0
+  var shuffle=prefs.getBoolean("shuffle",false)
+  var repeat=prefs.getBoolean("repeat",false)
+  var volumeLevel=prefs.getFloat("volume",0.85f).coerceIn(0f,1f)
+  var muted=false
+  var playbackSpeed=1.0f
+  var prepared=false
+  var userSeeking=false
+  var showOverlayInfo=true
+  var activeTab=0 // 0=Now Playing, 1=Library, 2=Queue, 3=Effects
+  val navHistory=mutableListOf(0)
+  var navPointer=0
+
+  // Theme the shell window in classic WMP 11 dark Aero obsidian glass
+  content.setPadding(0,0,0,0)
+  content.setBackgroundColor(Color.rgb(6,12,24))
+  val outerWindow=content.parent as? LinearLayout
+  val windowTitleBar=outerWindow?.getChildAt(0) as? LinearLayout
+  val windowMaximizeBtn=windowTitleBar?.getChildAt(3) as? TextView
+  val windowTitleLabel=windowTitleBar?.getChildAt(1) as? TextView
+  outerWindow?.background=android.graphics.drawable.GradientDrawable().apply {
+   setColor(Color.rgb(7,12,22))
+   cornerRadius=10f*d
+   setStroke((1.2f*d).toInt().coerceAtLeast(1),Color.rgb(58,78,108))
+  }
+  windowTitleBar?.apply {
+   background=Wmp11Style.darkAeroBarBackground()
+   (getChildAt(1) as? TextView)?.setTextColor(Color.rgb(235,244,255))
+   (getChildAt(2) as? TextView)?.apply {
+    setTextColor(Color.rgb(220,232,248))
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(36,255,255,255)); cornerRadius=4f*d }
    }
-   progressHandler.postDelayed(this,500)
-  }}
-  fun updateLabels() { currentTitle.text=titles.getOrNull(index) ?: "لا توجد موسيقى"; currentArtist.text=artists.getOrNull(index).orEmpty() }
-  fun stopOld() { try { musicPlayer?.stop(); musicPlayer?.release() } catch(_:Exception) {}; musicPlayer=null; prepared=false }
+   (getChildAt(3) as? TextView)?.apply {
+    setTextColor(Color.rgb(220,232,248))
+    background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.argb(36,255,255,255)); cornerRadius=4f*d }
+   }
+   (getChildAt(4) as? TextView)?.apply {
+    setTextColor(Color.WHITE)
+    background=android.graphics.drawable.GradientDrawable(
+     android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+     intArrayOf(Color.rgb(218,86,80),Color.rgb(162,40,38))
+    ).apply { cornerRadius=4f*d; setStroke(1,Color.argb(120,255,190,185)) }
+   }
+  }
+  (content.getChildAt(0) as? TextView)?.setTextColor(Color.argb(160,130,175,230))
+
+  val page=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+   setBackgroundColor(Color.rgb(6,12,24))
+  }
+
+  // 1. Top WMP 11 Aero Tab Strip (Back/Forward orbs + Now Playing / Library / Queue / Effects + Brand badge)
+  val topNavBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(3*d).toInt(),(8*d).toInt(),0)
+   background=Wmp11Style.darkAeroBarBackground()
+  }
+  val navOrbCapsule=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((3*d).toInt(),(2*d).toInt(),(3*d).toInt(),(2*d).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.rgb(12,18,30)); cornerRadius=14f*d; setStroke(1,Color.rgb(64,84,114))
+   }
+  }
+  lateinit var backNavBtn:TextView
+  lateinit var fwdNavBtn:TextView
+  lateinit var switchToTab:(Int,Boolean)->Unit
+  backNavBtn=TextView(this).apply {
+   text="←"; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   background=Wmp11Style.navOrbBackground(d,false)
+   contentDescription="رجوع"
+   setOnClickListener {
+    if(navPointer>0) { navPointer--; switchToTab(navHistory[navPointer],false) }
+   }
+  }
+  fwdNavBtn=TextView(this).apply {
+   text="→"; textSize=12f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   background=Wmp11Style.navOrbBackground(d,false)
+   contentDescription="تقديم"
+   setOnClickListener {
+    if(navPointer<navHistory.size-1) { navPointer++; switchToTab(navHistory[navPointer],false) }
+   }
+  }
+  navOrbCapsule.addView(backNavBtn,LinearLayout.LayoutParams((22*d).toInt(),(22*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  navOrbCapsule.addView(fwdNavBtn,LinearLayout.LayoutParams((22*d).toInt(),(22*d).toInt()))
+  topNavBar.addView(navOrbCapsule,LinearLayout.LayoutParams(-2,(26*d).toInt()).apply { rightMargin=(10*d).toInt() })
+
+  val tabStrip=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.BOTTOM or Gravity.START }
+  val tabNames=listOf("Now Playing","Library","Queue","Effects")
+  val tabViews=mutableListOf<TextView>()
+  tabNames.forEachIndexed { idx,label ->
+   val tabBtn=TextView(this).apply {
+    text=if(idx==0) "$label ▾" else label
+    textSize=10.5f; gravity=Gravity.CENTER
+    setTextColor(if(idx==0) Color.WHITE else Color.rgb(185,202,226))
+    typeface=Typeface.create("Arial",if(idx==0) Typeface.BOLD else Typeface.NORMAL)
+    setPadding((10*d).toInt(),(3*d).toInt(),(10*d).toInt(),(4*d).toInt())
+    background=if(idx==0) Wmp11Style.activeTabBackground(d) else Wmp11Style.inactiveTabBackground(d)
+    maxLines=1
+    setOnClickListener { switchToTab(idx,true) }
+   }
+   tabViews.add(tabBtn)
+   tabStrip.addView(tabBtn,LinearLayout.LayoutParams(-2,(27*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  }
+  topNavBar.addView(HorizontalScrollView(this).apply {
+   isHorizontalScrollBarEnabled=false
+   addView(tabStrip)
+  },LinearLayout.LayoutParams(0,(30*d).toInt(),1f))
+
+  val openFileQuick=TextView(this).apply {
+   text="📂"; textSize=12.5f; gravity=Gravity.CENTER
+   setTextColor(Color.rgb(188,224,255))
+   contentDescription="فتح ملف صوتي"
+   setPadding((6*d).toInt(),0,(6*d).toInt(),0)
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  val brandWord=TextView(this).apply {
+   text="ORIKET"; textSize=10.5f; gravity=Gravity.CENTER
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   letterSpacing=0.12f
+   setTextColor(Color.rgb(212,226,245))
+   setPadding((8*d).toInt(),0,(4*d).toInt(),0)
+  }
+  topNavBar.addView(openFileQuick,LinearLayout.LayoutParams((30*d).toInt(),(24*d).toInt()).apply { leftMargin=(6*d).toInt() })
+  topNavBar.addView(brandWord,LinearLayout.LayoutParams(-2,(24*d).toInt()))
+  page.addView(topNavBar,LinearLayout.LayoutParams(-1,(34*d).toInt()))
+  page.addView(View(this).apply { setBackgroundColor(Color.rgb(54,88,136)) },LinearLayout.LayoutParams(-1,(1*d).toInt().coerceAtLeast(1)))
+
+  // 2. Main Visual & Content Stage
+  val stage=FrameLayout(this).apply { setBackgroundColor(Color.rgb(2,10,26)) }
+  val waveView=Wmp11WaveCanvasView(this)
+  stage.addView(waveView,FrameLayout.LayoutParams(-1,-1))
+
+  // Subtle Now-Playing HUD overlay over the luminous blue wave stage (tap canvas to toggle clean mode)
+  val nowPlayingOverlay=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; gravity=Gravity.BOTTOM or Gravity.START
+   setPadding((14*d).toInt(),(10*d).toInt(),(14*d).toInt(),(12*d).toInt())
+  }
+  val overlayTitle=TextView(this).apply {
+   text="Windows Media Player"; textSize=15f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(Color.argb(235,245,250,255))
+   setShadowLayer(4f*d,0f,1f*d,Color.argb(200,0,8,24))
+   maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+  }
+  val overlaySubtitle=TextView(this).apply {
+   text="اضغط «تحميل الموسيقى» أو «📂» لاختيار أغاني الجهاز"; textSize=11f
+   setTextColor(Color.argb(215,176,225,255))
+   setShadowLayer(3f*d,0f,1f*d,Color.argb(180,0,8,24))
+   maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+   setPadding(0,(2*d).toInt(),0,(8*d).toInt())
+  }
+  val quickActionsOverlay=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  val scanOverlayBtn=TextView(this).apply {
+   text="♪ تحميل موسيقى الجهاز"; textSize=10.5f; gravity=Gravity.CENTER
+   setTextColor(Color.WHITE); typeface=Typeface.create("Arial",Typeface.BOLD)
+   setPadding((12*d).toInt(),(6*d).toInt(),(12*d).toInt(),(6*d).toInt())
+   background=Wmp11Style.podButtonBackground(d,true)
+  }
+  val pickFileOverlayBtn=TextView(this).apply {
+   text="📂 فتح ملف صوتي"; textSize=10.5f; gravity=Gravity.CENTER
+   setTextColor(Color.rgb(225,240,255))
+   setPadding((12*d).toInt(),(6*d).toInt(),(12*d).toInt(),(6*d).toInt())
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  quickActionsOverlay.addView(scanOverlayBtn,LinearLayout.LayoutParams(-2,(30*d).toInt()).apply { rightMargin=(8*d).toInt() })
+  quickActionsOverlay.addView(pickFileOverlayBtn,LinearLayout.LayoutParams(-2,(30*d).toInt()))
+  nowPlayingOverlay.addView(overlayTitle)
+  nowPlayingOverlay.addView(overlaySubtitle)
+  nowPlayingOverlay.addView(quickActionsOverlay)
+  stage.addView(nowPlayingOverlay,FrameLayout.LayoutParams(-1,-1))
+
+  waveView.setOnClickListener {
+   showOverlayInfo=!showOverlayInfo
+   nowPlayingOverlay.animate().alpha(if(showOverlayInfo) 1f else 0f).setDuration(180).withEndAction {
+    nowPlayingOverlay.visibility=if(showOverlayInfo) View.VISIBLE else View.GONE
+   }.start()
+  }
+
+  // Library / Queue / Effects Translucent Dark Aero Overlay Panel
+  val secondaryPanel=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; visibility=View.GONE
+   setPadding((12*d).toInt(),(10*d).toInt(),(12*d).toInt(),(10*d).toInt())
+   setBackgroundColor(Color.argb(214,7,15,30))
+  }
+  val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; tag="music-list" }
+  val queueList=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+  val libraryToolbar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  val searchSongsInput=EditText(this).apply {
+   hint="ابحث في المكتبة..."; setHintTextColor(Color.rgb(138,162,196))
+   setTextColor(Color.WHITE); textSize=11.5f; setSingleLine(true)
+   setPadding((10*d).toInt(),(4*d).toInt(),(10*d).toInt(),(4*d).toInt())
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.argb(190,14,26,46)); cornerRadius=8f*d; setStroke(1,Color.rgb(66,98,142))
+   }
+  }
+  val scanLibBtn=TextView(this).apply {
+   text="↻ مسح الجهاز"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD)
+   setPadding((10*d).toInt(),0,(10*d).toInt(),0)
+   background=Wmp11Style.podButtonBackground(d,true)
+  }
+  val pickLibBtn=TextView(this).apply {
+   text="＋ ملف صوتي"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(225,240,255))
+   setPadding((10*d).toInt(),0,(10*d).toInt(),0)
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  libraryToolbar.addView(searchSongsInput,LinearLayout.LayoutParams(0,(30*d).toInt(),1f).apply { rightMargin=(6*d).toInt() })
+  libraryToolbar.addView(scanLibBtn,LinearLayout.LayoutParams(-2,(30*d).toInt()).apply { rightMargin=(6*d).toInt() })
+  libraryToolbar.addView(pickLibBtn,LinearLayout.LayoutParams(-2,(30*d).toInt()))
+
+  val libraryScroll=ScrollView(this).apply {
+   isFillViewport=true
+   addView(list)
+  }
+  val queueScroll=ScrollView(this).apply {
+   isFillViewport=true; visibility=View.GONE
+   addView(queueList)
+  }
+  val effectsContainer=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; visibility=View.GONE
+   setPadding((6*d).toInt(),(4*d).toInt(),(6*d).toInt(),(4*d).toInt())
+  }
+  secondaryPanel.addView(libraryToolbar,LinearLayout.LayoutParams(-1,(34*d).toInt()).apply { bottomMargin=(8*d).toInt() })
+  secondaryPanel.addView(libraryScroll,LinearLayout.LayoutParams(-1,0,1f))
+  secondaryPanel.addView(queueScroll,LinearLayout.LayoutParams(-1,0,1f))
+  secondaryPanel.addView(effectsContainer,LinearLayout.LayoutParams(-1,0,1f))
+  stage.addView(secondaryPanel,FrameLayout.LayoutParams(-1,-1))
+
+  page.addView(stage,LinearLayout.LayoutParams(-1,0,1f))
+
+  // 3. Thin Luminous Cyan SeekBar Strip (matches bottom edge of canvas in WMP 11 screenshot)
+  val seekBar=SeekBar(this).apply {
+   setPadding((6*d).toInt(),0,(6*d).toInt(),0)
+   setBackgroundColor(Color.rgb(10,18,32))
+   progressTintList=android.content.res.ColorStateList.valueOf(Color.rgb(52,188,255))
+   progressBackgroundTintList=android.content.res.ColorStateList.valueOf(Color.rgb(28,44,70))
+   thumbTintList=android.content.res.ColorStateList.valueOf(Color.rgb(122,222,255))
+  }
+  page.addView(seekBar,LinearLayout.LayoutParams(-1,(16*d).toInt()))
+
+  // 4. Bottom WMP 11 Aero Control Deck
+  val bottomDeck=FrameLayout(this).apply {
+   background=Wmp11Style.darkAeroBarBackground()
+  }
+  val deckRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(4*d).toInt(),(10*d).toInt(),(4*d).toInt())
+  }
+
+  // Left: Mini WMP wave thumb + Track title + Timestamp
+  val miniThumbFrame=FrameLayout(this).apply {
+   background=android.graphics.drawable.GradientDrawable().apply {
+    setColor(Color.rgb(4,16,38)); cornerRadius=3f*d; setStroke(1,Color.rgb(125,152,190))
+   }
+   setPadding(1,1,1,1)
+   addView(Wmp11WaveCanvasView(this@MainActivity).apply { isMiniThumbnail=true },FrameLayout.LayoutParams(-1,-1))
+  }
+  val trackMetaBox=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+  val deckTrackTitle=TextView(this).apply {
+   text="Oriket Media"; textSize=10.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(Color.rgb(236,244,255)); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+  }
+  val deckTimeLabel=TextView(this).apply {
+   text="00:00 / 00:00"; textSize=9.5f; setTextColor(Color.rgb(156,192,232)); maxLines=1
+  }
+  trackMetaBox.addView(deckTrackTitle)
+  trackMetaBox.addView(deckTimeLabel)
+  val leftDeckCluster=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+  leftDeckCluster.addView(miniThumbFrame,LinearLayout.LayoutParams((36*d).toInt(),(26*d).toInt()).apply { rightMargin=(8*d).toInt() })
+  leftDeckCluster.addView(trackMetaBox,LinearLayout.LayoutParams(0,-2,1f))
+  deckRow.addView(leftDeckCluster,LinearLayout.LayoutParams(0,-2,1.0f))
+
+  // Center: Iconic WMP 11 Dark Capsule Pod with Shuffle, Repeat, Stop, Prev, 3D Blue Play Orb, Next, Mute, Volume Slider
+  val podContainer=FrameLayout(this)
+  val controlPod=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL
+   gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(3*d).toInt(),(8*d).toInt(),(3*d).toInt())
+   background=Wmp11Style.controlPodBackground(d)
+  }
+
+  lateinit var shuffleIconBtn:TextView
+  lateinit var repeatIconBtn:TextView
+  lateinit var muteIconBtn:TextView
+  val playOrb=Wmp11PlayOrbView(this,d).apply { contentDescription="تشغيل أو إيقاف مؤقت" }
+
+  shuffleIconBtn=TextView(this).apply {
+   text="⇄"; textSize=13f; gravity=Gravity.CENTER; contentDescription="تشغيل عشوائي"
+   setTextColor(if(shuffle) Color.rgb(88,214,255) else Color.rgb(176,194,218))
+  }
+  repeatIconBtn=TextView(this).apply {
+   text="↻"; textSize=13f; gravity=Gravity.CENTER; contentDescription="تكرار"
+   setTextColor(if(repeat) Color.rgb(88,214,255) else Color.rgb(176,194,218))
+  }
+  val stopIconBtn=TextView(this).apply {
+   text="■"; textSize=10.5f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   contentDescription="إيقاف"
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  val prevIconBtn=TextView(this).apply {
+   text="|◀◀"; textSize=9.5f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD); contentDescription="السابق"
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  val nextIconBtn=TextView(this).apply {
+   text="▶▶|"; textSize=9.5f; gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+   typeface=Typeface.create("Arial",Typeface.BOLD); contentDescription="التالي"
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  muteIconBtn=TextView(this).apply {
+   text="🔊"; textSize=11.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(220,236,255))
+   contentDescription="كتم الصوت"
+  }
+  val volumeSeek=SeekBar(this).apply {
+   max=100; progress=(volumeLevel*100).toInt()
+   setPadding((4*d).toInt(),0,(4*d).toInt(),0)
+   progressTintList=android.content.res.ColorStateList.valueOf(Color.rgb(42,164,255))
+   progressBackgroundTintList=android.content.res.ColorStateList.valueOf(Color.rgb(36,52,78))
+   thumbTintList=android.content.res.ColorStateList.valueOf(Color.rgb(66,184,255))
+   contentDescription="مستوى الصوت"
+  }
+
+  controlPod.addView(shuffleIconBtn,LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()).apply { rightMargin=(2*d).toInt() })
+  controlPod.addView(repeatIconBtn,LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  controlPod.addView(stopIconBtn,LinearLayout.LayoutParams((24*d).toInt(),(26*d).toInt()).apply { rightMargin=(3*d).toInt() })
+  controlPod.addView(prevIconBtn,LinearLayout.LayoutParams((32*d).toInt(),(26*d).toInt()).apply { rightMargin=(20*d).toInt() })
+  controlPod.addView(nextIconBtn,LinearLayout.LayoutParams((32*d).toInt(),(26*d).toInt()).apply { leftMargin=(20*d).toInt(); rightMargin=(5*d).toInt() })
+  controlPod.addView(muteIconBtn,LinearLayout.LayoutParams((22*d).toInt(),(26*d).toInt()).apply { rightMargin=(2*d).toInt() })
+  controlPod.addView(volumeSeek,LinearLayout.LayoutParams((56*d).toInt(),(24*d).toInt()))
+
+  podContainer.addView(controlPod,FrameLayout.LayoutParams(-2,(34*d).toInt(),Gravity.CENTER))
+  // Overlay the iconic circular 3D cobalt Play Orb slightly taller than the pill pod
+  val orbOffsetX=(22f+2f+22f+3f+24f+3f+32f+20f-(56f+2f+22f+5f+32f+20f))/2f
+  podContainer.addView(playOrb,FrameLayout.LayoutParams((44*d).toInt(),(44*d).toInt(),Gravity.CENTER).apply {
+   leftMargin=(orbOffsetX*d).toInt()
+  })
+  deckRow.addView(podContainer,LinearLayout.LayoutParams(-2,(46*d).toInt()))
+
+  // Right cluster: Switch to Library & Fullscreen toggle (mirrors WMP 11 bottom-right icons)
+  val rightDeckCluster=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END or Gravity.CENTER_VERTICAL }
+  val switchLibBtn=TextView(this).apply {
+   text="▤"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Color.rgb(206,224,248))
+   contentDescription="التبديل إلى المكتبة"
+   background=Wmp11Style.podButtonBackground(d,false)
+  }
+  val fullToggleBtn=TextView(this).apply {
+   text="⛶"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Color.rgb(206,224,248))
+   contentDescription="ملء الشاشة"
+   background=Wmp11Style.podButtonBackground(d,false)
+   setOnClickListener { windowMaximizeBtn?.performClick() }
+  }
+  rightDeckCluster.addView(switchLibBtn,LinearLayout.LayoutParams((28*d).toInt(),(26*d).toInt()).apply { rightMargin=(6*d).toInt() })
+  rightDeckCluster.addView(fullToggleBtn,LinearLayout.LayoutParams((28*d).toInt(),(26*d).toInt()))
+  deckRow.addView(rightDeckCluster,LinearLayout.LayoutParams(0,-2,0.55f))
+
+  bottomDeck.addView(deckRow,FrameLayout.LayoutParams(-1,-1))
+  page.addView(bottomDeck,LinearLayout.LayoutParams(-1,(54*d).toInt()))
+
+  // --- Playback & Library Logic ---
+  val progressHandler=Handler(Looper.getMainLooper())
+  var playerAttached=true
+  lateinit var renderSongRows:(String)->Unit
+  lateinit var renderQueueRows:()->Unit
+  lateinit var renderEffectsPanel:()->Unit
+
+  fun applyPlayerAudioSettings(mp:MediaPlayer) {
+   try {
+    val eff=if(muted) 0f else volumeLevel
+    mp.setVolume(eff,eff)
+   } catch(_:Exception) {}
+   try {
+    mp.playbackParams=mp.playbackParams.setSpeed(playbackSpeed)
+   } catch(_:Exception) {}
+  }
+
+  fun updatePlaybackVisuals() {
+   val p=musicPlayer
+   val active=p!=null && prepared && try { p.isPlaying } catch(_:Exception) { false }
+   playOrb.playing=active
+   waveView.isPlayingActive=active
+   if(p!=null && prepared) {
+    try {
+     val pos=p.currentPosition.coerceAtLeast(0)
+     val dur=p.duration.coerceAtLeast(0)
+     if(!userSeeking) {
+      if(seekBar.max!=dur.coerceAtLeast(1)) seekBar.max=dur.coerceAtLeast(1)
+      seekBar.progress=pos
+     }
+     deckTimeLabel.text="${clockTime(pos)} / ${clockTime(dur)}"
+    } catch(_:Exception) {}
+   }
+  }
+
+  val progressTick=object:Runnable {
+   override fun run() {
+    if(!playerAttached) return
+    updatePlaybackVisuals()
+    progressHandler.postDelayed(this,350L)
+   }
+  }
+
+  fun updateLabels() {
+   val t=titles.getOrNull(index)
+   val a=artists.getOrNull(index)
+   if(t!=null) {
+    deckTrackTitle.text=t
+    overlayTitle.text=t
+    overlaySubtitle.text=a?.takeIf { it.isNotBlank() } ?: "Windows Media Player"
+    windowTitleLabel?.text="Windows Media Player — $t"
+   } else {
+    deckTrackTitle.text="Oriket Media"
+    overlayTitle.text="Windows Media Player"
+    overlaySubtitle.text="اضغط «تحميل موسيقى الجهاز» أو «📂» لاختيار أغاني"
+    windowTitleLabel?.text="Windows Media Player"
+   }
+   renderSongRows(searchSongsInput.text.toString())
+   renderQueueRows()
+  }
+
+  fun stopOld() {
+   try { musicPlayer?.stop(); musicPlayer?.release() } catch(_:Exception) {}
+   musicPlayer=null
+   prepared=false
+   playOrb.playing=false
+   waveView.isPlayingActive=false
+  }
+
   lateinit var startTrack:(Int)->Unit
   startTrack={ requested ->
-   if(songs.isEmpty()) { Toast.makeText(this,"لم يتم العثور على ملفات موسيقى",Toast.LENGTH_LONG).show() }
-   else {
+   if(songs.isEmpty()) {
+    Toast.makeText(this,"لم يتم العثور على ملفات موسيقى بعد",Toast.LENGTH_SHORT).show()
+   } else {
     index=((requested%songs.size)+songs.size)%songs.size
     stopOld(); updateLabels()
     try {
@@ -2053,84 +2522,344 @@ class MainActivity : Activity() {
      mp.setDataSource(this,songs[index])
      mp.setOnPreparedListener { p ->
       if(musicPlayer!==p) return@setOnPreparedListener
-      prepared=true; seek.max=p.duration.coerceAtLeast(1); p.start()
+      prepared=true
+      seekBar.max=p.duration.coerceAtLeast(1)
+      applyPlayerAudioSettings(p)
+      p.start()
+      updatePlaybackVisuals()
      }
      mp.setOnCompletionListener {
-      if(songs.isNotEmpty()) startTrack(if(shuffle && songs.size>1) (0 until songs.size).filter{it!=index}.random() else (index+1)%songs.size)
+      if(songs.isEmpty()) return@setOnCompletionListener
+      when {
+       repeat -> startTrack(index)
+       shuffle && songs.size>1 -> startTrack((0 until songs.size).filter { it!=index }.random())
+       else -> startTrack((index+1)%songs.size)
+      }
      }
-     mp.setOnErrorListener { _,_,_ -> Toast.makeText(this,"تعذر تشغيل هذا الملف الصوتي",Toast.LENGTH_SHORT).show(); true }
+     mp.setOnErrorListener { _,_,_ ->
+      Toast.makeText(this,"تعذر تشغيل هذا الملف الصوتي",Toast.LENGTH_SHORT).show(); true
+     }
      mp.prepareAsync()
-    } catch(_:Exception) { Toast.makeText(this,"تعذر فتح الملف الصوتي",Toast.LENGTH_LONG).show() }
+    } catch(_:Exception) {
+     Toast.makeText(this,"تعذر فتح الملف الصوتي",Toast.LENGTH_SHORT).show()
+    }
    }
   }
-  val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; tag="music-list" }
-  fun loadSongs() {
+
+  renderSongRows={ filter ->
+   list.removeAllViews()
+   val q=filter.trim().lowercase(Locale.ROOT)
+   val matchedIndices=songs.indices.filter { i ->
+    q.isEmpty() || titles[i].lowercase(Locale.ROOT).contains(q) || artists[i].lowercase(Locale.ROOT).contains(q)
+   }
+   if(songs.isEmpty()) {
+    list.addView(TextView(this).apply {
+     text="المكتبة فارغة حاليًا.\nاضغط «↻ مسح الجهاز» للبحث عن مقاطع MP3/WAV أو «＋ ملف صوتي» لاختيار ملف مباشرة."
+     textSize=11.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(178,208,242))
+     setPadding((14*d).toInt(),(26*d).toInt(),(14*d).toInt(),(26*d).toInt())
+    },LinearLayout.LayoutParams(-1,-2))
+   } else if(matchedIndices.isEmpty()) {
+    list.addView(TextView(this).apply {
+     text="لا توجد نتائج مطابقة للبحث «$filter»"
+     textSize=11.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(178,208,242))
+     setPadding((12*d).toInt(),(20*d).toInt(),(12*d).toInt(),(20*d).toInt())
+    },LinearLayout.LayoutParams(-1,-2))
+   } else {
+    matchedIndices.forEach { i ->
+     val isActive=(i==index && musicPlayer!=null)
+     val row=LinearLayout(this).apply {
+      orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+      setPadding((10*d).toInt(),(6*d).toInt(),(10*d).toInt(),(6*d).toInt())
+      background=android.graphics.drawable.GradientDrawable().apply {
+       setColor(if(isActive) Color.argb(180,20,86,162) else Color.argb(110,12,24,44))
+       cornerRadius=6f*d
+       if(isActive) setStroke(1,Color.rgb(86,196,255))
+      }
+      setOnClickListener { startTrack(i) }
+     }
+     val noteIcon=ImageView(this).apply {
+      setImageDrawable(FluentIcons.createDrawable(this@MainActivity,FluentIcon.MUSIC,(18*d).toInt()))
+     }
+     val textCol=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+     textCol.addView(TextView(this).apply {
+      text="${i+1}. ${titles[i]}"; textSize=11f
+      typeface=Typeface.create("Arial",if(isActive) Typeface.BOLD else Typeface.NORMAL)
+      setTextColor(if(isActive) Color.rgb(142,232,255) else Color.WHITE)
+      maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+     })
+     textCol.addView(TextView(this).apply {
+      text=artists[i]; textSize=9.5f
+      setTextColor(Color.rgb(152,182,218)); maxLines=1
+     })
+     row.addView(noteIcon,LinearLayout.LayoutParams((20*d).toInt(),(20*d).toInt()).apply { rightMargin=(8*d).toInt() })
+     row.addView(textCol,LinearLayout.LayoutParams(0,-2,1f))
+     if(isActive) {
+      row.addView(TextView(this).apply {
+       text="♪ الآن"; textSize=9.5f; setTextColor(Color.rgb(98,224,255))
+       typeface=Typeface.create("Arial",Typeface.BOLD)
+      })
+     }
+     list.addView(row,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(4*d).toInt() })
+    }
+   }
+  }
+
+  renderQueueRows={
+   queueList.removeAllViews()
+   if(songs.isEmpty()) {
+    queueList.addView(TextView(this).apply {
+     text="قائمة الانتظار فارغة. أضف مقاطع صوتية من المكتبة أو افتح ملفًا صوتيًا."
+     textSize=11.5f; gravity=Gravity.CENTER; setTextColor(Color.rgb(178,208,242))
+     setPadding((14*d).toInt(),(26*d).toInt(),(14*d).toInt(),(26*d).toInt())
+    },LinearLayout.LayoutParams(-1,-2))
+   } else {
+    val ordered=(0 until songs.size).map { (index+it)%songs.size }
+    ordered.forEachIndexed { pos,trackIdx ->
+     val row=TextView(this).apply {
+      text=if(pos==0) "▶ الآن: ${titles[trackIdx]} — ${artists[trackIdx]}" else "${pos}. ${titles[trackIdx]}"
+      textSize=11f; gravity=Gravity.CENTER_VERTICAL or Gravity.START
+      setTextColor(if(pos==0) Color.rgb(112,226,255) else Color.rgb(225,236,250))
+      typeface=Typeface.create("Arial",if(pos==0) Typeface.BOLD else Typeface.NORMAL)
+      setPadding((10*d).toInt(),(8*d).toInt(),(10*d).toInt(),(8*d).toInt())
+      background=android.graphics.drawable.GradientDrawable().apply {
+       setColor(if(pos==0) Color.argb(170,18,78,148) else Color.argb(100,12,24,44))
+       cornerRadius=6f*d
+      }
+      setOnClickListener { startTrack(trackIdx) }
+     }
+     queueList.addView(row,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(4*d).toInt() })
+    }
+   }
+  }
+
+  renderEffectsPanel={
+   effectsContainer.removeAllViews()
+   effectsContainer.addView(TextView(this).apply {
+    text="سرعة التشغيل (Playback Speed)"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD)
+    setTextColor(Color.rgb(172,220,255)); setPadding(0,(4*d).toInt(),0,(8*d).toInt())
+   })
+   val speedRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.START }
+   listOf(0.75f,1.0f,1.25f,1.5f).forEach { spd ->
+    val selected=(kotlin.math.abs(playbackSpeed-spd)<0.02f)
+    val btn=TextView(this).apply {
+     text="${spd}x"; textSize=11f; gravity=Gravity.CENTER
+     setTextColor(Color.WHITE); typeface=Typeface.create("Arial",if(selected) Typeface.BOLD else Typeface.NORMAL)
+     setPadding((14*d).toInt(),(6*d).toInt(),(14*d).toInt(),(6*d).toInt())
+     background=Wmp11Style.podButtonBackground(d,selected)
+     setOnClickListener {
+      playbackSpeed=spd
+      musicPlayer?.let { if(prepared) applyPlayerAudioSettings(it) }
+      renderEffectsPanel()
+     }
+    }
+    speedRow.addView(btn,LinearLayout.LayoutParams(-2,(32*d).toInt()).apply { rightMargin=(8*d).toInt() })
+   }
+   effectsContainer.addView(speedRow,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(14*d).toInt() })
+
+   effectsContainer.addView(TextView(this).apply {
+    text="بيانات المقطع الحالي"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD)
+    setTextColor(Color.rgb(172,220,255)); setPadding(0,(4*d).toInt(),0,(6*d).toInt())
+   })
+   val infoText=if(songs.isNotEmpty()) {
+    "العنوان: ${titles.getOrNull(index) ?: "-"}\nالفنان: ${artists.getOrNull(index) ?: "-"}\nالتكرار: ${if(repeat) "مفعل" else "متوقف"}   •   العشوائي: ${if(shuffle) "مفعل" else "متوقف"}\nمستوى الصوت: ${(volumeLevel*100).toInt()}%"
+   } else "لم يتم تحميل مقاطع صوتية بعد."
+   effectsContainer.addView(TextView(this).apply {
+    text=infoText; textSize=11f; setTextColor(Color.rgb(218,232,248))
+    setPadding((12*d).toInt(),(10*d).toInt(),(12*d).toInt(),(10*d).toInt())
+    background=android.graphics.drawable.GradientDrawable().apply {
+     setColor(Color.argb(140,12,26,48)); cornerRadius=8f*d; setStroke(1,Color.rgb(54,82,124))
+    }
+   })
+  }
+
+  val loadSongs:()->Unit = {
    if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.READ_MEDIA_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
-    requestPermissions(arrayOf(android.Manifest.permission.READ_MEDIA_AUDIO),704); return
+    requestPermissions(arrayOf(android.Manifest.permission.READ_MEDIA_AUDIO),704)
+   } else if(Build.VERSION.SDK_INT<33 && Build.VERSION.SDK_INT>=23 && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED) {
+    requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),704)
+   } else {
+    songs.clear(); titles.clear(); artists.clear()
+    try {
+     val collection=MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+     val projection=arrayOf(MediaStore.Audio.Media._ID,MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ARTIST)
+     contentResolver.query(collection,projection,MediaStore.Audio.Media.IS_MUSIC+" != 0",null,MediaStore.Audio.Media.TITLE+" COLLATE NOCASE ASC")?.use { cursor ->
+      val idCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+      val titleCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+      val artistCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+      while(cursor.moveToNext()) {
+       val id=cursor.getLong(idCol)
+       songs.add(Uri.withAppendedPath(collection,id.toString()))
+       titles.add(cursor.getString(titleCol) ?: "مقطع صوتي")
+       artists.add(cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it!="<unknown>" } ?: "فنان غير معروف")
+      }
+     }
+     updateLabels()
+     Toast.makeText(this,"تم العثور على ${songs.size} مقطع صوتي",Toast.LENGTH_SHORT).show()
+     if(songs.isNotEmpty()) startTrack(0)
+    } catch(_:Exception) {
+     Toast.makeText(this,"تعذر قراءة مكتبة الموسيقى. تحقق من الإذن أو اختر ملفًا صوتيًا.",Toast.LENGTH_LONG).show()
+    }
    }
-   if(Build.VERSION.SDK_INT<33 && Build.VERSION.SDK_INT>=23 && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED) {
-    requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),704); return
-   }
-   songs.clear(); titles.clear(); artists.clear(); list.removeAllViews()
+  }
+
+  val pickSingleAudio:()->Unit = {
    try {
-    val collection=MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-    val projection=arrayOf(MediaStore.Audio.Media._ID,MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ARTIST)
-    contentResolver.query(collection,projection,MediaStore.Audio.Media.IS_MUSIC+" != 0",null,MediaStore.Audio.Media.TITLE+" COLLATE NOCASE ASC")?.use { cursor ->
-     val idCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-     val titleCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-     val artistCol=cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-     while(cursor.moveToNext()) {
-      val id=cursor.getLong(idCol)
-      songs.add(Uri.withAppendedPath(collection,id.toString()))
-      titles.add(cursor.getString(titleCol) ?: "مقطع صوتي")
-      artists.add(cursor.getString(artistCol)?.takeIf{it.isNotBlank() && it!="<unknown>"} ?: "فنان غير معروف")
-     }
-    }
-    if(songs.isEmpty()) list.addView(message("لم يتم العثور على ملفات موسيقى في الجهاز"))
-    songs.forEachIndexed { i,_ ->
-     val row=task((i+1).toString()+".  "+titles[i]+"   •   "+artists[i]) { startTrack(i) }.apply {
-      textSize=11f; typeface=Typeface.create("Arial",Typeface.NORMAL); gravity=Gravity.CENTER_VERTICAL or Gravity.START
-      setPadding(12,2,8,2); setTextColor(Color.rgb(35,51,72))
-      background=android.graphics.drawable.GradientDrawable().apply { setColor(if(i%2==0) Color.WHITE else Color.rgb(247,250,254)); cornerRadius=5f; setStroke(1,Color.rgb(229,235,242)) }
-     }
-     list.addView(row,LinearLayout.LayoutParams(-1,40).apply { bottomMargin=2 })
-    }
-    Toast.makeText(this,"تم العثور على "+songs.size+" مقطع صوتي",Toast.LENGTH_SHORT).show()
-    if(songs.isNotEmpty()) startTrack(0)
-   } catch(_:Exception) { Toast.makeText(this,"تعذر قراءة مكتبة الموسيقى. تحقق من إذن الملفات.",Toast.LENGTH_LONG).show() }
-  }
-  fun row(vararg labels:String, handler:(String)->Unit):LinearLayout {
-   val result=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER; setPadding(3,0,3,0) }
-   labels.forEach { label ->
-    val display=when(label) { "السابق"->"|◀"; "تشغيل / إيقاف"->"▶ / Ⅱ"; "التالي"->"▶|"; else->label }
-    val button=task(display){handler(label)}.apply { textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(35,76,125)); background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=8f; setStroke(1,Color.rgb(205,218,233)) } }
-    result.addView(button,LinearLayout.LayoutParams(0,42,1f).apply { setMargins(3,2,3,2) })
+    startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+     addCategory(Intent.CATEGORY_OPENABLE)
+     type="audio/*"
+    },72)
+   } catch(_:Exception) {
+    Toast.makeText(this,"تعذر فتح منتقي الملفات الصوتية",Toast.LENGTH_SHORT).show()
    }
-   return result
   }
-  page.addView(row("السابق","تشغيل / إيقاف","التالي") { label ->
-   when(label) {
-    "السابق" -> if(songs.isNotEmpty()) startTrack(if(shuffle && songs.size>1) (0 until songs.size).filter{it!=index}.random() else (index-1+songs.size)%songs.size)
-    "التالي" -> if(songs.isNotEmpty()) startTrack(if(shuffle && songs.size>1) (0 until songs.size).filter{it!=index}.random() else (index+1)%songs.size)
-    else -> { val p=musicPlayer; if(p!=null && prepared) { if(p.isPlaying)p.pause() else p.start() } else if(songs.isNotEmpty()) startTrack(index) }
+
+  onMusicPermissionGranted={ if(playerAttached) loadSongs() }
+  onAudioPickedCallback={ pickedUri ->
+   if(playerAttached) {
+    val name=try {
+     contentResolver.query(pickedUri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use {
+      if(it.moveToFirst()) it.getString(0) else null
+     }
+    } catch(_:Exception) { null } ?: pickedUri.lastPathSegment?.substringAfterLast('/') ?: "ملف صوتي"
+    songs.add(pickedUri)
+    titles.add(name.substringBeforeLast('.'))
+    artists.add("ملف محلي")
+    startTrack(songs.size-1)
+   }
+  }
+
+  switchToTab={ targetTab,pushHistory ->
+   activeTab=targetTab
+   if(pushHistory && navHistory.getOrNull(navPointer)!=targetTab) {
+    while(navHistory.size-1>navPointer) navHistory.removeAt(navHistory.size-1)
+    navHistory.add(targetTab)
+    navPointer=navHistory.size-1
+   }
+   backNavBtn.background=Wmp11Style.navOrbBackground(d,navPointer>0)
+   fwdNavBtn.background=Wmp11Style.navOrbBackground(d,navPointer<navHistory.size-1)
+   tabViews.forEachIndexed { idx,tv ->
+    val active=(idx==targetTab)
+    tv.text=if(active) "${tabNames[idx]} ▾" else tabNames[idx]
+    tv.setTextColor(if(active) Color.WHITE else Color.rgb(185,202,226))
+    tv.typeface=Typeface.create("Arial",if(active) Typeface.BOLD else Typeface.NORMAL)
+    tv.background=if(active) Wmp11Style.activeTabBackground(d) else Wmp11Style.inactiveTabBackground(d)
+   }
+   secondaryPanel.visibility=if(targetTab==0) View.GONE else View.VISIBLE
+   nowPlayingOverlay.visibility=if(targetTab==0 && showOverlayInfo) View.VISIBLE else View.GONE
+   libraryToolbar.visibility=if(targetTab==1) View.VISIBLE else View.GONE
+   libraryScroll.visibility=if(targetTab==1) View.VISIBLE else View.GONE
+   queueScroll.visibility=if(targetTab==2) View.VISIBLE else View.GONE
+   effectsContainer.visibility=if(targetTab==3) View.VISIBLE else View.GONE
+   switchLibBtn.background=Wmp11Style.podButtonBackground(d,targetTab==1)
+   if(targetTab==1) renderSongRows(searchSongsInput.text.toString())
+   if(targetTab==2) renderQueueRows()
+   if(targetTab==3) renderEffectsPanel()
+  }
+
+  // Wire button & slider listeners
+  scanOverlayBtn.setOnClickListener { loadSongs() }
+  pickFileOverlayBtn.setOnClickListener { pickSingleAudio() }
+  openFileQuick.setOnClickListener { pickSingleAudio() }
+  scanLibBtn.setOnClickListener { loadSongs() }
+  pickLibBtn.setOnClickListener { pickSingleAudio() }
+  switchLibBtn.setOnClickListener { switchToTab(if(activeTab==1) 0 else 1,true) }
+
+  searchSongsInput.addTextChangedListener(object:android.text.TextWatcher {
+   override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+   override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { renderSongRows(s?.toString().orEmpty()) }
+   override fun afterTextChanged(s:android.text.Editable?) {}
+  })
+
+  shuffleIconBtn.setOnClickListener {
+   shuffle=!shuffle
+   prefs.edit().putBoolean("shuffle",shuffle).apply()
+   shuffleIconBtn.setTextColor(if(shuffle) Color.rgb(88,214,255) else Color.rgb(176,194,218))
+   if(activeTab==3) renderEffectsPanel()
+  }
+  repeatIconBtn.setOnClickListener {
+   repeat=!repeat
+   prefs.edit().putBoolean("repeat",repeat).apply()
+   repeatIconBtn.setTextColor(if(repeat) Color.rgb(88,214,255) else Color.rgb(176,194,218))
+   if(activeTab==3) renderEffectsPanel()
+  }
+  stopIconBtn.setOnClickListener {
+   val p=musicPlayer
+   if(p!=null && prepared) {
+    try { if(p.isPlaying) p.pause(); p.seekTo(0) } catch(_:Exception) {}
+    seekBar.progress=0
+    deckTimeLabel.text="00:00 / ${clockTime(try { p.duration } catch(_:Exception) { 0 })}"
+    updatePlaybackVisuals()
+   }
+  }
+  prevIconBtn.setOnClickListener {
+   if(songs.isNotEmpty()) startTrack(if(shuffle && songs.size>1) (0 until songs.size).filter { it!=index }.random() else (index-1+songs.size)%songs.size)
+  }
+  nextIconBtn.setOnClickListener {
+   if(songs.isNotEmpty()) startTrack(if(shuffle && songs.size>1) (0 until songs.size).filter { it!=index }.random() else (index+1)%songs.size)
+  }
+  playOrb.setOnClickListener {
+   val p=musicPlayer
+   if(p!=null && prepared) {
+    if(p.isPlaying) p.pause() else p.start()
+    updatePlaybackVisuals()
+   } else if(songs.isNotEmpty()) {
+    startTrack(index)
+   } else {
+    loadSongs()
+   }
+  }
+  playOrb.setOnTouchListener { _,ev ->
+   when(ev.action) {
+    MotionEvent.ACTION_DOWN -> playOrb.pressedOrb=true
+    MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL -> playOrb.pressedOrb=false
+   }
+   false
+  }
+  muteIconBtn.setOnClickListener {
+   muted=!muted
+   muteIconBtn.text=if(muted) "🔇" else "🔊"
+   muteIconBtn.setTextColor(if(muted) Color.rgb(255,140,140) else Color.rgb(220,236,255))
+   musicPlayer?.let { applyPlayerAudioSettings(it) }
+  }
+  volumeSeek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+   override fun onStartTrackingTouch(bar:SeekBar?) {}
+   override fun onStopTrackingTouch(bar:SeekBar?) {}
+   override fun onProgressChanged(bar:SeekBar?,value:Int,fromUser:Boolean) {
+    if(fromUser) {
+     volumeLevel=(value/100f).coerceIn(0f,1f)
+     if(muted && value>0) { muted=false; muteIconBtn.text="🔊"; muteIconBtn.setTextColor(Color.rgb(220,236,255)) }
+     prefs.edit().putFloat("volume",volumeLevel).apply()
+     musicPlayer?.let { applyPlayerAudioSettings(it) }
+    }
    }
   })
-  lateinit var shuffleButton:Button
-  shuffleButton=task(if(shuffle)"عشوائي: يعمل" else "عشوائي: متوقف") { shuffle=!shuffle; prefs.edit().putBoolean("shuffle",shuffle).apply(); shuffleButton.text=if(shuffle)"عشوائي: يعمل" else "عشوائي: متوقف" }
-  val modes=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER }
-  modes.addView(task("تقديم 10 ثوانٍ"){musicPlayer?.let{if(prepared)it.seekTo((it.currentPosition+10000).coerceAtMost(it.duration))}},LinearLayout.LayoutParams(0,48,1f))
-  modes.addView(task("تأخير 10 ثوانٍ"){musicPlayer?.let{if(prepared)it.seekTo((it.currentPosition-10000).coerceAtLeast(0))}},LinearLayout.LayoutParams(0,48,1f))
-  modes.addView(shuffleButton,LinearLayout.LayoutParams(0,48,1f))
-  page.addView(modes)
-  page.addView(action("＋  تحميل الموسيقى من الجهاز"){loadSongs()},LinearLayout.LayoutParams(-1,40).apply { topMargin=4; bottomMargin=5 })
-  page.addView(TextView(this).apply { text="قائمة التشغيل"; textSize=12f; typeface=Typeface.create("Arial",Typeface.BOLD); setTextColor(Color.rgb(39,64,91)); setPadding(5,5,5,3) },LinearLayout.LayoutParams(-1,25))
-  page.addView(ScrollView(this).apply { isFillViewport=true; background=android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=8f; setStroke(1,Color.rgb(218,226,236)) }; setPadding(4,4,4,4); addView(list) },LinearLayout.LayoutParams(-1,0,1f))
-  seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+  seekBar.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
    override fun onStartTrackingTouch(bar:SeekBar?) { userSeeking=true }
-   override fun onStopTrackingTouch(bar:SeekBar?) { userSeeking=false; if(prepared && bar!=null) musicPlayer?.seekTo(bar.progress) }
-   override fun onProgressChanged(bar:SeekBar?,progressValue:Int,fromUser:Boolean) { if(fromUser) times.text=clockTime(progressValue)+" / "+clockTime(musicPlayer?.duration ?: 0) }
+   override fun onStopTrackingTouch(bar:SeekBar?) {
+    userSeeking=false
+    if(prepared && bar!=null) try { musicPlayer?.seekTo(bar.progress) } catch(_:Exception) {}
+   }
+   override fun onProgressChanged(bar:SeekBar?,progressValue:Int,fromUser:Boolean) {
+    if(fromUser) deckTimeLabel.text="${clockTime(progressValue)} / ${clockTime(musicPlayer?.duration ?: 0)}"
+   }
   })
-  progressHandler.post(progress)
+
+  page.addOnAttachStateChangeListener(object:View.OnAttachStateChangeListener {
+   override fun onViewAttachedToWindow(v:View) {
+    playerAttached=true
+    progressHandler.removeCallbacks(progressTick)
+    progressHandler.post(progressTick)
+   }
+   override fun onViewDetachedFromWindow(v:View) {
+    playerAttached=false
+    progressHandler.removeCallbacks(progressTick)
+    onMusicPermissionGranted=null
+    onAudioPickedCallback=null
+    stopOld()
+   }
+  })
+
+  renderSongRows("")
   panel(page)
  }
  private fun clockTime(ms:Int):String { val seconds=ms.coerceAtLeast(0)/1000; return String.format(Locale.ROOT,"%02d:%02d",seconds/60,seconds%60) }
@@ -2539,25 +3268,25 @@ class MainActivity : Activity() {
    val gradient=when(wallpaperStyle) {
     1 -> intArrayOf(Color.rgb(9,15,30),Color.rgb(28,42,68),Color.rgb(49,65,94),Color.rgb(6,12,24))
     2 -> intArrayOf(Color.rgb(224,237,250),Color.rgb(174,207,240),Color.rgb(115,169,222),Color.rgb(232,243,253))
-    else -> intArrayOf(Color.rgb(8,27,70),Color.rgb(0,94,171),Color.rgb(25,151,218),Color.rgb(5,48,111))
+    else -> intArrayOf(Color.rgb(206,227,244),Color.rgb(176,209,236),Color.rgb(192,220,242),Color.rgb(219,235,248))
    }
    canvas.drawRect(0f,0f,w,h,Paint().apply { shader=LinearGradient(0f,0f,w,h,gradient,null,Shader.TileMode.CLAMP) })
-   // Layered bloom shapes; presets are saved locally and restored on next launch.
-   val cx=w*.61f; val cy=h*.43f
+   // Layered Windows 11 Bloom petals centered smoothly
+   val cx=w*.54f; val cy=h*.49f
    val colors=when(wallpaperStyle) {
     1 -> intArrayOf(Color.argb(180,115,145,195),Color.argb(170,65,92,143),Color.argb(210,24,40,74),Color.argb(120,150,170,205))
     2 -> intArrayOf(Color.argb(170,255,255,255),Color.argb(160,102,162,218),Color.argb(180,65,125,190),Color.argb(130,245,250,255))
-    else -> intArrayOf(Color.argb(210,102,203,255),Color.argb(205,29,137,226),Color.argb(225,5,68,157),Color.argb(170,125,222,255))
+    else -> intArrayOf(Color.argb(235,16,136,238),Color.argb(230,0,98,195),Color.argb(235,0,58,136),Color.argb(210,64,185,255))
    }
    for(i in 0..3) {
     val path=Path()
-    val inset=i*24f
-    path.moveTo(cx-w*.32f,cy+h*.28f+inset)
-    path.cubicTo(cx-w*.30f,cy-h*.42f+inset,cx+w*.17f,cy-h*.44f+inset,cx+w*.32f,cy-h*.06f+inset)
-    path.cubicTo(cx+w*.43f,cy+h*.22f+inset,cx+w*.03f,cy+h*.38f+inset,cx-w*.32f,cy+h*.28f+inset)
+    val inset=i*(minOf(w,h)*0.032f)
+    path.moveTo(cx-w*.34f,cy+h*.30f+inset)
+    path.cubicTo(cx-w*.32f,cy-h*.46f+inset,cx+w*.16f,cy-h*.48f+inset,cx+w*.34f,cy-h*.04f+inset)
+    path.cubicTo(cx+w*.44f,cy+h*.28f+inset,cx+w*.02f,cy+h*.42f+inset,cx-w*.34f,cy+h*.30f+inset)
     p.color=colors[i]; p.style=Paint.Style.FILL; p.shader=null; canvas.drawPath(path,p)
    }
-   p.shader=RadialGradient(cx,cy,h*.6f,intArrayOf(Color.argb(70,160,225,255),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
+   p.shader=RadialGradient(cx,cy,h*.58f,intArrayOf(Color.argb(75,145,220,255),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
    canvas.drawRect(0f,0f,w,h,p); p.shader=null
   }
  }

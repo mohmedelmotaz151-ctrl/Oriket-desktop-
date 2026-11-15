@@ -61,7 +61,7 @@ object FluentIcons {
     fun getIconForTitle(title: String): FluentIcon = when {
         title.contains("YouTube Music") -> FluentIcon.YOUTUBE_MUSIC
         title.contains("YouTube") -> FluentIcon.YOUTUBE
-        title.contains("مشغل الموسيقى") || title == "الموسيقى" || title.contains("Music") -> FluentIcon.MUSIC
+        title.contains("مشغل الموسيقى") || title == "الموسيقى" || title.contains("Music") || title.contains("Media Player") -> FluentIcon.MUSIC
         title.contains("متصفح") || title.contains("الإنترنت") || title.contains("المتصفح") -> FluentIcon.EDGE_BROWSER
         title.contains("زيارات الدفاع المدني") -> FluentIcon.CIVIL_DEFENSE
         title.contains("هذا الكمبيوتر") || title.contains("الكمبيوتر") -> FluentIcon.THIS_PC
