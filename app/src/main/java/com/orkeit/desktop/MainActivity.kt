@@ -3502,23 +3502,705 @@ class MainActivity : Activity() {
  }
  private fun showWord() {
   shell("Word")
-  val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-  val toolbar=LinearLayout(this).apply { gravity=Gravity.CENTER }
+  val d=resources.displayMetrics.density
+  content.setPadding(0,0,0,0)
+  content.setBackgroundColor(Word365Theme.STAGE_BG)
+  val outerWindow=content.parent as? LinearLayout
+  val windowTitleBar=outerWindow?.getChildAt(0) as? LinearLayout
+  windowTitleBar?.setBackgroundColor(Word365Theme.SHELL_BG)
+
   val wordPrefs=getSharedPreferences("orkeit_word",Context.MODE_PRIVATE)
-  val editor=EditText(this).apply { hint="مستند جديد — ابدأ الكتابة هنا"; gravity=Gravity.TOP or Gravity.START; textSize=14.96f; setPadding(24,18,24,18); setBackgroundColor(Color.WHITE); tag="orkeit-word-editor"; setText(wordPrefs.getString("draft","").orEmpty()); addTextChangedListener(object:android.text.TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}; override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){wordPrefs.edit().putString("draft",s.toString()).apply()}; override fun afterTextChanged(s:android.text.Editable?){} }) }
-  toolbar.addView(task("فتح TXT"){try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="text/*"},64)}catch(_:Exception){Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show()}})
-  toolbar.addView(task("B"){editor.typeface=if(editor.typeface.isBold) Typeface.create("Arial",Typeface.NORMAL) else Typeface.create("Arial",Typeface.BOLD)})
-  toolbar.addView(task("A+"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity + 2f).coerceAtMost(40f)})
-  toolbar.addView(task("A−"){editor.textSize=(editor.textSize/ getResources().displayMetrics.scaledDensity - 2f).coerceAtLeast(10f)})
-  toolbar.addView(action("حفظ TXT"){
+  var docTitle=wordPrefs.getString("doc_title","Document1").orEmpty().ifBlank { "Document1" }
+  var currentTab="Home"
+  var activeStyle="Normal"
+  var fontName="Calibri (Body)"
+  var fontSizeSp=11f
+  var fontColor=Word365Theme.TEXT_DARK
+  var zoomPct=100
+  var pagePaperColor=Color.WHITE
+  var marginDp=28
+  var lineMult=1.22f
+  var readOnlyMode=false
+  var showParagraphMarks=false
+  var savedSearchIdx=-1
+
+  val undoStack=ArrayDeque<String>()
+  val redoStack=ArrayDeque<String>()
+  var suppressHistory=false
+
+  val page=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   layoutDirection=View.LAYOUT_DIRECTION_LTR
+   setBackgroundColor(Word365Theme.SHELL_BG)
+  }
+
+  lateinit var editor:EditText
+  lateinit var pageSheet:LinearLayout
+  lateinit var savedBadge:TextView
+  lateinit var docTitleLabel:TextView
+  lateinit var wordCountLabel:TextView
+  lateinit var zoomLabel:TextView
+  lateinit var renderRibbon:()->Unit
+  lateinit var updateStats:()->Unit
+  lateinit var applyPageLayout:()->Unit
+
+  fun persistRich() {
+   val html=if(Build.VERSION.SDK_INT>=24) {
+    android.text.Html.toHtml(editor.text,android.text.Html.TO_HTML_PARAGRAPH_LINES_CONSECUTIVE)
+   } else {
+    @Suppress("DEPRECATION")
+    android.text.Html.toHtml(editor.text)
+   }
+   wordPrefs.edit()
+    .putString("draft",editor.text.toString())
+    .putString("rich_html",html)
+    .putString("doc_title",docTitle)
+    .apply()
+   savedBadge.text="Saved"
+  }
+
+  fun exportDocumentTxt() {
    try {
-    val values=ContentValues().apply { put(MediaStore.Downloads.DISPLAY_NAME,"Oriket-Word-"+System.currentTimeMillis()+".txt"); put(MediaStore.Downloads.MIME_TYPE,"text/plain") }
+    val safeName=docTitle.replace(Regex("[^A-Za-z0-9_\\-\\u0600-\\u06FF ]"),"_").ifBlank { "Oriket-Word" }
+    val values=ContentValues().apply {
+     put(MediaStore.Downloads.DISPLAY_NAME,"$safeName-${System.currentTimeMillis()}.txt")
+     put(MediaStore.Downloads.MIME_TYPE,"text/plain")
+    }
     val uri=contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)
-    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(editor.text.toString())}
+    if(uri!=null) contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(editor.text.toString()) }
     Toast.makeText(this,if(uri!=null)"تم حفظ المستند في التنزيلات" else "تعذر الحفظ",Toast.LENGTH_LONG).show()
-   }catch(_:Exception){Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show()}
+   } catch(_:Exception) { Toast.makeText(this,"تعذر الحفظ",Toast.LENGTH_LONG).show() }
+  }
+
+  fun openWordFile() {
+   try {
+    startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+     addCategory(Intent.CATEGORY_OPENABLE)
+     type="text/*"
+    },64)
+   } catch(_:Exception) { Toast.makeText(this,"تعذر فتح الملفات",Toast.LENGTH_SHORT).show() }
+  }
+
+  fun showRenameDialog() {
+   val input=EditText(this).apply { setText(docTitle); selectAll() }
+   AlertDialog.Builder(this).setTitle("تسمية المستند").setView(input)
+    .setPositiveButton("حفظ") { _,_ ->
+     val v=input.text.toString().trim()
+     if(v.isNotEmpty()) {
+      docTitle=v
+      docTitleLabel.text=docTitle
+      persistRich()
+     }
+    }.setNegativeButton("إلغاء",null).show()
+  }
+
+  fun showFindReplaceDialog() {
+   val box=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL
+    setPadding((16*d).toInt(),(10*d).toInt(),(16*d).toInt(),(4*d).toInt())
+   }
+   val findEt=EditText(this).apply { hint="ابحث عن نص..." }
+   val repEt=EditText(this).apply { hint="استبدال بـ..." }
+   box.addView(findEt); box.addView(repEt)
+   AlertDialog.Builder(this).setTitle("بحث واستبدال (Find & Replace)").setView(box)
+    .setPositiveButton("استبدال الكل") { _,_ ->
+     val f=findEt.text.toString()
+     val r=repEt.text.toString()
+     if(f.isNotEmpty()) {
+      val updated=editor.text.toString().replace(f,r)
+      editor.setText(updated)
+      Toast.makeText(this,"تم الاستبدال",Toast.LENGTH_SHORT).show()
+     }
+    }
+    .setNeutralButton("بحث") { _,_ ->
+     val q=findEt.text.toString()
+     if(q.isNotEmpty()) {
+      val idx=editor.text.toString().indexOf(q,0,ignoreCase=true)
+      if(idx>=0) { editor.requestFocus(); editor.setSelection(idx,idx+q.length) }
+      else Toast.makeText(this,"لم يتم العثور على النص",Toast.LENGTH_SHORT).show()
+     }
+    }
+    .setNegativeButton("إلغاء",null).show()
+  }
+
+  // 1. Word 365 Top Header Bar: [Word Icon] [Doc Title] [Saved]     [🔍 Search pill]
+  val topHeader=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((12*d).toInt(),(4*d).toInt(),(12*d).toInt(),(2*d).toInt())
+   setBackgroundColor(Word365Theme.SHELL_BG)
+  }
+  topHeader.addView(ImageView(this).apply {
+   setImageDrawable(FluentIcons.createDrawable(this@MainActivity,FluentIcon.DOCUMENTS,(18*d).toInt()))
+  },LinearLayout.LayoutParams((18*d).toInt(),(18*d).toInt()).apply { rightMargin=(8*d).toInt() })
+  docTitleLabel=TextView(this).apply {
+   text=docTitle; textSize=11.5f; typeface=Typeface.create("Arial",Typeface.BOLD)
+   setTextColor(Word365Theme.TEXT_DARK); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+   setOnClickListener { showRenameDialog() }
+  }
+  savedBadge=TextView(this).apply {
+   text="Saved"; textSize=10f; setTextColor(Word365Theme.TEXT_MUTED)
+   setPadding((8*d).toInt(),0,(8*d).toInt(),0)
+  }
+  topHeader.addView(docTitleLabel,LinearLayout.LayoutParams(-2,-2))
+  topHeader.addView(savedBadge,LinearLayout.LayoutParams(-2,-2))
+  topHeader.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+
+  val searchPill=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),0,(10*d).toInt(),0)
+   background=Word365Theme.searchPillBg(d)
+  }
+  searchPill.addView(TextView(this).apply { text="🔍"; textSize=11f; setTextColor(Word365Theme.WORD_BLUE) },LinearLayout.LayoutParams(-2,-2).apply { rightMargin=(6*d).toInt() })
+  val searchEdit=EditText(this).apply {
+   hint="Search"; textSize=10.5f; setSingleLine(true); setTextColor(Word365Theme.TEXT_DARK)
+   setHintTextColor(Word365Theme.TEXT_MUTED); background=null; setPadding(0,0,0,0)
+   imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+  }
+  fun findNextFromSearch() {
+   val q=searchEdit.text.toString().trim()
+   if(q.isEmpty()) return
+   val full=editor.text.toString()
+   val start=(savedSearchIdx+1).coerceIn(0,full.length)
+   val found=full.indexOf(q,start,ignoreCase=true).let { if(it>=0) it else full.indexOf(q,0,ignoreCase=true) }
+   if(found>=0) {
+    savedSearchIdx=found
+    editor.requestFocus()
+    editor.setSelection(found,found+q.length)
+   } else Toast.makeText(this,"لا توجد نتائج في المستند",Toast.LENGTH_SHORT).show()
+  }
+  searchEdit.setOnEditorActionListener { _,_,_ -> findNextFromSearch(); true }
+  searchPill.addView(searchEdit,LinearLayout.LayoutParams(0,-2,1f))
+  searchPill.addView(TextView(this).apply {
+   text="↵"; textSize=11f; setTextColor(Word365Theme.TEXT_MUTED); contentDescription="بحث التالي"
+   setOnClickListener { findNextFromSearch() }
   })
-  page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=true; addView(toolbar) },LinearLayout.LayoutParams(-1,54)); page.addView(ScrollView(this).apply { addView(editor) },LinearLayout.LayoutParams(-1,0,1f)); panel(page)
+  topHeader.addView(searchPill,LinearLayout.LayoutParams((210*d).toInt(),(26*d).toInt()))
+  page.addView(topHeader)
+
+  // 2. Word 365 Ribbon Tabs Strip: File | Home | Insert | Draw | Design | Layout | References | Mailings | Review | View | Help
+  val tabsScroll=HorizontalScrollView(this).apply {
+   isHorizontalScrollBarEnabled=false
+   setBackgroundColor(Word365Theme.SHELL_BG)
+  }
+  val tabsRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(10*d).toInt(),(2*d).toInt())
+  }
+  val tabViews=mutableMapOf<String,Pair<TextView,View>>()
+  listOf("File","Home","Insert","Draw","Design","Layout","References","Mailings","Review","View","Help").forEach { tabName ->
+   val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL }
+   val tv=TextView(this).apply {
+    text=tabName; textSize=10.8f; setTextColor(Word365Theme.TEXT_DARK)
+    setPadding((9*d).toInt(),(3*d).toInt(),(9*d).toInt(),(3*d).toInt())
+    setOnClickListener { anchor ->
+     if(tabName=="File") {
+      android.widget.PopupMenu(this@MainActivity,anchor).apply {
+       menu.add("مستند جديد").setOnMenuItemClickListener {
+        undoStack.addLast(editor.text.toString()); editor.setText(""); docTitle="Document1"; docTitleLabel.text=docTitle; persistRich(); true
+       }
+       menu.add("فتح ملف نصي...").setOnMenuItemClickListener { openWordFile(); true }
+       menu.add("حفظ TXT في التنزيلات").setOnMenuItemClickListener { exportDocumentTxt(); true }
+       menu.add("تغيير اسم المستند").setOnMenuItemClickListener { showRenameDialog(); true }
+       menu.add("بحث واستبدال...").setOnMenuItemClickListener { showFindReplaceDialog(); true }
+       show()
+      }
+     } else {
+      currentTab=tabName
+      renderRibbon()
+     }
+    }
+   }
+   val indicator=View(this).apply { setBackgroundColor(Word365Theme.WORD_BLUE) }
+   col.addView(tv)
+   col.addView(indicator,LinearLayout.LayoutParams(-1,(2.2f*d).toInt().coerceAtLeast(2)))
+   tabViews[tabName]=tv to indicator
+   tabsRow.addView(col,LinearLayout.LayoutParams(-2,-2).apply { rightMargin=(2*d).toInt() })
+  }
+  tabsScroll.addView(tabsRow)
+  page.addView(tabsScroll)
+
+  // 3. Floating Rounded White Ribbon Card (Exact match to Word 365 Windows 11 screenshot)
+  val ribbonOuter=FrameLayout(this).apply {
+   setPadding((8*d).toInt(),(2*d).toInt(),(8*d).toInt(),(6*d).toInt())
+   setBackgroundColor(Word365Theme.SHELL_BG)
+  }
+  val ribbonCard=FrameLayout(this).apply {
+   elevation=3f*d
+   background=Word365Theme.floatingRibbonBg(d)
+  }
+  val ribbonScroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false }
+  val ribbonGroupsRow=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((8*d).toInt(),(4*d).toInt(),(8*d).toInt(),(4*d).toInt())
+  }
+  ribbonScroll.addView(ribbonGroupsRow)
+  ribbonCard.addView(ribbonScroll)
+  ribbonOuter.addView(ribbonCard,FrameLayout.LayoutParams(-1,(78*d).toInt()))
+  page.addView(ribbonOuter)
+
+  fun addRibbonDivider() {
+   ribbonGroupsRow.addView(View(this).apply { setBackgroundColor(Word365Theme.DIVIDER) },LinearLayout.LayoutParams(1,(62*d).toInt()).apply {
+    leftMargin=(6*d).toInt(); rightMargin=(6*d).toInt()
+   })
+  }
+
+  fun makeRibbonGroup(label:String,build:(LinearLayout)->Unit) {
+   val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL }
+   val body=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+   build(body)
+   col.addView(body,LinearLayout.LayoutParams(-2,(54*d).toInt()))
+   col.addView(TextView(this).apply {
+    text=label; textSize=8.5f; gravity=Gravity.CENTER; setTextColor(Word365Theme.TEXT_MUTED); maxLines=1
+   })
+   ribbonGroupsRow.addView(col)
+  }
+
+  fun smallIconBtn(label:String,wDp:Int=25,hDp:Int=22,bold:Boolean=false,active:Boolean=false,color:Int=Word365Theme.TEXT_DARK,onClick:(View)->Unit):TextView =
+   TextView(this).apply {
+    text=label; textSize=11f; gravity=Gravity.CENTER; setTextColor(color)
+    if(bold) typeface=Typeface.create("Arial",Typeface.BOLD)
+    background=Word365Theme.buttonBg(d,active)
+    setOnClickListener(onClick)
+    layoutParams=LinearLayout.LayoutParams((wDp*d).toInt(),(hDp*d).toInt()).apply { rightMargin=(2*d).toInt() }
+   }
+
+  fun performUndo() {
+   if(undoStack.isEmpty()) return
+   suppressHistory=true
+   redoStack.addLast(editor.text.toString())
+   val prev=undoStack.removeLast()
+   editor.setText(prev)
+   editor.setSelection(prev.length)
+   suppressHistory=false
+   persistRich(); updateStats()
+  }
+
+  fun performRedo() {
+   if(redoStack.isEmpty()) return
+   suppressHistory=true
+   undoStack.addLast(editor.text.toString())
+   val next=redoStack.removeLast()
+   editor.setText(next)
+   editor.setSelection(next.length)
+   suppressHistory=false
+   persistRich(); updateStats()
+  }
+
+  renderRibbon={
+   tabViews.forEach { (name,pair) ->
+    val isSel=name==currentTab
+    pair.first.typeface=Typeface.create("Arial",if(isSel) Typeface.BOLD else Typeface.NORMAL)
+    pair.first.setTextColor(if(isSel) Word365Theme.TEXT_DARK else Word365Theme.TEXT_MUTED)
+    pair.second.visibility=if(isSel) View.VISIBLE else View.INVISIBLE
+   }
+   ribbonGroupsRow.removeAllViews()
+
+   when(currentTab) {
+    "Home" -> {
+     // Undo / Redo group
+     makeRibbonGroup("Undo") { g ->
+      val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
+      col.addView(smallIconBtn("↶",26,24,bold=true) { performUndo() })
+      col.addView(smallIconBtn("↷",26,24,bold=true) { performRedo() })
+      g.addView(col)
+     }
+     addRibbonDivider()
+
+     // Clipboard group
+     makeRibbonGroup("Clipboard") { g ->
+      val pasteBtn=LinearLayout(this).apply {
+       orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+       setPadding((5*d).toInt(),(2*d).toInt(),(5*d).toInt(),(2*d).toInt())
+       background=Word365Theme.buttonBg(d,false)
+       setOnClickListener {
+        val cm=getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clipTxt=cm.primaryClip?.getItemAt(0)?.coerceToText(this@MainActivity)?.toString().orEmpty()
+        if(clipTxt.isNotEmpty()) {
+         val s=editor.selectionStart.coerceAtLeast(0)
+         val e=editor.selectionEnd.coerceAtLeast(s)
+         editor.text.replace(s,e,clipTxt)
+        } else Toast.makeText(this@MainActivity,"الحافظة فارغة",Toast.LENGTH_SHORT).show()
+       }
+      }
+      pasteBtn.addView(TextView(this).apply { text="📋"; textSize=16f; gravity=Gravity.CENTER })
+      pasteBtn.addView(TextView(this).apply { text="Paste ▾"; textSize=8.5f; gravity=Gravity.CENTER; setTextColor(Word365Theme.TEXT_DARK) })
+      g.addView(pasteBtn,LinearLayout.LayoutParams(-2,(50*d).toInt()).apply { rightMargin=(4*d).toInt() })
+
+      val stack=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+      fun clipMini(glyph:String,label:String,fn:()->Unit):TextView = TextView(this).apply {
+       text="$glyph $label"; textSize=9f; setTextColor(Word365Theme.TEXT_DARK)
+       setPadding((4*d).toInt(),(1*d).toInt(),(4*d).toInt(),(1*d).toInt())
+       setOnClickListener { fn() }
+      }
+      stack.addView(clipMini("✂","Cut") {
+       val s=minOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(0)
+       val e=maxOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(s)
+       if(e>s) {
+        val sel=editor.text.subSequence(s,e).toString()
+        val cm=getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("word",sel))
+        editor.text.delete(s,e)
+       } else Toast.makeText(this,"حدد نصًا للقص",Toast.LENGTH_SHORT).show()
+      })
+      stack.addView(clipMini("❐","Copy") {
+       val s=minOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(0)
+       val e=maxOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(s)
+       val txt=if(e>s) editor.text.subSequence(s,e).toString() else editor.text.toString()
+       val cm=getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+       cm.setPrimaryClip(android.content.ClipData.newPlainText("word",txt))
+       Toast.makeText(this,"تم النسخ",Toast.LENGTH_SHORT).show()
+      })
+      stack.addView(clipMini("🖌","Format Paint") {
+       WordRichTextHelper.clearFormatting(editor.text,editor.selectionStart,editor.selectionEnd)
+       persistRich()
+      })
+      g.addView(stack)
+     }
+     addRibbonDivider()
+
+     // Font group
+     makeRibbonGroup("Font") { g ->
+      val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+      val topRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+      val fontDrop=TextView(this).apply {
+       text="$fontName  ▾"; textSize=9.5f; setTextColor(Word365Theme.TEXT_DARK); gravity=Gravity.CENTER_VERTICAL
+       setPadding((6*d).toInt(),0,(6*d).toInt(),0); maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END
+       background=Word365Theme.dropdownBg(d)
+       setOnClickListener { anchor ->
+        android.widget.PopupMenu(this@MainActivity,anchor).apply {
+         listOf(
+          "Calibri (Body)" to Typeface.SANS_SERIF,
+          "Times New Roman" to Typeface.SERIF,
+          "Courier New" to Typeface.MONOSPACE,
+          "Arial" to Typeface.DEFAULT
+         ).forEach { (fn,tf) ->
+          menu.add(fn).setOnMenuItemClickListener {
+           fontName=fn; editor.typeface=tf; renderRibbon(); true
+          }
+         }
+         show()
+        }
+       }
+      }
+      val sizeDrop=TextView(this).apply {
+       text="${fontSizeSp.toInt()} ▾"; textSize=9.5f; setTextColor(Word365Theme.TEXT_DARK); gravity=Gravity.CENTER
+       setPadding((4*d).toInt(),0,(4*d).toInt(),0)
+       background=Word365Theme.dropdownBg(d)
+       setOnClickListener { anchor ->
+        android.widget.PopupMenu(this@MainActivity,anchor).apply {
+         listOf(10,11,12,14,16,18,22,26).forEach { sz ->
+          menu.add("$sz pt").setOnMenuItemClickListener {
+           fontSizeSp=sz.toFloat(); editor.textSize=fontSizeSp+3f; renderRibbon(); true
+          }
+         }
+         show()
+        }
+       }
+      }
+      topRow.addView(fontDrop,LinearLayout.LayoutParams((100*d).toInt(),(22*d).toInt()).apply { rightMargin=(3*d).toInt() })
+      topRow.addView(sizeDrop,LinearLayout.LayoutParams((36*d).toInt(),(22*d).toInt()).apply { rightMargin=(3*d).toInt() })
+      topRow.addView(smallIconBtn("A^",23,22) { fontSizeSp=(fontSizeSp+2f).coerceAtMost(36f); editor.textSize=fontSizeSp+3f; renderRibbon() })
+      topRow.addView(smallIconBtn("Aˇ",23,22) { fontSizeSp=(fontSizeSp-2f).coerceAtLeast(9f); editor.textSize=fontSizeSp+3f; renderRibbon() })
+      topRow.addView(smallIconBtn("Aa",25,22) { anchor ->
+       android.widget.PopupMenu(this@MainActivity,anchor).apply {
+        val s=minOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(0)
+        val e=maxOf(editor.selectionStart,editor.selectionEnd).coerceAtLeast(s)
+        val a=if(e>s) s else 0; val b=if(e>s) e else editor.text.length
+        menu.add("UPPERCASE").setOnMenuItemClickListener { editor.text.replace(a,b,editor.text.subSequence(a,b).toString().uppercase(Locale.getDefault())); true }
+        menu.add("lowercase").setOnMenuItemClickListener { editor.text.replace(a,b,editor.text.subSequence(a,b).toString().lowercase(Locale.getDefault())); true }
+        show()
+       }
+      })
+      topRow.addView(smallIconBtn("A×",23,22) { WordRichTextHelper.clearFormatting(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() })
+      col.addView(topRow,LinearLayout.LayoutParams(-2,(24*d).toInt()).apply { bottomMargin=(3*d).toInt() })
+
+      val botRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+      botRow.addView(smallIconBtn("B",24,22,bold=true) { WordRichTextHelper.toggleBold(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() })
+      botRow.addView(smallIconBtn("I",24,22) { WordRichTextHelper.toggleItalic(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() }.apply { typeface=Typeface.create(Typeface.SERIF,Typeface.ITALIC) })
+      botRow.addView(smallIconBtn("U",24,22) { WordRichTextHelper.toggleUnderline(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() }.apply { paintFlags=paintFlags or Paint.UNDERLINE_TEXT_FLAG })
+      botRow.addView(smallIconBtn("ab",24,22) { WordRichTextHelper.toggleStrikethrough(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() }.apply { paintFlags=paintFlags or Paint.STRIKE_THRU_TEXT_FLAG })
+      botRow.addView(smallIconBtn("x₂",24,22) { WordRichTextHelper.toggleSubscript(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() })
+      botRow.addView(smallIconBtn("x²",24,22) { WordRichTextHelper.toggleSuperscript(editor.text,editor.selectionStart,editor.selectionEnd); persistRich() })
+      botRow.addView(smallIconBtn("A",24,22,bold=true,color=Word365Theme.WORD_BLUE) { WordRichTextHelper.applyTextColor(editor.text,editor.selectionStart,editor.selectionEnd,Word365Theme.WORD_BLUE); persistRich() })
+      botRow.addView(smallIconBtn("🖍",24,22) { WordRichTextHelper.toggleHighlight(editor.text,editor.selectionStart,editor.selectionEnd,Color.rgb(255,245,120)); persistRich() })
+      botRow.addView(smallIconBtn("A̲",26,22,bold=true,color=Color.rgb(196,43,28)) { anchor ->
+       android.widget.PopupMenu(this@MainActivity,anchor).apply {
+        listOf(
+         "أسود تلقائي" to Word365Theme.TEXT_DARK,
+         "أزرق Word" to Word365Theme.WORD_BLUE,
+         "أحمر" to Color.rgb(196,43,28),
+         "أخضر" to Color.rgb(33,115,70),
+         "برتقالي" to Color.rgb(216,96,24)
+        ).forEach { (label,colVal) ->
+         menu.add(label).setOnMenuItemClickListener {
+          fontColor=colVal
+          WordRichTextHelper.applyTextColor(editor.text,editor.selectionStart,editor.selectionEnd,colVal)
+          persistRich(); true
+         }
+        }
+        show()
+       }
+      })
+      col.addView(botRow)
+      g.addView(col)
+     }
+     addRibbonDivider()
+
+     // Paragraph group
+     makeRibbonGroup("Paragraph") { g ->
+      val col=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+      val topRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+      topRow.addView(smallIconBtn("•≡",26,22) { WordRichTextHelper.toggleLinePrefix(editor.text,editor.selectionStart,"• "); persistRich() })
+      topRow.addView(smallIconBtn("1≡",26,22) { WordRichTextHelper.toggleLinePrefix(editor.text,editor.selectionStart,"1. "); persistRich() })
+      topRow.addView(smallIconBtn("⇥",24,22) { WordRichTextHelper.toggleLinePrefix(editor.text,editor.selectionStart,"    "); persistRich() })
+      topRow.addView(smallIconBtn("A↓",24,22) {
+       val sorted=editor.text.toString().lines().sorted().joinToString("\n")
+       editor.setText(sorted)
+      })
+      topRow.addView(smallIconBtn("¶",22,22,active=showParagraphMarks) {
+       showParagraphMarks=!showParagraphMarks
+       renderRibbon()
+       Toast.makeText(this,if(showParagraphMarks) "عرض علامات الفقرة: مُفعّل" else "عرض علامات الفقرة: متوقف",Toast.LENGTH_SHORT).show()
+      })
+      col.addView(topRow,LinearLayout.LayoutParams(-2,(24*d).toInt()).apply { bottomMargin=(3*d).toInt() })
+
+      val botRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+      botRow.addView(smallIconBtn("⫷",24,22,active=(editor.gravity and Gravity.HORIZONTAL_GRAVITY_MASK)==Gravity.LEFT) {
+       editor.gravity=Gravity.TOP or Gravity.LEFT; renderRibbon()
+      })
+      botRow.addView(smallIconBtn("≣",24,22,active=(editor.gravity and Gravity.HORIZONTAL_GRAVITY_MASK)==Gravity.CENTER_HORIZONTAL) {
+       editor.gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL; renderRibbon()
+      })
+      botRow.addView(smallIconBtn("⫸",24,22,active=(editor.gravity and Gravity.HORIZONTAL_GRAVITY_MASK)==Gravity.RIGHT) {
+       editor.gravity=Gravity.TOP or Gravity.RIGHT; renderRibbon()
+      })
+      botRow.addView(smallIconBtn("↕",24,22) {
+       lineMult=when { lineMult<1.1f -> 1.22f; lineMult<1.4f -> 1.5f; else -> 1.0f }
+       editor.setLineSpacing(0f,lineMult)
+       Toast.makeText(this,"تباعد الأسطر: $lineMult",Toast.LENGTH_SHORT).show()
+      })
+      botRow.addView(smallIconBtn("⊞",24,22) {
+       pagePaperColor=if(pagePaperColor==Color.WHITE) Color.rgb(252,249,240) else Color.WHITE
+       applyPageLayout()
+      })
+      col.addView(botRow)
+      g.addView(col)
+     }
+     addRibbonDivider()
+
+     // Styles gallery matching "AaBbCc Normal | No Spacing | Heading 1 | Heading 2"
+     makeRibbonGroup("Style") { g ->
+      fun styleCard(title:String,sampleSize:Float,boldSample:Boolean,sampleColor:Int,onApply:()->Unit) {
+       val isSel=activeStyle==title
+       val card=LinearLayout(this).apply {
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER
+        setPadding((8*d).toInt(),(3*d).toInt(),(8*d).toInt(),(3*d).toInt())
+        background=Word365Theme.styleCardBg(d,isSel)
+        isClickable=true
+        setOnClickListener { activeStyle=title; onApply(); renderRibbon(); persistRich() }
+       }
+       card.addView(TextView(this).apply {
+        text="AaBbCc"; textSize=sampleSize; setTextColor(sampleColor)
+        if(boldSample) typeface=Typeface.create("Arial",Typeface.BOLD)
+        gravity=Gravity.CENTER; maxLines=1
+       })
+       card.addView(TextView(this).apply {
+        text=title; textSize=8f; setTextColor(if(isSel) Word365Theme.WORD_BLUE else Word365Theme.TEXT_MUTED)
+        gravity=Gravity.CENTER; maxLines=1
+       })
+       g.addView(card,LinearLayout.LayoutParams((68*d).toInt(),(48*d).toInt()).apply { rightMargin=(4*d).toInt() })
+      }
+      styleCard("Normal",12f,false,Word365Theme.TEXT_DARK) {
+       lineMult=1.22f; editor.setLineSpacing(0f,lineMult)
+       WordRichTextHelper.applyRelativeSize(editor.text,editor.selectionStart,editor.selectionEnd,1.0f)
+       WordRichTextHelper.applyTextColor(editor.text,editor.selectionStart,editor.selectionEnd,Word365Theme.TEXT_DARK)
+      }
+      styleCard("No Spacing",12f,false,Word365Theme.TEXT_DARK) {
+       lineMult=1.0f; editor.setLineSpacing(0f,lineMult)
+       WordRichTextHelper.applyRelativeSize(editor.text,editor.selectionStart,editor.selectionEnd,1.0f)
+      }
+      styleCard("Heading 1",13f,true,Word365Theme.WORD_BLUE) {
+       WordRichTextHelper.applyRelativeSize(editor.text,editor.selectionStart,editor.selectionEnd,1.45f)
+       WordRichTextHelper.applyTextColor(editor.text,editor.selectionStart,editor.selectionEnd,Word365Theme.WORD_BLUE)
+      }
+      styleCard("Heading 2",12f,true,Color.rgb(47,85,151)) {
+       WordRichTextHelper.applyRelativeSize(editor.text,editor.selectionStart,editor.selectionEnd,1.25f)
+       WordRichTextHelper.applyTextColor(editor.text,editor.selectionStart,editor.selectionEnd,Color.rgb(47,85,151))
+      }
+      styleCard("Title",14f,true,Word365Theme.TEXT_DARK) {
+       WordRichTextHelper.applyRelativeSize(editor.text,editor.selectionStart,editor.selectionEnd,1.7f)
+      }
+     }
+    }
+
+    "Insert" -> {
+     makeRibbonGroup("Pages & Tables") { g ->
+      g.addView(smallIconBtn("📅 Date",64,34) {
+       val dt=java.text.SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(java.util.Date())
+       editor.text.insert(editor.selectionStart.coerceAtLeast(0),dt)
+      })
+      g.addView(smallIconBtn("⊞ Table",64,34) {
+       val tbl="\n| العمود 1 | العمود 2 | العمود 3 |\n|---------|---------|---------|\n| بيان 1  | بيان 2  | بيان 3  |\n"
+       editor.text.insert(editor.selectionStart.coerceAtLeast(0),tbl)
+      })
+      g.addView(smallIconBtn("── Line",60,34) {
+       editor.text.insert(editor.selectionStart.coerceAtLeast(0),"\n────────────────────────────\n")
+      })
+      g.addView(smallIconBtn("⏎ Break",62,34) {
+       editor.text.insert(editor.selectionStart.coerceAtLeast(0),"\n\n========== صفحة جديدة ==========\n\n")
+      })
+     }
+    }
+
+    "Design","Layout" -> {
+     makeRibbonGroup("Page Setup") { g ->
+      g.addView(smallIconBtn("صفحة بيضاء",78,34) { pagePaperColor=Color.WHITE; applyPageLayout() })
+      g.addView(smallIconBtn("ورق دافئ",72,34) { pagePaperColor=Color.rgb(252,248,236); applyPageLayout() })
+      g.addView(smallIconBtn("أزرق هادئ",72,34) { pagePaperColor=Color.rgb(243,248,255); applyPageLayout() })
+      g.addView(smallIconBtn("هوامش قياسية",82,34) { marginDp=28; applyPageLayout() })
+      g.addView(smallIconBtn("هوامش ضيقة",78,34) { marginDp=14; applyPageLayout() })
+     }
+    }
+
+    "Review","View","Help" -> {
+     makeRibbonGroup("Proofing & View") { g ->
+      g.addView(smallIconBtn("🔍 Find/Replace",96,34) { showFindReplaceDialog() })
+      g.addView(smallIconBtn("📊 Word Count",88,34) {
+       val t=editor.text.toString()
+       AlertDialog.Builder(this).setTitle("إحصائيات المستند")
+        .setMessage("الكلمات: ${WordRichTextHelper.countWords(t)}\nالأحرف: ${t.length}\nالأسطر: ${t.lines().size}")
+        .setPositiveButton("حسنًا",null).show()
+      })
+      g.addView(smallIconBtn(if(readOnlyMode) "✎ Edit Mode" else "📖 Read Mode",90,34,active=readOnlyMode) {
+       readOnlyMode=!readOnlyMode
+       editor.isFocusable=!readOnlyMode
+       editor.isFocusableInTouchMode=!readOnlyMode
+       renderRibbon()
+      })
+      g.addView(smallIconBtn("💾 Save TXT",80,34,bold=true,color=Word365Theme.WORD_BLUE) { exportDocumentTxt() })
+     }
+    }
+
+    else -> {
+     makeRibbonGroup(currentTab) { g ->
+      g.addView(smallIconBtn("📂 فتح ملف",76,34) { openWordFile() })
+      g.addView(smallIconBtn("💾 حفظ TXT",76,34) { exportDocumentTxt() })
+      g.addView(smallIconBtn("🔍 بحث",66,34) { showFindReplaceDialog() })
+      g.addView(smallIconBtn("↺ العودة إلى Home",108,34,bold=true,color=Word365Theme.WORD_BLUE) {
+       currentTab="Home"; renderRibbon()
+      })
+     }
+    }
+   }
+  }
+
+  // 4. Document Stage: Cool Backdrop + Centered White Paper Page
+  val pageStageScroll=ScrollView(this).apply {
+   setBackgroundColor(Word365Theme.STAGE_BG)
+   isFillViewport=true
+  }
+  val stageCenterWrap=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL
+   setPadding((16*d).toInt(),(14*d).toInt(),(16*d).toInt(),(20*d).toInt())
+  }
+  pageSheet=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   elevation=4f*d
+   background=Word365Theme.pageSheetBg(d,pagePaperColor)
+  }
+
+  val initialHtml=wordPrefs.getString("rich_html",null)
+  val initialDraft=wordPrefs.getString("draft","").orEmpty()
+  editor=EditText(this).apply {
+   tag="orkeit-word-editor"
+   hint="ابدأ الكتابة هنا..."
+   gravity=Gravity.TOP or Gravity.START
+   textSize=fontSizeSp+3f
+   typeface=Typeface.SANS_SERIF
+   setTextColor(fontColor)
+   setHintTextColor(Color.rgb(172,180,192))
+   background=null
+   setLineSpacing(0f,lineMult)
+   minHeight=(420*d).toInt()
+   if(!initialHtml.isNullOrBlank()) {
+    val spanned=if(Build.VERSION.SDK_INT>=24) android.text.Html.fromHtml(initialHtml,android.text.Html.FROM_HTML_MODE_LEGACY)
+    else @Suppress("DEPRECATION") android.text.Html.fromHtml(initialHtml)
+    setText(spanned)
+   } else {
+    setText(initialDraft)
+   }
+   addTextChangedListener(object:android.text.TextWatcher {
+    private var beforeTxt=""
+    override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {
+     if(!suppressHistory) beforeTxt=s?.toString().orEmpty()
+    }
+    override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+     savedBadge.text="Saving..."
+     if(!suppressHistory && s?.toString()!=beforeTxt) {
+      if(undoStack.size>40) undoStack.removeFirst()
+      undoStack.addLast(beforeTxt)
+      redoStack.clear()
+     }
+     persistRich()
+     updateStats()
+    }
+    override fun afterTextChanged(s:android.text.Editable?) {}
+   })
+  }
+
+  applyPageLayout={
+   val scale=zoomPct/100f
+   val padPx=(marginDp*d*scale).toInt().coerceIn((10*d).toInt(),(48*d).toInt())
+   pageSheet.background=Word365Theme.pageSheetBg(d,pagePaperColor)
+   pageSheet.setPadding(padPx,padPx,padPx,padPx)
+   editor.textSize=(fontSizeSp+3f)*scale
+   zoomLabel.text="$zoomPct%"
+  }
+
+  pageSheet.addView(editor,LinearLayout.LayoutParams(-1,-1))
+  val maxPageWidthPx=(660*d).toInt().coerceAtMost((resources.displayMetrics.widthPixels-(36*d).toInt()).coerceAtLeast((260*d).toInt()))
+  stageCenterWrap.addView(pageSheet,LinearLayout.LayoutParams(maxPageWidthPx,-1))
+  pageStageScroll.addView(stageCenterWrap)
+  page.addView(pageStageScroll,LinearLayout.LayoutParams(-1,0,1f))
+
+  // 5. Bottom Status Bar: Page | Word Count | Modes | Zoom
+  page.addView(View(this).apply { setBackgroundColor(Word365Theme.DIVIDER) },LinearLayout.LayoutParams(-1,1))
+  val statusBar=LinearLayout(this).apply {
+   orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+   setPadding((10*d).toInt(),(2*d).toInt(),(10*d).toInt(),(2*d).toInt())
+   setBackgroundColor(Word365Theme.SHELL_BG)
+  }
+  wordCountLabel=TextView(this).apply {
+   text="Page 1 of 1   •   0 words   •   0 characters"; textSize=9.2f; setTextColor(Word365Theme.TEXT_MUTED)
+  }
+  zoomLabel=TextView(this).apply {
+   text="100%"; textSize=9.5f; gravity=Gravity.CENTER; setTextColor(Word365Theme.TEXT_DARK)
+  }
+  val zoomOut=TextView(this).apply {
+   text="−"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Word365Theme.TEXT_DARK)
+   setOnClickListener { zoomPct=(zoomPct-10).coerceAtLeast(60); applyPageLayout() }
+  }
+  val zoomIn=TextView(this).apply {
+   text="+"; textSize=13f; gravity=Gravity.CENTER; setTextColor(Word365Theme.TEXT_DARK)
+   setOnClickListener { zoomPct=(zoomPct+10).coerceAtMost(180); applyPageLayout() }
+  }
+  statusBar.addView(wordCountLabel,LinearLayout.LayoutParams(0,-2,1f))
+  statusBar.addView(zoomOut,LinearLayout.LayoutParams((22*d).toInt(),(20*d).toInt()))
+  statusBar.addView(zoomLabel,LinearLayout.LayoutParams((40*d).toInt(),(20*d).toInt()))
+  statusBar.addView(zoomIn,LinearLayout.LayoutParams((22*d).toInt(),(20*d).toInt()))
+  page.addView(statusBar,LinearLayout.LayoutParams(-1,(24*d).toInt()))
+
+  updateStats={
+   val txt=editor.text.toString()
+   val words=WordRichTextHelper.countWords(txt)
+   val pages=((txt.length/1800)+1).coerceAtLeast(1)
+   wordCountLabel.text="Page 1 of $pages   •   $words words   •   ${txt.length} characters"
+  }
+
+  applyPageLayout()
+  renderRibbon()
+  updateStats()
+  panel(page)
  }
  private fun showExcel() {
   shell("Excel")
