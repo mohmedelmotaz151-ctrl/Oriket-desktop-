@@ -54,6 +54,7 @@ export const WindowShell: React.FC<WindowShellProps> = ({
   const isWord = win.appId === 'word';
   const isPaint = win.appId === 'paint';
   const isRecycle = win.appId === 'recycle_bin';
+  const isGames = win.appId === 'games';
 
   const outerStyle: React.CSSProperties = win.maximized
     ? {
@@ -155,12 +156,14 @@ export const WindowShell: React.FC<WindowShellProps> = ({
     ? 'bg-[#F3F5F8] text-[#122036]'
     : isPaint
     ? 'bg-[#F3F5F9] text-[#122036]'
-    : isRecycle
+    : isRecycle || isGames
     ? 'bg-white text-[#122036]'
     : 'bg-[#F5F8FC] text-[#122036]';
 
   const bodyBgClass = isWmp
     ? 'bg-[#060C18]'
+    : isGames
+    ? 'bg-[#080A0F]'
     : isWord
     ? 'bg-[#ECF0F6]'
     : isPaint

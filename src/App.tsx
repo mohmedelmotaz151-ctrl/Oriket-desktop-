@@ -179,6 +179,7 @@ export const App: React.FC = () => {
         appId === 'word' ||
         appId === 'excel' ||
         appId === 'paint' ||
+        appId === 'games' ||
         appId === 'my_computer' ||
         appId === 'recycle_bin';
 
@@ -592,12 +593,7 @@ export const App: React.FC = () => {
               />
             )}
             {win.appId === 'command' && <CommandApp />}
-            {(win.appId === 'games' || win.appId === 'snake') && (
-              <GamesApp
-                initialGame={win.appId === 'snake' ? 'snake' : 'menu'}
-                onNotify={notify}
-              />
-            )}
+            {win.appId === 'games' && <GamesApp onNotify={notify} />}
             {win.appId === 'about' && <AboutApp />}
           </WindowShell>
         ))}

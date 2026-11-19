@@ -12,7 +12,6 @@ export type AppId =
   | 'task_manager'
   | 'command'
   | 'games'
-  | 'snake'
   | 'calculator'
   | 'notepad'
   | 'recycle_bin'
