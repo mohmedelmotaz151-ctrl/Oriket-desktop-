@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const gradlePath = 'android/app/build.gradle';
 const manifestPath = 'android/app/src/main/AndroidManifest.xml';
@@ -52,4 +52,23 @@ if (!/android:screenOrientation=/.test(activityTag[0])) {
   manifest = manifest.replace(activityTag[0], activityTag[0].replace(/>$/, ' android:screenOrientation="landscape">'));
 }
 writeFileSync(manifestPath, manifest);
+/* Restore the Windows Start logo as the Android launcher icon. */
+const iconSource = 'public/icons/win11_start.png';
+const resDir = 'android/app/src/main/res';
+if (existsSync(iconSource)) {
+  const densityDirs = ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi', 'mipmap-xxxhdpi'];
+  for (const dir of densityDirs) {
+    mkdirSync(`${resDir}/${dir}`, { recursive: true });
+    copyFileSync(iconSource, `${resDir}/${dir}/ic_launcher.png`);
+    copyFileSync(iconSource, `${resDir}/${dir}/ic_launcher_round.png`);
+  }
+  mkdirSync(`${resDir}/drawable`, { recursive: true });
+  copyFileSync(iconSource, `${resDir}/drawable/ic_windows_launcher.png`);
+  const adaptiveDir = `${resDir}/mipmap-anydpi-v26`;
+  mkdirSync(adaptiveDir, { recursive: true });
+  const adaptiveIcon = `<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background" />\n    <foreground android:drawable="@drawable/ic_windows_launcher" />\n</adaptive-icon>\n`;
+  writeFileSync(`${adaptiveDir}/ic_launcher.xml`, adaptiveIcon);
+  writeFileSync(`${adaptiveDir}/ic_launcher_round.xml`, adaptiveIcon);
+}
+
 console.log('Prepared Capacitor Android project: ' + versionName + ' (versionCode ' + versionCode + '), landscape, stable package ID, and preserved AdMob app ID.');
