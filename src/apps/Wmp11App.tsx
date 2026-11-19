@@ -164,18 +164,35 @@ export const Wmp11App: React.FC<Wmp11AppProps> = ({
   };
 
   const handleOpenAudioFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    const added: AudioTrack[] = files.map((file, i) => ({
-      id: `aud_${Date.now()}_${i}`,
+    const files = Array.from(e.target.files || []).filter((file) =>
+      file.type.startsWith('audio/') || /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|wma|aiff|mid|midi)$/i.test(file.name)
+    );
+    if (files.length === 0) {
+      onNotify('مشغل الموسيقى', 'لم يتم اختيار ملفات صوتية مدعومة');
+      e.target.value = '';
+      return;
+    }
+
+    const known = new Set(tracks.map((track) => track.title.toLowerCase()));
+    const uniqueFiles = files.filter((file) => !known.has(file.name.replace(/\.[^.]+$/, '').toLowerCase()));
+    const added: AudioTrack[] = uniqueFiles.map((file, i) => ({
+      id: `device_${Date.now()}_${i}_${file.size}`,
       title: file.name.replace(/\.[^.]+$/, ''),
-      artist: 'ملف محلي',
+      artist: 'من الجهاز',
       url: URL.createObjectURL(file),
     }));
-    const startIdx = tracks.length;
-    setTracks((prev) => [...prev, ...added]);
-    setCurrentIndex(startIdx);
-    onNotify('مشغل الموسيقى', `تمت إضافة ${added.length} مقطع صوتي`);
+
+    if (added.length > 0) {
+      const startIdx = tracks.length;
+      setTracks((prev) => [...prev, ...added]);
+      setCurrentIndex(startIdx);
+      setActiveTab('library');
+    }
+    const skipped = files.length - added.length;
+    onNotify(
+      'مكتبة الموسيقى',
+      `تمت إضافة ${added.length} من ${files.length} ملف صوتي${skipped ? `، وتم تجاوز ${skipped} ملف مكرر` : ''}. يمكنك تحديد عدة ملفات دفعة واحدة من جهازك.`
+    );
     e.target.value = '';
   };
 
@@ -295,7 +312,7 @@ export const Wmp11App: React.FC<Wmp11AppProps> = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          title="فتح ملف صوتي"
+          title="إضافة عدة ملفات موسيقى من الجهاز"
           className="ml-auto px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs cursor-pointer"
         >
           📂
@@ -319,7 +336,7 @@ export const Wmp11App: React.FC<Wmp11AppProps> = ({
                   {currentTrack ? currentTrack.title : 'Windows Media Player 11'}
                 </div>
                 <div className="text-xs text-cyan-200/80">
-                  {currentTrack ? currentTrack.artist : 'اختر مقاطع صوتية أو حمّل موسيقى تجريبية'}
+                  {currentTrack ? currentTrack.artist : 'اختر موسيقى من جهازك لإضافتها إلى المكتبة'}
                 </div>
                 {tracks.length === 0 && (
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-2 pointer-events-auto" dir="rtl">
