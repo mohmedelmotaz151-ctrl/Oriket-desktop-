@@ -277,7 +277,7 @@ export const App: React.FC = () => {
       const downloadUrl = asset?.browser_download_url || release.html_url;
       if (!downloadUrl) throw new Error('رابط التحديث غير متاح');
 
-      const versionCode = Number(release.body?.match(/"versionCode"\\s*:\\s*(\\d+)/)?.[1] || 0);
+      const versionCode = Number(release.body?.match(/"versionCode"\s*:\s*(\d+)/)?.[1] || 0);
       let installedBuild = 0;
       if (Capacitor.isNativePlatform()) {
         try {
