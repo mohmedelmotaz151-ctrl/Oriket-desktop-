@@ -47,8 +47,6 @@ export const WindowShell: React.FC<WindowShellProps> = ({
     }
   }, [contextMenu]);
 
-  if (win.minimized) return null;
-
   const isWmp = win.appId === 'music_player';
   const isExcel = win.appId === 'excel';
   const isWord = win.appId === 'word';
@@ -63,6 +61,7 @@ export const WindowShell: React.FC<WindowShellProps> = ({
         width: '100%',
         height: '100%',
         zIndex: win.zIndex,
+        display: win.minimized ? 'none' : 'flex',
       }
     : {
         left: win.x,
@@ -70,6 +69,7 @@ export const WindowShell: React.FC<WindowShellProps> = ({
         width: win.width,
         height: win.height,
         zIndex: win.zIndex,
+        display: win.minimized ? 'none' : 'flex',
       };
 
   const startDrag = (e: React.PointerEvent) => {
@@ -190,7 +190,7 @@ export const WindowShell: React.FC<WindowShellProps> = ({
           e.preventDefault();
           setContextMenu({ x: e.clientX, y: e.clientY });
         }}
-        className={`h-[38px] shrink-0 flex items-center px-2.5 select-none cursor-default ${titlebarClass}`}
+        className={`h-8 shrink-0 flex items-center px-2 select-none cursor-default ${titlebarClass}`}
       >
         <img
           src={getIconPathForTitle(win.title)}
@@ -241,7 +241,7 @@ export const WindowShell: React.FC<WindowShellProps> = ({
             type="button"
             onClick={onMinimize}
             title="تصغير"
-            className={`w-9 h-8 rounded-md flex items-center justify-center text-xs transition cursor-pointer ${
+            className={`w-8 h-7 rounded-md flex items-center justify-center text-xs transition cursor-pointer ${
               isWmp
                 ? 'bg-white/10 hover:bg-white/20 text-[#DCE8F8]'
                 : isExcel
