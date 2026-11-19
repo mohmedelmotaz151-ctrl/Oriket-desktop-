@@ -57,6 +57,8 @@ const KEY_SCALE = 'orkeit_desktop_scale';
 
 export const App: React.FC = () => {
   const [phase, setPhase] = useState<SystemPhase>('boot');
+  // Keep the boot completion callback stable; the desktop clock rerenders this component every second.
+  const handleBootComplete = useCallback(() => setPhase('login'), []);
   const [wallpaperStyle, setWallpaperStyle] = useState<WallpaperStyle>(() => {
     const v = Number(localStorage.getItem(KEY_WALLPAPER) || '0');
     return v === 1 || v === 2 ? v : 0;
@@ -397,7 +399,7 @@ export const App: React.FC = () => {
     return (
       <BootScreen
         soundEnabled={soundEnabled}
-        onComplete={() => setPhase('login')}
+        onComplete={handleBootComplete}
       />
     );
   }
