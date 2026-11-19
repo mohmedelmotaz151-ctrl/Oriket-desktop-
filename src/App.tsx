@@ -117,6 +117,12 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const syncFullscreenState = () => setIsBrowserFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+
+  useEffect(() => {
     const measure = () => {
       if (stageRef.current) {
         setDesktopBounds({
@@ -353,14 +359,17 @@ export const App: React.FC = () => {
   const toggleBrowserFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-        setIsBrowserFullscreen(true);
+        const target = document.documentElement;
+        if (target.requestFullscreen) {
+          await target.requestFullscreen();
+        } else {
+          throw new Error('Fullscreen API is unavailable');
+        }
       } else {
         await document.exitFullscreen();
-        setIsBrowserFullscreen(false);
       }
     } catch {
-      // ignore if blocked
+      notify('ملء الشاشة', 'تعذر تفعيل ملء الشاشة من داخل النظام. جرّب زر ملء الشاشة في إعدادات التطبيق أو وضع العرض الأفقي.');
     }
   };
 
@@ -647,7 +656,7 @@ export const App: React.FC = () => {
       {/* Windows 11 Frosted Glass Taskbar */}
       <footer
         onClick={(e) => e.stopPropagation()}
-        className="relative z-[800] h-12 shrink-0 bg-[#EFF4F9]/88 backdrop-blur-xl border-t border-white/80 px-2.5 flex items-center justify-between gap-2"
+        className="relative z-[800] h-10 shrink-0 bg-[#EFF4F9]/88 backdrop-blur-xl border-t border-white/80 px-2.5 flex items-center justify-between gap-2"
       >
         {/* Left/Right Tray */}
         <div className="flex items-center gap-1">
@@ -716,7 +725,7 @@ export const App: React.FC = () => {
               setShowQuickSettings(false);
               setShowNotifications(false);
             }}
-            className="w-9 h-9 rounded-lg hover:bg-white/70 flex items-center justify-center transition cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg hover:bg-white/70 flex items-center justify-center transition cursor-pointer shrink-0"
             title="بحث"
           >
             <img src="/icons/win11_search.png" alt="Search" className="w-5 h-5 object-contain" />
