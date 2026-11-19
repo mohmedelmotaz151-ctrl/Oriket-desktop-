@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { AboutApp } from './apps/AboutApp';
 import { BrowserApp } from './apps/BrowserApp';
 import { CalculatorApp } from './apps/CalculatorApp';
@@ -257,14 +260,54 @@ export const App: React.FC = () => {
   const checkForUpdates = useCallback(async () => {
     notify('تحديث التطبيق', 'جاري التحقق من أحدث إصدار عبر GitHub...');
     try {
+      // The direct-download release is tagged "latest" and marked as a prerelease.
       const res = await fetch(
-        'https://api.github.com/repos/mohmedelmotaz151-ctrl/Oriket-desktop-/releases/latest'
+        'https://api.github.com/repos/mohmedelmotaz151-ctrl/Oriket-desktop-/releases/tags/latest',
+        { headers: { Accept: 'application/vnd.github+json' } }
       );
-      if (!res.ok) throw new Error('No release');
-      const json = (await res.json()) as { tag_name?: string; name?: string };
-      notify('تحديث التطبيق', `أحدث إصدار متاح: ${json.tag_name || json.name || '1.0.0'}`);
-    } catch {
-      notify('تحديث التطبيق', 'أنت تستخدم أحدث إصدار من Oriket Desktop Web (1.0.0)');
+      if (!res.ok) throw new Error('تعذر الوصول إلى إصدار GitHub');
+      const release = (await res.json()) as {
+        tag_name?: string;
+        name?: string;
+        body?: string;
+        html_url?: string;
+        assets?: Array<{ name?: string; browser_download_url?: string }>;
+      };
+      const asset = release.assets?.find((item) => item.name === 'orkeit-desktop.apk');
+      const downloadUrl = asset?.browser_download_url || release.html_url;
+      if (!downloadUrl) throw new Error('رابط التحديث غير متاح');
+
+      const versionCode = Number(release.body?.match(/"versionCode"\\s*:\\s*(\\d+)/)?.[1] || 0);
+      let installedBuild = 0;
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const info = await CapacitorApp.getInfo();
+          installedBuild = Number(info.build) || 0;
+        } catch {
+          // Continue if native version info is unavailable.
+        }
+      }
+
+      const releaseName = release.name || release.tag_name || 'آخر إصدار';
+      if (Capacitor.isNativePlatform() && versionCode > 0 && installedBuild > 0 && versionCode <= installedBuild) {
+        notify('تحديث التطبيق', 'أنت تستخدم أحدث إصدار بالفعل (' + releaseName + ').');
+        return;
+      }
+
+      const message = Capacitor.isNativePlatform()
+        ? 'يتوفر تحديث جديد من Oriket Desktop (' + releaseName + '). سيتم فتح صفحة تنزيل APK؛ بعد اكتمال التنزيل افتح الملف لتثبيته فوق النسخة الحالية.'
+        : 'يتوفر إصدار ' + releaseName + '. هل تريد فتح تنزيل APK؟';
+      if (!window.confirm(message)) return;
+
+      if (Capacitor.isNativePlatform()) {
+        await Browser.open({ url: downloadUrl });
+      } else {
+        window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      }
+      notify('تحديث التطبيق', 'تم فتح رابط تنزيل التحديث. أكمل التثبيت من إشعار التنزيل بعد اكتماله.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      notify('تحديث التطبيق', 'تعذر التحقق من التحديث: ' + message);
     }
   }, [notify]);
 
