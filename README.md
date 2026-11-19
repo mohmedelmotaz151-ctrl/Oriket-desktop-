@@ -1,38 +1,31 @@
-# Oriket Desktop — Android
+# Oriket Desktop (Web Edition)
 
-تطبيق أندرويد أصلي مستقل باسم **Oriket Desktop**، وليس تطبيق ويب أو PWA. يقدم واجهة سطح مكتب مبسطة على الهاتف.
+Windows 11-inspired desktop environment rewritten as a **React + TypeScript + Vite + Tailwind CSS** web application.
 
-## وظائف النسخة الأولى
-- واجهة سطح مكتب عربية مع أيقونات وشريط مهام.
-- فتح المواقع في متصفح أندرويد المثبت.
-- رسام يعمل باللمس ويحفظ PNG في صور الهاتف.
-- اختيار ملفات PDF والملفات الأخرى عبر منتقي ملفات أندرويد وفتحها بالتطبيقات المناسبة.
-- فتح إعدادات النظام والحاسبة إذا كانت مثبتة.
+## Features
+- **Boot & Salted SHA-256 Lock Screen**: Animated Windows-inspired boot sequence and local password protection.
+- **Multi-Window Desktop Shell**: Draggable, resizable, snappable, minimizable, and maximizable windows with frosted-glass Taskbar, Start Menu, Quick Settings (with desktop display scaling & fullscreen toggle), Notification Center, Sleep, Restart, and Shutdown.
+- **Built-in Browser (`متصفح الإنترنت`)**: Address bar, history navigation, bookmarks, fullscreen/maximize window support, and **viewport zoom controls (50%–150% + Fit)** so full pages display cleanly inside the browser window.
+- **Productivity Suite**:
+  - **Word (`Word / معالج النصوص`)**: Floating Word 365 ribbon, rich text formatting, Find & Replace, Read Mode, paper themes, TXT import/export.
+  - **Excel (`Excel / الجداول`)**: Forest Green UI, formula engine (`=SUM`, `=AVERAGE`, `=MIN`, `=MAX`, `=COUNT`, arithmetic & cell refs), multi-sheet tabs, sorting/filtering, CSV import/export.
+  - **Paint (`الرسام`)**: Pencil, Brush, Flood Fill, Eraser, Eyedropper, Text, Shapes, Selection/Crop, Rotate 90°, Flip Horizontal, Gridlines, PNG export.
+  - **Notepad & Calculator & Command Shell (`المفكرة`, `الحاسبة`, `Command`)**.
+- **Media & Files**:
+  - **Windows Media Player 11 (`مشغل الموسيقى`)**: Dark Aero interface, animated canvas wave & spectrum bars, 3D Play orb, Library/Queue/Effects, built-in synthesized demo tracks, and local audio import.
+  - **Photos (`الصور`) & Video Player (`مشغل الفيديو`) & File Viewer (`مشغل PDF`)**.
+  - **This PC (`هذا الكمبيوتر`) & Recycle Bin (`سلة المحذوفات`)**: Persistent virtual filesystem (`C:`), file import/creation, contextual Recycle Bin ribbon, restore, and permanent delete.
+- **Games & System**: Snake (14×14), Number Challenge (1–20), Task Manager, Control Panel / Settings (wallpapers, display scale, sound toggle).
 
-## الحصول على APK
-كل دفع إلى فرع `main` أو تشغيل يدوي لسير عمل **Build Orkeit Desktop APK** من تبويب Actions يبني APK تجريبيًا. افتح نتيجة التشغيل الناجحة ثم قسم **Artifacts** ونزّل `orkeit-desktop-debug-apk`. هذا APK للتجربة؛ قبل النشر العام يلزم توقيع إصدار Release بمفتاح آمن.
+## Development
 
-## البناء
-يتطلب JDK 17 وAndroid SDK وGradle 8.9:
 ```bash
-gradle assembleDebug
+npm install
+npm run dev
 ```
-الناتج: `app/build/outputs/apk/debug/app-debug.apk`
 
-## حدود مهمة
-هذا تطبيق أندرويد أصلي لكنه **ليس نظام Windows كاملًا أو محاكيًا**. لا يشغّل ملفات Windows `.exe` ولا يضم Chrome المكتبي. المتصفح يفتح المواقع في متصفح الجهاز، والملفات تُفتح عبر التطبيقات المناسبة المثبتة على أندرويد. تشغيل برامج Windows الحقيقية يحتاج طبقة توافق/محاكاة متخصصة أو جهاز Windows بعيدًا.
+Build for production:
 
-المستودع مستقل ولا يعتمد على Firebase أو تطبيق Oriket لزيارات الدفاع المدني.
-
-
-## Google Play release
-
-The project now targets Android 16 / API 36 and has a separate `play` flavor. To create a signed Google Play App Bundle, configure the four upload-key secrets described in [GOOGLE_PLAY_RELEASE.md](GOOGLE_PLAY_RELEASE.md), then run **Build Google Play App Bundle** from GitHub Actions. The output is an `.aab` artifact; this workflow does not publish to Play Console automatically.
-
-The Play flavor removes `REQUEST_INSTALL_PACKAGES` and disables GitHub APK self-updates so Google Play remains the update channel. Publish the privacy policy at a public URL before submitting; see `docs/privacy-policy.html` and enable GitHub Pages with the GitHub Actions source.
-
-The direct-download APK and Google Play build are separate distribution variants. Because their signing certificates can differ, do not assume the Play version can update an already installed debug-signed APK without reinstalling.
-
-## إعدادات سطح المكتب والإشعارات
-- مركز إعدادات قابل للبحث للوصول إلى إعدادات الشبكة والصوت والشاشة والبطارية وإشعارات التطبيق.
-- مركز إشعارات داخلي يعرض إشعارات الجلسة الحالية، مع إمكانية مسحها وفتح إعدادات إشعارات Android.
+```bash
+npm run build
+```
