@@ -246,7 +246,7 @@ export const Wmp11App: React.FC<Wmp11AppProps> = ({
       />
 
       {/* Top WMP11 Aero Glass Toolbar */}
-      <div className="h-10 px-3 bg-gradient-to-b from-[#1D2B44] to-[#0E1626] border-b border-white/10 flex items-center gap-2 text-xs">
+      <div className="h-8 px-2.5 bg-gradient-to-b from-[#1D2B44] to-[#0E1626] border-b border-white/10 flex items-center gap-2 text-xs">
         <div className="flex items-center gap-1">
           <button
             type="button"
