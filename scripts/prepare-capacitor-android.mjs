@@ -71,4 +71,67 @@ if (existsSync(iconSource)) {
   writeFileSync(`${adaptiveDir}/ic_launcher_round.xml`, adaptiveIcon);
 }
 
+
+
+/* Install Google Mobile Ads App Open ad support without adding banner/interstitial ads. */
+const javaDir = 'android/app/src/main/java/com/orkeit/desktop';
+mkdirSync(javaDir, { recursive: true });
+const mainActivity = String.raw\`package com.orkeit.desktop;
+
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.FullScreenContentCallback;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.appopen.AppOpenAd;
+
+public class MainActivity extends BridgeActivity {
+    private static final String APP_OPEN_AD_UNIT_ID = "ca-app-pub-6392100417582868/6096867927";
+    private AppOpenAd appOpenAd;
+    private boolean adShowing = false;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        MobileAds.initialize(this, initializationStatus -> loadAppOpenAd());
+    }
+
+    private void loadAppOpenAd() {
+        AdRequest request = new AdRequest.Builder().build();
+        AppOpenAd.load(this, APP_OPEN_AD_UNIT_ID, request,
+            new AppOpenAd.AppOpenAdLoadCallback() {
+                @Override
+                public void onAdLoaded(AppOpenAd ad) {
+                    appOpenAd = ad;
+                    if (!isFinishing() && !isDestroyed() && !adShowing) {
+                        adShowing = true;
+                        ad.setFullScreenContentCallback(new FullScreenContentCallback() {
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                appOpenAd = null;
+                                adShowing = false;
+                            }
+
+                            @Override
+                            public void onAdFailedToShowFullScreenContent(
+                                    com.google.android.gms.ads.AdError adError) {
+                                appOpenAd = null;
+                                adShowing = false;
+                            }
+                        });
+                        ad.show(MainActivity.this);
+                    }
+                }
+
+                @Override
+                public void onAdFailedToLoad(LoadAdError error) {
+                    appOpenAd = null;
+                }
+            });
+    }
+}
+\`;
+writeFileSync(\`\${javaDir}/MainActivity.java\`, mainActivity);
+
 console.log('Prepared Capacitor Android project: ' + versionName + ' (versionCode ' + versionCode + '), landscape, stable package ID, and preserved AdMob app ID.');
