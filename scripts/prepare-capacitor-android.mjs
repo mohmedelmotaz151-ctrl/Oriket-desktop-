@@ -87,6 +87,10 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.appopen.AppOpenAd;
 
 public class MainActivity extends BridgeActivity {
+    private static final String APP_OPEN_AD_UNIT_ID = "ca-app-pub-6392100417582868/6096867927";
+    private AppOpenAd appOpenAd;
+    private boolean adShowing = false;
+
     private void enableImmersiveFullscreen() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             getWindow().setDecorFitsSystemWindows(false);
@@ -126,15 +130,6 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) enableImmersiveFullscreen();
     }
-    private static final String APP_OPEN_AD_UNIT_ID = "ca-app-pub-6392100417582868/6096867927";
-    private AppOpenAd appOpenAd;
-    private boolean adShowing = false;
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        MobileAds.initialize(this, initializationStatus -> loadAppOpenAd());
-    }
 
     private void loadAppOpenAd() {
         AdRequest request = new AdRequest.Builder().build();
@@ -171,6 +166,6 @@ public class MainActivity extends BridgeActivity {
     }
 }
 \`;
-writeFileSync(\`\${javaDir}/MainActivity.java\`, mainActivity);
+writeFileSync(javaDir + '/MainActivity.java', mainActivity);
 
 console.log('Prepared Capacitor Android project: ' + versionName + ' (versionCode ' + versionCode + '), landscape, stable package ID, and preserved AdMob app ID.');
