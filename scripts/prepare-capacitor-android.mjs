@@ -168,4 +168,24 @@ public class MainActivity extends BridgeActivity {
 `;
 writeFileSync(javaDir + '/MainActivity.java', mainActivity);
 
+/* Use the original Oriket upload keystore when GitHub Actions secrets are supplied.
+   Never commit the keystore or passwords to the repository. */
+const keystoreBase64 = process.env.ANDROID_KEYSTORE_BASE64;
+if (keystoreBase64) {
+  const keystorePassword = process.env.ANDROID_KEYSTORE_PASSWORD;
+  const keyPassword = process.env.ANDROID_KEY_PASSWORD || keystorePassword;
+  if (!keystorePassword || !keyPassword) {
+    throw new Error('Missing ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_PASSWORD GitHub secret.');
+  }
+  const keystoreFile = 'orkeit-upload-keystore.p12';
+  writeFileSync('android/app/' + keystoreFile, Buffer.from(keystoreBase64.replace(/\\s/g, ''), 'base64'));
+  let signedGradle = readFileSync(gradlePath, 'utf8');
+  if (!signedGradle.includes('ORKEIT_ORIGINAL_UPLOAD_SIGNING')) {
+    signedGradle += '\\n\\n// ORKEIT_ORIGINAL_UPLOAD_SIGNING\\nandroid {\\n    signingConfigs {\\n        release {\\n            storeFile file("' + keystoreFile + '")\\n            storeType "PKCS12"\\n            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")\\n            keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "orkeit-play-upload"\\n            keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")\\n        }\\n    }\\n    buildTypes {\\n        debug {\\n            signingConfig signingConfigs.release\\n        }\\n        release {\\n            signingConfig signingConfigs.release\\n        }\\n    }\\n}\\n';
+    writeFileSync(gradlePath, signedGradle);
+  }
+  console.log('Original Oriket upload signing configured from environment secrets.');
+} else {
+  console.log('No upload keystore secret supplied; preserving the repository fallback signing behavior.');
+}
 console.log('Prepared Capacitor Android project: ' + versionName + ' (versionCode ' + versionCode + '), landscape, stable package ID, and preserved AdMob app ID.');
