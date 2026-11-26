@@ -1,6 +1,8 @@
 name: Validate Oriket Android terminal changes
 
 on:
+  push:
+    branches: [ feature/termux-linux-terminal ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
