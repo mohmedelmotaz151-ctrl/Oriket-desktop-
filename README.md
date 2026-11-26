@@ -23,6 +23,9 @@ Oriket Desktop is a React + TypeScript + Vite desktop environment with a Windows
 - Grant Oriket Desktop the **Run commands in Termux environment** permission in Android app settings.
 - Install Nmap from Termux with `pkg update && pkg install nmap`.
 - This bridge runs non-interactive commands and returns their output; interactive full-screen TTY programs (for example editors such as nano, top, or htop) should be opened directly in Termux.
+- Command includes quick actions for Linux identity/kernel/files, Android device and storage information, network interfaces/routes, Python installation and a Python runtime check, plus security-tool installation and availability checks.
+- Optional Termux packages: install Python with `pkg install python`; install the security toolkit with `pkg install nmap dnsutils whois openssl curl netcat-openbsd`.
+- Network diagnostics include `ip`, `ping`, `nslookup`, `traceroute`, `curl` and Nmap. Nmap scans require explicit authorization; the app asks for confirmation before running Nmap commands.
 - Only scan networks and devices that you own or are explicitly authorized to test.
 
 ## Build locally
