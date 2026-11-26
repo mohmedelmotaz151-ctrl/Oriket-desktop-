@@ -163,15 +163,12 @@ const TermuxTerminal: React.FC = () => {
     try {
       const result = await TermuxBridge.runCommand({ command, workingDirectory: cwd });
       const stdout = result.stdout || '';
-      const cwdMatch = stdout.match(/\\n__ORKIT_CWD__(.+)\\s*$/);
-      const exitMatch = stdout.match(/\\n__ORKIT_EXIT__(\\d+)\\n/);
-      const clean = stdout.replace(/\\n__ORKIT_EXIT__\\d+\\n__ORKIT_CWD__.+\\s*$/, '').trimEnd();
-      if (cwdMatch && cwdMatch[1]) setCwd(cwdMatch[1].trim());
+      const clean = stdout.trimEnd();
       const output = [];
       if (clean) output.push(...clean.split('\\n'));
       if (result.stderr) output.push(...result.stderr.trimEnd().split('\\n'));
       if (result.errorMessage) output.push('Termux error: ' + result.errorMessage);
-      output.push('[exit code: ' + (exitMatch ? Number(exitMatch[1]) : result.exitCode) + ']');
+      output.push('[exit code: ' + result.exitCode + ']');
       append(output);
     } catch (error) {
       append([
