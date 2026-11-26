@@ -161,11 +161,7 @@ const TermuxTerminal: React.FC = () => {
     setRunning(true);
     append(['$ ' + cwd + ' ' + shown]);
     try {
-      const wrapper = 'set +e; eval "$1"; __orkit_status=$?; printf "\\n__ORKIT_EXIT__%s\\n__ORKIT_CWD__%s\\n" "$__orkit_status" "$PWD"; exit "$__orkit_status"';
-      const result = await TermuxBridge.runCommand({
-        command: wrapper + '\n' + command,
-        workingDirectory: cwd,
-      });
+      const result = await TermuxBridge.runCommand({ command, workingDirectory: cwd });
       const stdout = result.stdout || '';
       const cwdMatch = stdout.match(/\\n__ORKIT_CWD__(.+)\\s*$/);
       const exitMatch = stdout.match(/\\n__ORKIT_EXIT__(\\d+)\\n/);
