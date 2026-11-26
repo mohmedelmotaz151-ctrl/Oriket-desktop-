@@ -120,7 +120,6 @@ const TermuxTerminal: React.FC = () => {
   const [input, setInput] = useState('');
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [running, setRunning] = useState(false);
-  const [cwd, setCwd] = useState('~/');
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,9 +158,9 @@ const TermuxTerminal: React.FC = () => {
       return;
     }
     setRunning(true);
-    append(['$ ' + cwd + ' ' + shown]);
+    append(['$ ' + shown]);
     try {
-      const result = await TermuxBridge.runCommand({ command, workingDirectory: cwd });
+      const result = await TermuxBridge.runCommand({ command, workingDirectory: '~/' });
       const stdout = result.stdout || '';
       const clean = stdout.trimEnd();
       const output = [];
@@ -188,7 +187,8 @@ const TermuxTerminal: React.FC = () => {
     if (command === 'help') {
       append([
         'Linux commands run in the real Termux environment.',
-        'Basic: pwd, whoami, ls, cd, date, uname -a',
+        'Basic: pwd, whoami, ls, date, uname -a',
+        'Directory: use cd /path && command in one line (commands start in Termux home).',
         'Packages: pkg update && pkg upgrade',
         'Install Nmap: pkg install nmap',
         'Host discovery: nmap -sn 192.168.1.0/24',
@@ -205,12 +205,6 @@ const TermuxTerminal: React.FC = () => {
       return;
     }
     if (command === 'install-nmap') { await execute('pkg update -y && pkg install nmap -y'); return; }
-    if (command === 'pwd') { append([cwd.replace(/^~/, '/data/data/com.termux/files/home')]); return; }
-    if (command === 'cd' || command.startsWith('cd ')) {
-      const target = command.slice(2).trim() || '~';
-      await execute('cd ' + target + '; pwd', command);
-      return;
-    }
     if (/(^|[;&|\\s])(rm\\s+-rf|mkfs|dd\\s+if=|wipefs|reboot|shutdown)(\\s|$)/i.test(command)) {
       if (!window.confirm('This command may delete data or change device state. Run it anyway?')) return;
     }
