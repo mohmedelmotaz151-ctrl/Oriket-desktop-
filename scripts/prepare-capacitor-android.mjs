@@ -85,7 +85,7 @@ if (existsSync(iconSource)) {
 /* Install Google Mobile Ads App Open ad support without adding banner/interstitial ads. */
 const javaDir = 'android/app/src/main/java/com/orkeit/desktop';
 mkdirSync(javaDir, { recursive: true });
-const mainActivity = String.raw`package com.orkeit.desktop;
+let mainActivity = String.raw`package com.orkeit.desktop;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
