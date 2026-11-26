@@ -51,6 +51,15 @@ if (!activityTag) throw new Error('Could not locate Capacitor MainActivity in An
 if (!/android:screenOrientation=/.test(activityTag[0])) {
   manifest = manifest.replace(activityTag[0], activityTag[0].replace(/>$/, ' android:screenOrientation="landscape">'));
 }
+if (!manifest.includes('uses-permission android:name="com.termux.permission.RUN_COMMAND"')) {
+  manifest = manifest.replace(/<manifest[^>]*>/, (tag) => tag + '\n    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />');
+}
+if (!manifest.includes('<queries>')) {
+  manifest = manifest.replace(/<application\b/, '<queries>\n        <package android:name="com.termux" />\n    </queries>\n    <application');
+}
+if (!manifest.includes('android:name=".TermuxResultService"')) {
+  manifest = manifest.replace('</application>', '    <service android:name=".TermuxResultService" android:exported="false" />\n    </application>');
+}
 writeFileSync(manifestPath, manifest);
 /* Restore the Windows Start logo as the Android launcher icon. */
 const iconSource = 'public/icons/win11_start.png';
