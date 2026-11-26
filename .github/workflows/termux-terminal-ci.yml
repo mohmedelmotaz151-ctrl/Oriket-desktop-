@@ -36,6 +36,8 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+      - name: Validate Android generator syntax
+        run: node --check scripts/prepare-capacitor-android.mjs
       - name: Generate native plugins and Android permissions
         env:
           VERSION_CODE: '136'
