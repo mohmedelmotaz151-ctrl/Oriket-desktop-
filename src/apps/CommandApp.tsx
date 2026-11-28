@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { TermuxBridge } from '../utils/termuxBridge';
 import { getWorkspaceFiles } from '../utils/virtualFs';
 
-export const CommandApp: React.FC = () => {
+const LegacyCommandApp: React.FC = () => {
   const [lines, setLines] = useState<string[]>([
     'Oriket Desktop Command Shell [Version 1.0.0]',
     '(c) Oriket Systems. Type "help" for available commands.',
@@ -107,3 +109,180 @@ export const CommandApp: React.FC = () => {
     </div>
   );
 };
+
+
+const TermuxTerminal: React.FC = () => {
+  const [lines, setLines] = useState<string[]>([
+    'Oriket Linux Terminal [Android / Termux]',
+    'Checking Termux connection...',
+    '',
+  ]);
+  const [input, setInput] = useState('');
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [running, setRunning] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    TermuxBridge.checkInstalled().then(({ installed: found }) => {
+      setInstalled(found);
+      setLines((prev) => [...prev, found
+        ? 'Termux detected. Type "setup" for one-time permission instructions.'
+        : 'Termux is not installed. Install it from the official F-Droid page.', '']);
+    }).catch(() => {
+      setInstalled(false);
+      setLines((prev) => [...prev, 'Could not detect Termux. Type "setup" for help.', '']);
+    });
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [lines, running]);
+
+  const append = (values: string[]) => setLines((prev) => [...prev, ...values, '']);
+
+  const showSetup = () => append([
+    'ONE-TIME SETUP',
+    '1. Install Termux from F-Droid: https://f-droid.org/packages/com.termux/',
+    '2. Open Termux once and wait for setup to finish.',
+    '3. In Termux run: mkdir -p ~/.termux && echo \'allow-external-apps=true\' >> ~/.termux/termux.properties',
+    '4. Close and reopen Termux to apply the setting.',
+    '5. Android Settings > Apps > Oriket Desktop > Permissions > Additional permissions.',
+    '6. Allow "Run commands in Termux environment".',
+    '7. In Termux run: pkg update && pkg install nmap',
+    'Guide: https://github.com/termux/termux-app/wiki/RUN_COMMAND-Intent',
+  ]);
+
+  const execute = async (command: string, shown = command) => {
+    if (installed !== true) {
+      append(['Termux is not ready. Type "setup" for instructions.']);
+      return;
+    }
+    setRunning(true);
+    append(['$ ' + shown]);
+    try {
+      const result = await TermuxBridge.runCommand({ command, workingDirectory: '~/' });
+      const stdout = result.stdout || '';
+      const clean = stdout.trimEnd();
+      const output = [];
+      if (clean) output.push(...clean.split(/\r?\n/));
+      if (result.stderr) output.push(...result.stderr.trimEnd().split(/\r?\n/));
+      if (result.errorMessage) output.push('Termux error: ' + result.errorMessage);
+      output.push('[exit code: ' + result.exitCode + ']');
+      append(output);
+    } catch (error) {
+      append([
+        error instanceof Error ? error.message : 'Command failed.',
+        'Check allow-external-apps=true and Oriket permission. Type "setup".',
+      ]);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const run = async (raw: string) => {
+    const command = raw.trim();
+    if (!command || running) return;
+    setInput('');
+    if (command === 'clear' || command === 'cls') { setLines([]); return; }
+    if (command === 'help') {
+      append([
+        'Linux commands run in the real Termux environment.',
+        'Basic: pwd, whoami, ls, date, uname -a',
+        'Directory: use cd /path && command in one line (commands start in Termux home).',
+        'Packages: pkg update && pkg upgrade',
+        'Install Nmap: pkg install nmap',
+        'Host discovery: nmap -sn 192.168.1.0/24',
+        'Service scan: nmap -sV 192.168.1.1',
+        'System: system-info, linux-info, network-info',
+        'Python: install-python, python-check (requires Python package)',
+        'Security: install-security-tools, security-tools, nmap --help',
+        'Special: setup, open-termux, install-nmap, clear',
+        'Only scan networks and devices you own or are authorized to test.',
+      ]);
+      return;
+    }
+    if (command === 'setup') { showSetup(); return; }
+    if (command === 'open-termux') {
+      try { await TermuxBridge.openTermux(); append(['Opening Termux...']); }
+      catch (error) { append([error instanceof Error ? error.message : 'Could not open Termux.']); }
+      return;
+    }
+    if (command === 'install-nmap') { await execute('pkg update -y && pkg install nmap -y'); return; }
+    if (command === 'install-python') { await execute('pkg update -y && pkg install python -y'); return; }
+    if (command === 'install-security-tools') {
+      await execute('pkg update -y && pkg install nmap dnsutils whois openssl curl netcat-openbsd -y');
+      return;
+    }
+    if (command === 'linux-info') {
+      await execute('printf "USER: "; whoami; printf "HOME: "; pwd; printf "KERNEL: "; uname -a; printf "FILES: \n"; ls -la');
+      return;
+    }
+    if (command === 'network-info') {
+      await execute('printf "INTERFACES: \n"; ip -brief addr; printf "ROUTES: \n"; ip route; printf "WIFI IP: "; getprop dhcp.wlan0.ipaddress; printf "WIFI GATEWAY: "; getprop dhcp.wlan0.gateway');
+      return;
+    }
+    if (command === 'system-info') {
+      await execute('printf "DEVICE: "; getprop ro.product.model; printf "ANDROID: "; getprop ro.build.version.release; printf "KERNEL: "; uname -r; printf "UPTIME: "; uptime; printf "STORAGE: \n"; df -h; printf "MEMORY: \n"; head -n 8 /proc/meminfo');
+      return;
+    }
+    if (command === 'python-check') {
+      await execute("python -c \"print('Python is ready in Oriket Command')\"");
+      return;
+    }
+    if (command === 'security-tools') {
+      await execute('for tool in nmap nslookup whois openssl curl nc; do printf "%-12s" "$tool"; command -v "$tool" || true; done; openssl version');
+      return;
+    }
+    if (/(^|[;&|\s])(rm\s+-rf|mkfs|dd\s+if=|wipefs|reboot|shutdown)(\s|$)/i.test(command)) {
+      if (!window.confirm('This command may delete data or change device state. Run it anyway?')) return;
+    }
+    if (/\bnmap\b/i.test(command)) {
+      if (!window.confirm('Only scan devices or networks you own or are explicitly authorized to test. Continue?')) return;
+    }
+    await execute(command);
+  };
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col bg-[#080D14] text-[#D8E2F0] font-mono text-xs rounded-lg overflow-hidden" dir="ltr">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[#111A27] border-b border-white/10">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+          <span className="font-semibold text-white truncate">ORIKET LINUX TERMINAL</span>
+          <span className="text-[10px] text-slate-400">TERMUX</span>
+        </div>
+        <span className={'text-[10px] ' + (installed ? 'text-emerald-300' : 'text-amber-300')}>
+          {installed ? 'CONNECTED' : installed === false ? 'SETUP REQUIRED' : 'CHECKING'}
+        </span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed p-3">
+        {lines.map((line, index) => <div key={index}>{line}</div>)}
+        {running && <div className="text-amber-300">Running command...</div>}
+        <div ref={endRef} />
+      </div>
+      <div className="flex flex-wrap gap-2 px-3 py-2 border-t border-white/10 bg-[#101722]">
+        <button type="button" onClick={showSetup} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">Setup</button>
+        <button type="button" onClick={() => run('install-nmap')} disabled={!installed || running} className="px-2 py-1 rounded bg-sky-800 hover:bg-sky-700 disabled:opacity-40">Install Nmap</button>
+        <button type="button" onClick={() => run('nmap --version')} disabled={!installed || running} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40">Nmap version</button>
+        <button type="button" onClick={() => run('open-termux')} disabled={!installed} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40">Open Termux</button>
+        <button type="button" onClick={() => run('linux-info')} disabled={!installed || running} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40">Linux info</button>
+        <button type="button" onClick={() => run('network-info')} disabled={!installed || running} className="px-2 py-1 rounded bg-sky-900 hover:bg-sky-800 disabled:opacity-40">Network info</button>
+        <button type="button" onClick={() => run('system-info')} disabled={!installed || running} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40">System info</button>
+        <button type="button" onClick={() => run('python-check')} disabled={!installed || running} className="px-2 py-1 rounded bg-emerald-900 hover:bg-emerald-800 disabled:opacity-40">Python check</button>
+        <button type="button" onClick={() => run('install-python')} disabled={!installed || running} className="px-2 py-1 rounded bg-emerald-900 hover:bg-emerald-800 disabled:opacity-40">Install Python</button>
+        <button type="button" onClick={() => run('install-security-tools')} disabled={!installed || running} className="px-2 py-1 rounded bg-rose-900 hover:bg-rose-800 disabled:opacity-40">Install security tools</button>
+        <button type="button" onClick={() => run('security-tools')} disabled={!installed || running} className="px-2 py-1 rounded bg-rose-900 hover:bg-rose-800 disabled:opacity-40">Security tools</button>
+      </div>
+      <form onSubmit={(event) => { event.preventDefault(); void run(input); }} className="flex items-center gap-2 px-3 py-3 border-t border-white/10">
+        <span className="text-emerald-400 shrink-0">$&nbsp;</span>
+        <input type="text" value={input} onChange={(event) => setInput(event.target.value)} placeholder={installed ? 'Enter a Linux command...' : 'Type setup for instructions...'} disabled={running} className="flex-1 min-w-0 bg-transparent text-white focus:outline-none disabled:opacity-50" autoComplete="off" autoCapitalize="off" spellCheck={false} />
+        <button type="submit" disabled={running || !input.trim()} className="px-3 py-1.5 rounded bg-[#B4232D] text-white font-semibold disabled:opacity-40">Run</button>
+      </form>
+      <div className="px-3 pb-2 text-[10px] text-slate-500">
+        Commands execute with your Termux user permissions. Scan only authorized networks.
+      </div>
+    </div>
+  );
+};
+
+export const CommandApp: React.FC = () =>
+  Capacitor.isNativePlatform() ? <TermuxTerminal /> : <LegacyCommandApp />;
